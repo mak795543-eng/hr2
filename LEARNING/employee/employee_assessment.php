@@ -1,7 +1,7 @@
 ﻿<?php
 session_start();
 
-require_once __DIR__ . '../../../../db.php';
+require __DIR__ . '/../db.php';
 
 $conn = usm_db_connect('learning_db');
 if ($conn->connect_error) {
@@ -753,8 +753,8 @@ $conn->close();
       });
     </script>
   <?php endif; ?>
-  <script src="../../../soliera.js"></script>
-  <script src="../../../sidebar.js"></script>
+   <script src="../../soliera.js"></script>
+  <script src="../../sidebar.js"></script>
 </body>
 </html>
 

@@ -710,7 +710,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         }
 
         try {
-            $stmt3 = $conn->prepare("INSERT INTO training_program_status_logs (program_id, old_status, new_status, reason) VALUES (?, NULLIF(?, ''), ?, NULLIF(?, ''))");
+            $stmt3 = $conn->prepare("INSERT INTO training_program_status_logs (program_id, old_status, new_status, reason) VALUES (?, ?, ?, NULLIF(?, ''))");
             $reason = 'Edited';
             $stmt3->bind_param('isss', $programId, $oldStatus, $status, $reason);
             $stmt3->execute();
@@ -800,11 +800,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     header('Content-Type: application/json; charset=utf-8');
 
     try {
+        error_log("update_program_status called: " . print_r($_POST, true));
+        
         $programId = (int)($_POST['program_id'] ?? 0);
         $status = trim((string)($_POST['status'] ?? ''));
         $reason = trim((string)($_POST['reason'] ?? ''));
 
+        error_log("Parsed data: programId=$programId, status=$status, reason=$reason");
+
         if ($programId <= 0 || $status === '') {
+            error_log("Validation failed: missing program_id or status");
             echo json_encode(['success' => false, 'message' => 'Missing program_id or status.']);
             exit;
         }
@@ -812,6 +817,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         $allowed = ['Under Review', 'Pending', 'Approved', 'Rejected', 'For Compliance', 'Planned', 'Scheduled', 'Ongoing', 'Completed', 'Cancelled'];
         $allowed[] = 'ON HOLD';
         if (!in_array($status, $allowed, true)) {
+            error_log("Validation failed: invalid status");
             echo json_encode(['success' => false, 'message' => 'Invalid status.']);
             exit;
         }
@@ -912,7 +918,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             }
         }
 
-        $stmt3 = $conn->prepare("INSERT INTO training_program_status_logs (program_id, old_status, new_status, reason) VALUES (?, NULLIF(?, ''), ?, NULLIF(?, ''))");
+        $stmt3 = $conn->prepare("INSERT INTO training_program_status_logs (program_id, old_status, new_status, reason) VALUES (?, ?, ?, NULLIF(?, ''))");
         $stmt3->bind_param('isss', $programId, $oldStatus, $status, $reason);
         $stmt3->execute();
 
@@ -1063,13 +1069,13 @@ try {
     <!-- Sidebar -->
     <?php 
     // Use relative path or absolute path based on your directory structure
-    include '../../../USM/sidebarr.php'; 
+    include '../../USM/sidebarr.php'; 
     ?>
 
     <!-- Content Area -->
     <div class="flex flex-col flex-1 overflow-auto">
       <!-- Navbar -->
-      <?php include '../../../USM/navbar.php'; ?>
+      <?php include '../../USM/navbar.php'; ?>
     
             
             <main class="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto">
@@ -1770,8 +1776,8 @@ try {
             <button>close</button>
         </form>
     </dialog>
- <script src="../../../soliera.js"></script>
-  <script src="../../../sidebar.js"></script>
+ <script src="../../soliera.js"></script>
+  <script src="../../sidebar.js"></script>
     <script src="main.js"></script>
 </body>
 </html>

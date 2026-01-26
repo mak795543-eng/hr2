@@ -133,18 +133,6 @@ if (!function_exists('hasAccess')) {
                             Create Training Program
                         </span>
                     </a>
-                    <a href="<?php echo $base_url; ?>TRAINING/TRAINING/review.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
-                        <span class="flex items-center gap-2">
-                            <i data-lucide="eye" class="w-4 h-4 text-[#F7B32B]"></i>
-                            Review Training Programs
-                        </span>
-                    </a>
-                    <a href="<?php echo $base_url; ?>TRAINING/TRAINING/trainingprogram.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
-                        <span class="flex items-center gap-2">
-                            <i data-lucide="file-edit" class="w-4 h-4 text-[#F7B32B]"></i>
-                            Training Program 
-                        </span>
-                    </a>
                     <a href="<?php echo $base_url; ?>TRAINING/TRAINING/posted_trainings.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
                         <span class="flex items-center gap-2">
                             <i data-lucide="send" class="w-4 h-4 text-[#F7B32B]"></i>
@@ -253,7 +241,7 @@ if (!function_exists('hasAccess')) {
                     <i class="w-4 h-4 text-blue-200 transform transition-transform duration-200 peer-checked:rotate-90 dropdown-icon" data-lucide="chevron-down"></i>
                 </div>
                 <div class="collapse-content pl-14 pr-4 py-1 space-y-1"> 
-                    <a href="<?php echo $base_url; ?>TRAINING/TRAINING/request_logs.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
+                    <a href="<?php echo $base_url; ?>TRAINING/TRAINING/review.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
                         <span class="flex items-center gap-2">
                             <i data-lucide="check-circle" class="w-4 h-4 text-[#F7B32B]"></i>
                             Training Approvals
