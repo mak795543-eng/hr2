@@ -15,6 +15,7 @@ $conn->close();
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Assessment Uploaded</title>
   <script src="https://cdn.tailwindcss.com"></script>
+         <script src="https://unpkg.com/lucide@latest"></script>
   <link href="https://cdn.jsdelivr.net/npm/daisyui@4.6.0/dist/full.css" rel="stylesheet" type="text/css" />
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <link rel="stylesheet" href="../../CSS/sidebar.css">
@@ -52,7 +53,10 @@ $conn->close();
       </div>
     </div>
   </div>
-  <script src="../../soliera.js"></script>
+<script>
+    lucide.createIcons();
+  </script>
+   <script src="../../soliera.js"></script>
   <script src="../../sidebar.js"></script>
 </body>
 </html>

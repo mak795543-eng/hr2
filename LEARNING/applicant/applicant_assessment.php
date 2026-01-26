@@ -562,13 +562,13 @@ $conn->close();
      <!-- Sidebar -->
      <?php 
      // Use relative path or absolute path based on your directory structure
-     include '../../../USM/sidebarr.php'; 
+     include '../../USM/sidebarr.php'; 
      ?>
 
      <!-- Content Area -->
      <div class="flex flex-col flex-1 overflow-auto">
        <!-- Navbar -->
-       <?php include '../../../USM/navbar.php'; ?>
+       <?php include '../../USM/navbar.php'; ?>
  <?php endif; ?>
 
  <?php if ($exam && !empty($questions)): ?>
@@ -1142,7 +1142,10 @@ $conn->close();
      </div>
    </div>
  <?php endif; ?>
-  <script src="../../../soliera.js"></script>
-  <script src="../../../sidebar.js"></script>
+<script>
+    lucide.createIcons();
+  </script>
+   <script src="../../soliera.js"></script>
+  <script src="../../sidebar.js"></script>
 </body>
 </html>
