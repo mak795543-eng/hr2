@@ -776,13 +776,13 @@ $conn->close();
     <!-- Sidebar -->
     <?php 
     // Use relative path or absolute path based on your directory structure
-    include '../../../USM/sidebarr.php'; 
+    include '../../USM/sidebarr.php'; 
     ?>
 
     <!-- Content Area -->
     <div class="flex flex-col flex-1 overflow-auto">
       <!-- Navbar -->
-      <?php include '../../../USM/navbar.php'; ?>
+      <?php include '../../USM/navbar.php'; ?>
 
         <!-- Notification Container -->
         <div id="notificationContainer"></div>
@@ -3035,7 +3035,7 @@ $conn->close();
 
   <!-- Include JavaScript file -->
   <script src="../../JS/learning_modules_repository.js"></script>
-   <script src="../../../soliera.js"></script>
-  <script src="../../../sidebar.js"></script>
+   <script src="../../soliera.js"></script>
+  <script src="../../sidebar.js"></script>
 </body>
 </html>

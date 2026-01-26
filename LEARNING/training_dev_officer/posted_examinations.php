@@ -257,17 +257,17 @@ sort($all_roles);
   </style>
 </head>
 <body class="bg-gray-50 min-h-screen">
-  <div class="flex h-screen">
+<div class="flex h-screen">
     <!-- Sidebar -->
     <?php 
     // Use relative path or absolute path based on your directory structure
-    include '../../../USM/sidebarr.php'; 
+    include '../../USM/sidebarr.php'; 
     ?>
 
     <!-- Content Area -->
     <div class="flex flex-col flex-1 overflow-auto">
       <!-- Navbar -->
-      <?php include '../../../USM/navbar.php'; ?>
+      <?php include '../../USM/navbar.php'; ?>
 
         <!-- Main Content -->
         <div class="container mx-auto px-4 py-8">

@@ -47,7 +47,7 @@ if (!function_exists('hasAccess')) {
                     <span class="ml-3 sidebar-text"> Dashboard</span>
                 </div>
             </a>
-             <a href="<?php echo $base_url; ?>HR/ESS/profile_management.php" class="block">
+             <a href="<?php echo $base_url; ?>ESS/profile_management.php" class="block">
                 <div class="flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-all hover:bg-blue-600/50 text-white group">
                     <div class="p-1.5 rounded-lg bg-blue-800/30 group-hover:bg-blue-700/50 transition-colors">
                         <i data-lucide="layout-dashboard" class="w-5 h-5 text-[#F7B32B] group-hover:text-white"></i>
@@ -75,31 +75,31 @@ if (!function_exists('hasAccess')) {
                     <i class="w-4 h-4 text-blue-200 transform transition-transform duration-200 peer-checked:rotate-90 dropdown-icon" data-lucide="chevron-down"></i>
                 </div>
                 <div class="collapse-content pl-14 pr-4 py-1 space-y-1"> 
-                    <a href="<?php echo $base_url; ?>HR/LEARNING/training_dev_officer/learning_module_repository.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
+                    <a href="<?php echo $base_url; ?>LEARNING/training_dev_officer/learning_module_repository.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
                         <span class="flex items-center gap-2">
                             <i data-lucide="library" class="w-4 h-4 text-[#F7B32B]"></i>
                             Learning Module Repository
                         </span>
                     </a>
-                    <a href="<?php echo $base_url; ?>HR/LEARNING/training_dev_officer/posted_modules.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
+                    <a href="<?php echo $base_url; ?>LEARNING/training_dev_officer/posted_modules.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
                         <span class="flex items-center gap-2">
                             <i data-lucide="upload" class="w-4 h-4 text-[#F7B32B]"></i>
                             Posted Learning Modules
                         </span>
                     </a>
-                    <a href="<?php echo $base_url; ?>HR/LEARNING/training_dev_officer/examination_repository.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
+                    <a href="<?php echo $base_url; ?>LEARNING/training_dev_officer/examination_repository.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
                         <span class="flex items-center gap-2">
                             <i data-lucide="file-text" class="w-4 h-4 text-[#F7B32B]"></i>
                             Examination Repository
                         </span>
                     </a>
-                    <a href="<?php echo $base_url; ?>HR/LEARNING/training_dev_officer/posted_examinations.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
+                    <a href="<?php echo $base_url; ?>LEARNING/training_dev_officer/posted_examinations.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
                         <span class="flex items-center gap-2">
                             <i data-lucide="clipboard-check" class="w-4 h-4 text-[#F7B32B]"></i>
                             Posted Examinations
                         </span>
                     </a>
-                    <a href="<?php echo $base_url; ?>HR/LEARNING/training_dev_officer/exam_results.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
+                    <a href="<?php echo $base_url; ?>LEARNING/training_dev_officer/exam_results.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
                         <span class="flex items-center gap-2">
                             <i data-lucide="bar-chart" class="w-4 h-4 text-[#F7B32B]"></i>
                             Examination Results
@@ -127,31 +127,31 @@ if (!function_exists('hasAccess')) {
                     <i class="w-4 h-4 text-blue-200 transform transition-transform duration-200 peer-checked:rotate-90 dropdown-icon" data-lucide="chevron-down"></i>
                 </div>
                 <div class="collapse-content pl-14 pr-4 py-1 space-y-1"> 
-                    <a href="<?php echo $base_url; ?>HR/TRAINING/TRAINING/trainingprogram.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
+                    <a href="<?php echo $base_url; ?>TRAINING/TRAINING/trainingprogram.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
                         <span class="flex items-center gap-2">
                             <i data-lucide="plus-circle" class="w-4 h-4 text-[#F7B32B]"></i>
                             Create Training Program
                         </span>
                     </a>
-                    <a href="<?php echo $base_url; ?>HR/TRAINING/TRAINING/review.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
+                    <a href="<?php echo $base_url; ?>TRAINING/TRAINING/review.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
                         <span class="flex items-center gap-2">
                             <i data-lucide="eye" class="w-4 h-4 text-[#F7B32B]"></i>
                             Review Training Programs
                         </span>
                     </a>
-                    <a href="<?php echo $base_url; ?>HR/TRAINING/TRAINING/trainingprogram.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
+                    <a href="<?php echo $base_url; ?>TRAINING/TRAINING/trainingprogram.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
                         <span class="flex items-center gap-2">
                             <i data-lucide="file-edit" class="w-4 h-4 text-[#F7B32B]"></i>
                             Training Program 
                         </span>
                     </a>
-                    <a href="<?php echo $base_url; ?>HR/TRAINING/TRAINING/posted_trainings.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
+                    <a href="<?php echo $base_url; ?>TRAINING/TRAINING/posted_trainings.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
                         <span class="flex items-center gap-2">
                             <i data-lucide="send" class="w-4 h-4 text-[#F7B32B]"></i>
                             Posted Trainings
                         </span>
                     </a>
-                    <a href="<?php echo $base_url; ?>HR/TRAINING/TRAINING/trainingrequest.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
+                    <a href="<?php echo $base_url; ?>TRAINING/TRAINING/trainingrequest.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
                         <span class="flex items-center gap-2">
                             <i data-lucide="clipboard-list" class="w-4 h-4 text-[#F7B32B]"></i>
                             Training Requests
@@ -179,13 +179,13 @@ if (!function_exists('hasAccess')) {
                     <i class="w-4 h-4 text-blue-200 transform transition-transform duration-200 peer-checked:rotate-90 dropdown-icon" data-lucide="chevron-down"></i>
                 </div>
                 <div class="collapse-content pl-14 pr-4 py-1 space-y-1"> 
-                    <a href="<?php echo $base_url; ?>HR/COMPETENCY/criticalgaps/criticalgaps/criticalgaps.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
+                    <a href="<?php echo $base_url; ?>COMPETENCY/criticalgaps/criticalgaps/criticalgaps.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
                         <span class="flex items-center gap-2">
                             <i data-lucide="alert-triangle" class="w-4 h-4 text-[#F7B32B]"></i>
                             Critical Gaps
                         </span>
                     </a>
-                    <a href="<?php echo $base_url; ?>HR/COMPETENCY/criticalgaps/criticalgaps/general_skills_management.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
+                    <a href="<?php echo $base_url; ?>COMPETENCY/criticalgaps/criticalgaps/general_skills_management.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
                         <span class="flex items-center gap-2">
                             <i data-lucide="target" class="w-4 h-4 text-[#F7B32B]"></i>
                             Competency Criteria
@@ -213,19 +213,19 @@ if (!function_exists('hasAccess')) {
                     <i class="w-4 h-4 text-blue-200 transform transition-transform duration-200 peer-checked:rotate-90 dropdown-icon" data-lucide="chevron-down"></i>
                 </div>
                 <div class="collapse-content pl-14 pr-4 py-1 space-y-1"> 
-                    <a href="<?php echo $base_url; ?>HR/SUCCESSION/HR_director/succession_dashboard.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
+                    <a href="<?php echo $base_url; ?>SUCCESSION/HR_director/succession_dashboard.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
                         <span class="flex items-center gap-2">
                             <i data-lucide="users" class="w-4 h-4 text-[#F7B32B]"></i>
                             Succession Plans
                         </span>
                     </a>
-                    <a href="<?php echo $base_url; ?>HR/SUCCESSION/HR_director/requested_idps_repository.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
+                    <a href="<?php echo $base_url; ?>SUCCESSION/HR_director/requested_idps_repository.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
                         <span class="flex items-center gap-2">
                             <i data-lucide="users" class="w-4 h-4 text-[#F7B32B]"></i>
                           IDP Requests
                         </span>
                     </a>
-                    <a href="<?php echo $base_url; ?>HR/SUCCESSION/HR_director/individual_development_plans.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
+                    <a href="<?php echo $base_url; ?>SUCCESSION/HR_director/individual_development_plans.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
                         <span class="flex items-center gap-2">
                             <i data-lucide="users" class="w-4 h-4 text-[#F7B32B]"></i>
                            IDP Repository
@@ -253,19 +253,19 @@ if (!function_exists('hasAccess')) {
                     <i class="w-4 h-4 text-blue-200 transform transition-transform duration-200 peer-checked:rotate-90 dropdown-icon" data-lucide="chevron-down"></i>
                 </div>
                 <div class="collapse-content pl-14 pr-4 py-1 space-y-1"> 
-                    <a href="<?php echo $base_url; ?>HR/TRAINING/TRAINING/request_logs.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
+                    <a href="<?php echo $base_url; ?>TRAINING/TRAINING/request_logs.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
                         <span class="flex items-center gap-2">
                             <i data-lucide="check-circle" class="w-4 h-4 text-[#F7B32B]"></i>
                             Training Approvals
                         </span>
                     </a>
-                    <a href="<?php echo $base_url; ?>HR/TRAINING/TRAINING/request_logs.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
+                    <a href="<?php echo $base_url; ?>TRAINING/TRAINING/request_logs.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
                         <span class="flex items-center gap-2">
                             <i data-lucide="list-checks" class="w-4 h-4 text-[#F7B32B]"></i>
                             Department Request Logs
                         </span>
                     </a>
-                    <a href="<?php echo $base_url; ?>HR/LEARNING/hr_manager/review_dashboard.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
+                    <a href="<?php echo $base_url; ?>LEARNING/hr_manager/review_dashboard.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
                         <span class="flex items-center gap-2">
                             <i data-lucide="book-open-check" class="w-4 h-4 text-[#F7B32B]"></i>
                             Learning & Examination Review
@@ -293,7 +293,7 @@ if (!function_exists('hasAccess')) {
                     <i class="w-4 h-4 text-blue-200 transform transition-transform duration-200 peer-checked:rotate-90 dropdown-icon" data-lucide="chevron-down"></i>
                 </div>
                 <div class="collapse-content pl-14 pr-4 py-1 space-y-1"> 
-                    <a href="<?php echo $base_url; ?>HR/LEARNING/applicant/applicant_assessment.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
+                    <a href="<?php echo $base_url; ?>LEARNING/applicant/applicant_assessment.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
                         <span class="flex items-center gap-2">
                             <i data-lucide="file-text" class="w-4 h-4 text-[#F7B32B]"></i>
                             Applicant Assessment
@@ -321,7 +321,7 @@ if (!function_exists('hasAccess')) {
                     <i class="w-4 h-4 text-blue-200 transform transition-transform duration-200 peer-checked:rotate-90 dropdown-icon" data-lucide="chevron-down"></i>
                 </div>
                 <div class="collapse-content pl-14 pr-4 py-1 space-y-1"> 
-                    <a href="<?php echo $base_url; ?>HR/TRAINING/TRAINING/employeedashboard.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
+                    <a href="<?php echo $base_url; ?>TRAINING/TRAINING/employeedashboard.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
                         <span class="flex items-center gap-2">
                             <i data-lucide="layout-dashboard" class="w-4 h-4 text-[#F7B32B]"></i>
                             Dashboard
