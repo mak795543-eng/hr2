@@ -1,6 +1,6 @@
 <?php
 session_start();
-
+// Check if user is logged in
 ?>
 <!DOCTYPE html>
 <html lang="en">
