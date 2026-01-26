@@ -42,11 +42,11 @@ $resolvePass = function (string $host, string $user, $passEnvValue) {
 if (!isset($targetDatabases) || !is_array($targetDatabases)) {
     $targetDatabases = [
         "job_desc",
-        "hr2_usmhr2",
+        "hr2usm",
         "learning_db",
         "schema_training_request",
         "critical_gaps",
-        "ESS_leave_db",
+        
 
 
     ];

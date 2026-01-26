@@ -1,6 +1,6 @@
 ﻿<?php
 
-require_once __DIR__ . '/../../COMPETENCY/criticalgaps/criticalgaps/config.php';
+require_once __DIR__ . '/../../COMPETENCY/criticalgaps/config.php';
 
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
