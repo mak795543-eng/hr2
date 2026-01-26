@@ -106,7 +106,12 @@ try {
 </head>
 <body class="bg-gray-50 min-h-screen" data-page="add-training" data-owner-key="<?= htmlspecialchars($ownerKey) ?>">
 <div class="flex h-screen">
-   
+    <!-- Sidebar -->
+    <?php 
+    // Use relative path or absolute path based on your directory structure
+    include '../../USM/sidebarr.php'; 
+    ?>
+
     <!-- Content Area -->
     <div class="flex flex-col flex-1 overflow-auto">
       <!-- Navbar -->

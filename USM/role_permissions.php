@@ -13,6 +13,7 @@ return [
         'table_reservation',
         'kitchen_orders',
         'inventory',
+        'gap_analysis',
         'menu_management',
         'event_management',
         'table_turnover',
@@ -32,6 +33,7 @@ return [
         'competency_management',
         'succession_planning',
         'approvals',
+        'gap_analysis',
         'employee_self_service',
         'applicant_assessment',
         'table_reservation',
@@ -49,12 +51,6 @@ return [
     
     ],
     
-    'admin' => [
-      
-        'analytics',
-        'user_management',
-       
-    ],
     // Manager - Department head access
     'manager' => [
         'dashboard',
