@@ -1,7 +1,6 @@
 <?php
 session_start();
 
-// testing user session variable
 ?>
 <!DOCTYPE html>
 <html lang="en">
