@@ -1,14 +1,14 @@
 <?php
 session_start();
-include("../db.php"); // your DB connection
+include("../main_connection.php"); // your DB connection
 
-// Redirect to ../index.php if not accessing the reset password functionality
+// Redirect to login_main.php if not accessing the reset password functionality
 if (!isset($_GET['token'])) {
-    header("Location: ../index.php");
+    header("Location: index.php");
     exit();
 }
 
-$db_name = "hr2_sub-user_management"; 
+$db_name = "rest_core_2_usm"; 
 if (!isset($connections[$db_name])) {
     die("❌ Connection not found for $db_name");
 }
@@ -28,17 +28,18 @@ $result = $stmt->get_result();
 $user = $result->fetch_assoc();
 
 if (!$user) {
-    header("Location: ../index.php?error=invalid_token");
+    header("Location: index.php.php?error=invalid_token");
     exit();
 }
 
 // Check if token is expired
 if (strtotime($user['expired_at']) < time()) {
-    header("Location: ../index.php?error=expired_token");
+    header("Location: index.php.php?error=expired_token");
     exit();
 }
 
 // Handle form submission
+$error = "";
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $new_password = $_POST['password'];
     $confirm_password = $_POST['confirm_password'];
@@ -54,15 +55,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // Update the user's password
         $update = $conn->prepare("UPDATE department_accounts SET password = ? WHERE employee_id = ?");
         $update->bind_param("ss", $hashed_password, $user['employee_id']);
-        $update->execute();
-
-        // Delete the token so it can't be reused
-        $del = $conn->prepare("DELETE FROM password_resets WHERE token = ?");
-        $del->bind_param("s", $token);
-        $del->execute();
-
-        header("Location: ../index.php?success=password_reset");
-        exit();
+        
+        if ($update->execute()) {
+            // Delete the token so it can't be reused
+            $del = $conn->prepare("DELETE FROM password_resets WHERE token = ?");
+            $del->bind_param("s", $token);
+            $del->execute();
+            
+            header("Location: index.php.php?success=password_reset");
+            exit();
+        } else {
+            $error = "Error updating password. Please try again.";
+        }
     }
 }
 ?>
@@ -297,7 +301,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             border-radius: 8px;
             margin-bottom: 20px;
             text-align: center;
-            display: none;
+            <?php echo !empty($error) ? 'display: block;' : 'display: none;'; ?>
         }
         
         .success-message {
@@ -321,15 +325,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <div class="reset-card">
             <h2>Reset Your Password</h2>
             
+            <?php if (!empty($error)): ?>
             <div class="error-message" id="errorMessage">
-                <i class="fas fa-exclamation-circle"></i> Passwords do not match
+                <i class="fas fa-exclamation-circle"></i> <?php echo $error; ?>
             </div>
+            <?php endif; ?>
             
             <div class="success-message" id="successMessage">
                 <i class="fas fa-check-circle"></i> Password successfully reset
             </div>
             
-            <form id="resetForm">
+            <form id="resetForm" method="POST" action="">
                 <div class="input-group">
                     <label for="password">New Password</label>
                     <i class="fas fa-lock"></i>
@@ -348,10 +354,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <div class="password-requirements">
                     <p>Password must include:</p>
                     <ul>
-                        <li><i class="fas fa-check"></i> At least 8 characters</li>
-                        <li><i class="fas fa-check"></i> One uppercase letter</li>
-                        <li><i class="fas fa-check"></i> One number</li>
-                        <li><i class="fas fa-check"></i> One special character</li>
+                        <li><i class="fas fa-check"></i> At least 6 characters</li>
+                        <li><i class="fas fa-check"></i> Matching confirmation</li>
                     </ul>
                 </div>
                 
@@ -359,7 +363,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </form>
             
             <div class="back-link">
-                <a href="../index.php"><i class="fas fa-arrow-left"></i> Back to Login</a>
+                <a href="index.php"><i class="fas fa-arrow-left"></i> Back to Login</a>
             </div>
         </div>
     </div>
@@ -378,10 +382,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 const password = passwordInput.value;
                 let strength = 0;
                 
-                if (password.length >= 8) strength += 25;
-                if (/[A-Z]/.test(password)) strength += 25;
-                if (/[0-9]/.test(password)) strength += 25;
-                if (/[^A-Za-z0-9]/.test(password)) strength += 25;
+                if (password.length >= 6) strength += 50;
+                if (password === confirmPasswordInput.value && password.length > 0) strength += 50;
                 
                 strengthFill.style.width = strength + '%';
                 
@@ -394,57 +396,45 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             });
             
-            // Form submission
+            // Confirm password input listener
+            confirmPasswordInput.addEventListener('input', function() {
+                // Update strength when confirm password changes
+                passwordInput.dispatchEvent(new Event('input'));
+            });
+            
+            // Form submission - client-side validation
             form.addEventListener('submit', function(e) {
-                e.preventDefault();
-                
                 const password = passwordInput.value;
                 const confirmPassword = confirmPasswordInput.value;
                 
                 // Hide messages
-                errorMessage.style.display = 'none';
-                successMessage.style.display = 'none';
+                if (errorMessage) errorMessage.style.display = 'none';
+                if (successMessage) successMessage.style.display = 'none';
                 
                 // Validate passwords
                 if (password !== confirmPassword) {
-                    errorMessage.textContent = 'Passwords do not match';
-                    errorMessage.style.display = 'block';
+                    if (errorMessage) {
+                        errorMessage.textContent = 'Passwords do not match';
+                        errorMessage.style.display = 'block';
+                    }
+                    e.preventDefault();
                     return;
                 }
                 
-                // Validate password strength
-                if (password.length < 8) {
-                    errorMessage.textContent = 'Password must be at least 8 characters long';
-                    errorMessage.style.display = 'block';
+                // Validate password length
+                if (password.length < 6) {
+                    if (errorMessage) {
+                        errorMessage.textContent = 'Password must be at least 6 characters long';
+                        errorMessage.style.display = 'block';
+                    }
+                    e.preventDefault();
                     return;
                 }
                 
-                if (!/[A-Z]/.test(password)) {
-                    errorMessage.textContent = 'Password must contain at least one uppercase letter';
-                    errorMessage.style.display = 'block';
-                    return;
+                // If all validations pass, allow form submission to PHP
+                if (successMessage) {
+                    successMessage.style.display = 'block';
                 }
-                
-                if (!/[0-9]/.test(password)) {
-                    errorMessage.textContent = 'Password must contain at least one number';
-                    errorMessage.style.display = 'block';
-                    return;
-                }
-                
-                if (!/[^A-Za-z0-9]/.test(password)) {
-                    errorMessage.textContent = 'Password must contain at least one special character';
-                    errorMessage.style.display = 'block';
-                    return;
-                }
-                
-                // If all validations pass
-                successMessage.style.display = 'block';
-                
-                // Simulate form submission (in a real application, you would submit to a server)
-                setTimeout(function() {
-                    alert('Password successfully reset! You will be redirected to login page.');
-                    window.location.href = '../index.php';
-                }, 1500);
             });
         });
     </script>

@@ -1,0 +1,4 @@
+[08-Dec-2025 16:46:02 Europe/Berlin] PHP Fatal error:  Uncaught Error: mysqli_stmt::bind_param(): Argument #3 cannot be passed by reference in C:\xampp\htdocs\hr2\LEARNING\save_examination.php:142
+Stack trace:
+#0 {main}
+  thrown in C:\xampp\htdocs\hr2\LEARNING\save_examination.php on line 142

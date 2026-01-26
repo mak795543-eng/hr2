@@ -65,7 +65,7 @@
       <div class="bg-blue-700/50 rounded-md shadow-md flex items-center gap-3">
         <div class="avatar">
           <div class="w-10 rounded-full">
-            <img src="" alt="User Avatar" class="dark:brightness-90" />
+            <img src="<?php echo htmlspecialchars($avatarUrl); ?>" alt="User Avatar" class="dark:brightness-90" />
           </div>
         </div>
         <div>

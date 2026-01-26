@@ -9,7 +9,7 @@ define('COOLDOWN_SECONDS', 3600);
 // Require that we have a pending login
 if (!isset($_SESSION['pending_employee_id'], $_SESSION['otp'])) {
     // No pending login — send back to main login
-    header("Location: ../index.php");
+    header("Location: index.php");
     exit();
 }
 
@@ -29,23 +29,30 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 trim($_POST["otp6"] ?? '');
 }
 
-$connectionsList = [
-    $connections["hr2_sub-user_management"] ?? null,
-    $connections["soliera_usm"] ?? null,
-];
+// Use the correct database connection for department_accounts
+$db_name = "hr2usm";
+$conn = $connections[$db_name] ?? null;
 
-function resolveName($User_ID, $connectionsList) {
-    foreach ($connectionsList as $conn) {
-        if (!$conn) continue;
-        $stmt = mysqli_prepare($conn, "SELECT employee_name FROM department_accounts WHERE employee_id = ?");
-        mysqli_stmt_bind_param($stmt, "s", $User_ID);
-        mysqli_stmt_execute($stmt);
-        $result = mysqli_stmt_get_result($stmt);
-        if ($row = mysqli_fetch_assoc($result)) {
-            return $row["employee_name"];
-        }
+if (!$conn) {
+    $_SESSION["loginError"] = "Database connection not found";
+    header("Location: index.php");
+    exit();
+}
+
+function getEmployeeInfo($User_ID, $conn) {
+    // Fetch both name and ID from department_accounts
+    $stmt = mysqli_prepare($conn, "SELECT employee_name, employee_id, dept_id FROM department_accounts WHERE employee_id = ?");
+    mysqli_stmt_bind_param($stmt, "s", $User_ID);
+    mysqli_stmt_execute($stmt);
+    $result = mysqli_stmt_get_result($stmt);
+    if ($row = mysqli_fetch_assoc($result)) {
+        return [
+            'name' => $row["employee_name"],
+            'employee_id' => $row["employee_id"],
+            'dept_id' => $row["dept_id"] ?? $_SESSION["pending_Dept_id"] ?? ''
+        ];
     }
-    return 'null';
+    return ['name' => 'Unknown', 'employee_id' => $User_ID, 'dept_id' => $_SESSION["pending_Dept_id"] ?? ''];
 }
 
 function logAttempt($conn, $User_ID, $Name, $Role, $Log_Status, $log_type, $Attempt_Count, $Failure_reason, $Cooldown_Until) {
@@ -67,31 +74,75 @@ function logAttempt($conn, $User_ID, $Name, $Role, $Log_Status, $log_type, $Atte
         $Cooldown_Until,
         $Log_Date_Time
     );
-    mysqli_stmt_execute($stmt);
+    return mysqli_stmt_execute($stmt);
 }
 
-function logDepartmentAttempt($conn, $Department_ID, $User_ID, $Name, $Role, $Log_Status, $log_type, $Attempt_Count, $Failure_reason, $Cooldown_Until) {
+function logDepartmentAttempt($conn, $Department_ID, $Employee_ID, $Name, $Role, $Log_Status, $log_type, $Attempt_Count, $Failure_reason, $Cooldown_Until) {
     $Log_Date_Time = date('Y-m-d H:i:s');
-    $sql = "INSERT INTO department_logs
-            (dept_id, employee_id, employee_name, role, log_status, log_type, attempt_count, failure_reason, cooldown, date)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
     
-    $stmt = mysqli_prepare($conn, $sql);
-    mysqli_stmt_bind_param(
-        $stmt,
-        "ssssssssss",
-        $Department_ID,
-        $User_ID,
-        $Name,
-        $Role,
-        $Log_Status,
-        $log_type,
-        $Attempt_Count,
-        $Failure_reason,
-        $Cooldown_Until,
-        $Log_Date_Time
-    );
-    mysqli_stmt_execute($stmt);
+    // First check if department_logs table exists
+    $check_table = "SHOW TABLES LIKE 'department_logs'";
+    $table_result = mysqli_query($conn, $check_table);
+    
+    if (mysqli_num_rows($table_result) > 0) {
+        // Check columns in department_logs
+        $check_columns = "SHOW COLUMNS FROM department_logs";
+        $columns_result = mysqli_query($conn, $check_columns);
+        $has_employee_id = false;
+        
+        while($col = mysqli_fetch_assoc($columns_result)) {
+            if ($col['Field'] == 'employee_id') {
+                $has_employee_id = true;
+                break;
+            }
+        }
+        
+        if ($has_employee_id) {
+            // Insert with employee_id
+            $sql = "INSERT INTO department_logs
+                    (dept_id, employee_id, employee_name, role, log_status, log_type, attempt_count, failure_reason, cooldown, date)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+            
+            $stmt = mysqli_prepare($conn, $sql);
+            mysqli_stmt_bind_param(
+                $stmt,
+                "ssssssssss",
+                $Department_ID,
+                $Employee_ID, // Use the actual employee_id from department_accounts
+                $Name,
+                $Role,
+                $Log_Status,
+                $log_type,
+                $Attempt_Count,
+                $Failure_reason,
+                $Cooldown_Until,
+                $Log_Date_Time
+            );
+            return mysqli_stmt_execute($stmt);
+        } else {
+            // Insert without employee_id (table doesn't have the column)
+            $sql = "INSERT INTO department_logs
+                    (dept_id, employee_name, role, log_status, log_type, attempt_count, failure_reason, cooldown, date)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
+            
+            $stmt = mysqli_prepare($conn, $sql);
+            mysqli_stmt_bind_param(
+                $stmt,
+                "sssssssss",
+                $Department_ID,
+                $Name,
+                $Role,
+                $Log_Status,
+                $log_type,
+                $Attempt_Count,
+                $Failure_reason,
+                $Cooldown_Until,
+                $Log_Date_Time
+            );
+            return mysqli_stmt_execute($stmt);
+        }
+    }
+    return false;
 }
 
 function incrementOTPAttempts() {
@@ -104,7 +155,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     // Basic pending/expiry checks
     if (!isset($_SESSION["otp"], $_SESSION["otp_expiry"], $_SESSION["pending_employee_id"])) {
         $_SESSION["loginError"] = "No pending OTP found. Please login again.";
-        header("Location: ../index.php");
+        header("Location: index.php");
         exit();
     }
 
@@ -112,12 +163,15 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         // Expired -> clear pending state
         unset($_SESSION["otp"], $_SESSION["otp_expiry"], $_SESSION["pending_employee_id"], $_SESSION["pending_role"], $_SESSION["pending_Dept_id"], $_SESSION["pending_email"]);
         $_SESSION["loginError"] = "OTP expired. Please login again.";
-        header("Location: ../index.php");
+        header("Location: index.php");
         exit();
     }
 
-    // Resolve friendly name for logs
-    $Name = resolveName($User_ID, $connectionsList);
+    // Get employee information from department_accounts
+    $employeeInfo = getEmployeeInfo($User_ID, $conn);
+    $Name = $employeeInfo['name'];
+    $Actual_Employee_ID = $employeeInfo['employee_id']; // This is the actual employee_id from department_accounts
+    $Actual_Dept_ID = $employeeInfo['dept_id']; // Use the dept_id from department_accounts
 
     // Anti-brute cooldown (per-session)
     $loginAttemptsKey = "login_attempts_$User_ID";
@@ -127,9 +181,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         if ($remaining > 0) {
             $minutes = ceil($remaining / 60);
             $cooldownUntil = date('Y-m-d H:i:s', $lastAttempt + COOLDOWN_SECONDS);
-            if (isset($connections["soliera_usm"])) {
-                logAttempt($connections["soliera_usm"], $User_ID, $Name, $Role, 'Failed', $log_type, $_SESSION[$loginAttemptsKey]['count'], 'Account banned (cooldown)', $cooldownUntil);
-            }
+            logAttempt($conn, $Actual_Employee_ID, $Name, $Role, 'Failed', $log_type, $_SESSION[$loginAttemptsKey]['count'], 'Account banned (cooldown)', $cooldownUntil);
             $_SESSION["loginError"] = "Your account is temporarily banned. Try again in $minutes minute(s).";
             header("Location: 2fa_verify.php");
             exit();
@@ -142,43 +194,36 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
     if ($otpInput === $storedOtp && $otpInput !== '') {
         // Successful OTP -> promote to full login
-        $_SESSION["employee_id"] = $_SESSION["pending_employee_id"];
+        $_SESSION["employee_id"] = $Actual_Employee_ID; // Use actual employee_id
+        $_SESSION["employee_name"] = $Name;
+        $_SESSION["username"] = $Name;
         $_SESSION["role"] = $_SESSION["pending_role"] ?? $Role;
-        $_SESSION["Dept_id"] = $_SESSION["pending_Dept_id"] ?? $Department_ID;
+        $_SESSION["Dept_id"] = $Actual_Dept_ID; // Use actual dept_id from database
         $_SESSION["email"] = $_SESSION["pending_email"] ?? '';
 
         // Cleanup pending/otp stuff
         unset($_SESSION["pending_employee_id"], $_SESSION["pending_role"], $_SESSION["pending_Dept_id"], $_SESSION["pending_email"], $_SESSION["otp"], $_SESSION["otp_expiry"], $_SESSION["otp_attempts"]);
 
-        // Log success
-        if (isset($connections["soliera_usm"])) {
-            logAttempt($connections["soliera_usm"], $User_ID, $Name, $Role, 'Success', $log_type, 0, '2FA Successful', '');
-            logDepartmentAttempt($connections["soliera_usm"], $_SESSION["Dept_id"], $User_ID, $Name, $Role, 'Success', $log_type, 0, '2FA Successful', '');
-        }
+        // Log success with actual employee_id
+        logAttempt($conn, $Actual_Employee_ID, $Name, $Role, 'Success', $log_type, 0, '2FA Successful', '');
+        logDepartmentAttempt($conn, $Actual_Dept_ID, $Actual_Employee_ID, $Name, $Role, 'Success', $log_type, 0, '2FA Successful', '');
 
-        // Decide redirect by Dept_id
-        $redirectMap = [
-            'HR22502' => 'landing_redirect.php',
-            // Add other department mappings here
-        ];
-        $redirectUrl = $redirectMap[$_SESSION["Dept_id"]] ?? 'landing_redirect.php';
-        header("Location: $redirectUrl");
+        header("Location: ../dashboard.php");
         exit();
     } else {
         incrementOTPAttempts();
         $_SESSION["otp_attempts"] = $_SESSION["otp_attempts"] ?? 1;
         $otpAttempt = $_SESSION["otp_attempts"];
 
-        if (isset($connections["soliera_usm"])) {
-            logAttempt($connections["soliera_usm"], $User_ID, $Name, $Role, 'Failed', $log_type, $otpAttempt, 'Incorrect OTP', '');
-            logDepartmentAttempt($connections["soliera_usm"], $Department_ID, $User_ID, $Name, $Role, 'Failed', $log_type, $otpAttempt, 'Incorrect OTP', '');
-        }
+        // Log failed attempt with actual employee_id
+        logAttempt($conn, $Actual_Employee_ID, $Name, $Role, 'Failed', $log_type, $otpAttempt, 'Incorrect OTP', '');
+        logDepartmentAttempt($conn, $Actual_Dept_ID, $Actual_Employee_ID, $Name, $Role, 'Failed', $log_type, $otpAttempt, 'Incorrect OTP', '');
 
         if ($otpAttempt >= MAX_OTP_ATTEMPTS) {
             // Clear pending login to force relogin
             unset($_SESSION["pending_employee_id"], $_SESSION["pending_role"], $_SESSION["pending_Dept_id"], $_SESSION["pending_email"], $_SESSION["otp"], $_SESSION["otp_expiry"]);
             $_SESSION["loginError"] = "Too many incorrect OTP attempts. Please try again later.";
-            header("Location: login.php");
+            header("Location: index.php");
             exit();
         }
 
@@ -240,7 +285,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
    <section class="relative w-full h-screen">
 
   <!-- Background image with overlay -->
-  <div class="absolute inset-0 bg-cover bg-center z-0" style="background-image: url('https://images.unsplash.com/photo-1551882547-ff40c63fe5fa?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=2070&q=80');"></div>
+  <div class="absolute inset-0 bg-cover bg-center z-0" style="background-image: url('../images/hotel3.jpg');"></div>
     <div class="absolute inset-0 bg-black/40 z-10"></div>
     <div class="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-black/70 z-10"></div>
   
@@ -342,7 +387,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
       
       <!-- Back to Login -->
       <div class="mt-4 sm:mt-6 text-center">
-        <a href="../index.php" class="text-sm sm:text-base font-medium text-blue-400 hover:text-blue-300 flex items-center justify-center">
+        <a href="index.php" class="text-sm sm:text-base font-medium text-blue-400 hover:text-blue-300 flex items-center justify-center">
           <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 sm:h-5 sm:w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
           </svg>

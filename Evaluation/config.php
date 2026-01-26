@@ -88,6 +88,24 @@ class Config {
     
     // Initialize configuration
     public function __construct() {
+        $dbPrefix = getenv('DB_PREFIX') ?: '';
+        $this->db_host = getenv('EVAL_DB_HOST') ?: (getenv('DB_HOST') ?: $this->db_host);
+        $this->db_user = getenv('EVAL_DB_USER') ?: (getenv('DB_USER') ?: $this->db_user);
+        $passEnv = getenv('EVAL_DB_PASS');
+        $passGlobal = getenv('DB_PASS');
+        $this->db_pass = $passEnv !== false
+            ? $passEnv
+            : ($passGlobal !== false
+                ? $passGlobal
+                : (($this->db_user === 'root' && ($this->db_host === 'localhost' || $this->db_host === '127.0.0.1')) ? '' : 'makmak01'));
+        $dbName = getenv('EVAL_DB_NAME') ?: $this->db_name;
+        if ($dbPrefix !== '' && strpos($dbName, $dbPrefix) !== 0) {
+            $dbName = $dbPrefix . $dbName;
+        }
+        $this->db_name = $dbName;
+
+        $this->base_url = getenv('APP_BASE_URL') ?: $this->base_url;
+
         // Set timezone
         date_default_timezone_set($this->timezone);
         

@@ -2,13 +2,13 @@
 session_start();
 include("db.php");
 
-
-$usm_connection = $connections["hr2_usm"];
+$usm_connection = $connections["hr2_usmhr2"];
+// dd($usm_connection);
 // $fin_usm_connection = $connections["fin_usm"];
 // $logs2_usm = $connections["logs2_usm"];
 // $logs1_usm = $connections["logs1_usm"];
 // $cr1_usm = $connections["cr1_usm"];
-$cr2_usm = $connections["hr2_soliera_usm"];
+$hr2usm = $connections["hr2_usmhr2"];
 // $hr1_2_usm = $connections["hr_1&2_usm"];
 // $hr34_usm = $connections["hr34_usm"];
 // $cr1_usm = $connections["cr3_usm"] ?? '';
@@ -111,8 +111,8 @@ function sendOTP($email, $otp)
     $mail->SMTPAuth = true;
 
     // Use environment variables for security instead of hardcoding
-    $mail->Username = 'VehicleReservationManagement@gmail.com';
-    $mail->Password = 'fzja ezgo ojdu fobc'; // Move to env in production
+    $mail->Username = 'marknathaniel0203@gmail.com';
+    $mail->Password = 'zjic yfpv vbwf exyi'; // Move to env in production
     $mail->SMTPSecure = 'tls';
     $mail->Port = 587;
 
@@ -156,44 +156,36 @@ function sendOTP($email, $otp)
 
 if ($_SERVER["REQUEST_METHOD"] === "POST" && $employee_ID && $password) {
     // Step 1: CAPTCHA validation
-    $recaptcha_secret = "6LdY-KorAAAAAGcqt-PDA0GhtsBEM8AEJhxpKpkW";
-    $recaptcha_response = $_POST['g-recaptcha-response'] ?? '';
-    $verify = file_get_contents("https://www.google.com/recaptcha/api/siteverify?secret={$recaptcha_secret}&response={$recaptcha_response}");
-    $captcha_success = json_decode($verify);
+    // $recaptcha_secret = "6LdY-KorAAAAAGcqt-PDA0GhtsBEM8AEJhxpKpkW";
+    // $recaptcha_response = $_POST['g-recaptcha-response'] ?? '';
+    // $verify = file_get_contents("https://www.google.com/recaptcha/api/siteverify?secret={$recaptcha_secret}&response={$recaptcha_response}");
+    // $captcha_success = json_decode($verify);
 
-    if (!$captcha_success->success) {
-        $_SESSION["loginError"] = "Captcha verification failed. Please try again.";
-        header("Location: login_main.php");
-        exit();
-    }
-
-    // Step 2: Continue with your normal login + OTP + logs
-    // (Your Core 2 / USM database checks remain unchanged here)
-}
-
-// === Main Login Logic ===
-if ($_SERVER["REQUEST_METHOD"] === "POST" && $employee_ID && $password) {
-
-    // ---------------------------------------------------------------------
-    // NOTE: Many department checks are commented out below (left as-is).
-    // The active checks: Core 2 (uses 2FA/pending flow) and Department USM (direct login).
-    // I preserved your commented sections unchanged.
-    // ---------------------------------------------------------------------
+    // if (!$captcha_success->success) {
+    //     dd("test1");
+    //     $_SESSION["loginError"] = "Captcha verification failed. Please try again.";
+    //     header("Location: login_main.php");
+    //     exit();
+    // }
 
     // Core 2
-    $stmt = mysqli_prepare($cr2_usm, "SELECT email, employee_name, password, Dept_id , employee_id, role FROM department_accounts WHERE employee_id = ?");
+    $stmt = mysqli_prepare($hr2usm, "SELECT email, employee_name, password, Dept_id , employee_id, role FROM department_accounts WHERE employee_id = ?");
     mysqli_stmt_bind_param($stmt, "s", $employee_ID);
     mysqli_stmt_execute($stmt);
     $result = mysqli_stmt_get_result($stmt);
-
+    
     if ($result && mysqli_num_rows($result) > 0) {
+        
         $row = mysqli_fetch_assoc($result);
+        // dd($row);
         $Department_ID = $row["Dept_id"];
         $Role = $row["role"];
         $Name = $row["employee_name"];
 
         // === Password check (plain equality in your original; keep but recommend hashing)
         if ($password === $row["password"]) {
+        // dd("test2");
+
             // generate OTP and store PENDING login state (do NOT mark full session yet)
             $otp = rand(100000, 999999);
             $_SESSION["otp"] = (string)$otp;
@@ -208,19 +200,25 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && $employee_ID && $password) {
             $_SESSION["auth_method"] = "2FA";
 
             if (sendOTP($row["email"], $otp)) {
-                logAttempt($cr2_usm, $employee_ID, $Name, $Role, 'Authenticating', 'Login', 0, 'Authenticating', '');
-                logDepartmentAttempt($cr2_usm, $Department_ID, $employee_ID, $Name, $Role, 'Success', 'Login', 0, 'Login Successful', '');
-                header("Location: USM/2fa_verify.php");
+                // dd("email");
+                logAttempt($hr2usm, $employee_ID, $Name, $Role, 'Authenticating', 'Login', 0, 'Authenticating', '');
+
+                logDepartmentAttempt($hr2usm, $Department_ID, $employee_ID, $Name, $Role, 'Success', 'Login', 0, 'Login Successful', '');
+
+                header("Location: dashboard.php");
                 exit();
             } else {
-                logAttempt($cr2_usm, $employee_ID, $Name, $Role, 'Failed', 'Login', 0, 'Failed to send OTP email', '');
+                dd("failed");
+                logAttempt($hr2usm, $employee_ID, $Name, $Role, 'Failed', 'Login', 0, 'Failed to send OTP email', '');
+
                 $_SESSION["loginError"] = "Failed to send OTP email.";
                 header("Location: index.php");
                 exit();
             }
         } else {
             incrementLoginAttempts($employee_ID);
-            logAttempt($cr2_usm, $employee_ID, $Name, $Role, 'Failed', 'Login', 0, 'Incorrect password', '');
+            logAttempt($hr2usm, $employee_ID, $Name, $Role, 'Failed', 'Login', 0, 'Incorrect password', '');
+
             $_SESSION["loginError"] = "Incorrect password.";
             header("Location: index.php");
             exit();
@@ -255,15 +253,102 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && $employee_ID && $password) {
             header("Location: index.php");
             exit();
         }
-    }
+}
+}
 
-    // If we reach here — no user found in checked DBs
-    $_SESSION["loginError"] = "Invalid employee ID or password.";
-    header("Location: index.php");
-    exit();
+// === Main Login Logic ===
+// if ($_SERVER["REQUEST_METHOD"] === "POST" && $employee_ID && $password) {
+
+//     // ---------------------------------------------------------------------
+//     // NOTE: Many department checks are commented out below (left as-is).
+//     // The active checks: Core 2 (uses 2FA/pending flow) and Department USM (direct login).
+//     // I preserved your commented sections unchanged.
+//     // ---------------------------------------------------------------------
+
+//     // Core 2
+//     $stmt = mysqli_prepare($hr2usm, "SELECT email, employee_name, password, Dept_id , employee_id, role FROM department_accounts WHERE employee_id = ?");
+//     mysqli_stmt_bind_param($stmt, "s", $employee_ID);
+//     mysqli_stmt_execute($stmt);
+//     $result = mysqli_stmt_get_result($stmt);
+
+//     if ($result && mysqli_num_rows($result) > 0) {
+//         $row = mysqli_fetch_assoc($result);
+//         $Department_ID = $row["Dept_id"];
+//         $Role = $row["role"];
+//         $Name = $row["employee_name"];
+
+//         // === Password check (plain equality in your original; keep but recommend hashing)
+//         if ($password === $row["password"]) {
+//             // generate OTP and store PENDING login state (do NOT mark full session yet)
+//             $otp = rand(100000, 999999);
+//             $_SESSION["otp"] = (string)$otp;
+//             $_SESSION["otp_expiry"] = time() + 300; // 5 minutes expiry
+
+//             // store pending login info (so 2fa page can validate)
+//             $_SESSION["pending_employee_id"] = $employee_ID;
+//             $_SESSION["pending_role"] = $Role;
+//             $_SESSION["pending_Dept_id"] = $row["Dept_id"];
+//             $_SESSION["pending_email"] = $row["email"];
+//             $_SESSION["otp_attempts"] = 0;
+//             $_SESSION["auth_method"] = "2FA";
+
+//             if (sendOTP($row["email"], $otp)) {
+//                 logAttempt($hr2usm, $employee_ID, $Name, $Role, 'Authenticating', 'Login', 0, 'Authenticating', '');
+//                 logDepartmentAttempt($hr2usm, $Department_ID, $employee_ID, $Name, $Role, 'Success', 'Login', 0, 'Login Successful', '');
+//                 header("Location: USM/2fa_verify.php");
+//                 exit();
+//             } else {
+//                 logAttempt($hr2usm, $employee_ID, $Name, $Role, 'Failed', 'Login', 0, 'Failed to send OTP email', '');
+//                 $_SESSION["loginError"] = "Failed to send OTP email.";
+//                 header("Location: index.php");
+//                 exit();
+//             }
+//         } else {
+//             incrementLoginAttempts($employee_ID);
+//             logAttempt($hr2usm, $employee_ID, $Name, $Role, 'Failed', 'Login', 0, 'Incorrect password', '');
+//             $_SESSION["loginError"] = "Incorrect password.";
+//             header("Location: index.php");
+//             exit();
+//         }
+//     }
+
+//     // Check in Department USM (this one seems to bypass 2FA in your original - preserved)
+//     $stmt = mysqli_prepare($usm_connection, "SELECT email, employee_name, password, role, Dept_id FROM department_accounts WHERE employee_id = ?");
+//     mysqli_stmt_bind_param($stmt, "s", $employee_ID);
+//     mysqli_stmt_execute($stmt);
+//     $result = mysqli_stmt_get_result($stmt);
+
+//     if ($result && mysqli_num_rows($result) > 0) {
+//         $row = mysqli_fetch_assoc($result);
+//         $Department_ID = $row["Dept_id"];
+//         $Role = $row["role"];
+//         $Name = $row["employee_name"];
+
+//         if ($password === $row["password"]) {
+//             // Full login for this DB (as in original)
+//             $_SESSION["employee_id"] = $employee_ID;
+//             // fix: use $Role (was $role in original)
+//             $_SESSION["role"] = $Role;
+//             $_SESSION["Dept_id"] = $row["Dept_id"];
+//             $_SESSION["email"] = $row["email"] ?? $row["Email"] ?? '';
+//             header("Location: dashboard.php");
+//             exit();
+//         } else {
+//             incrementLoginAttempts($employee_ID);
+//             logAttempt($usm_connection, $employee_ID, $Name, $Role, 'Failed', 'Login', 0, 'Incorrect password', '');
+//             $_SESSION["loginError"] = "Incorrect password.";
+//             header("Location: index.php");
+//             exit();
+//         }
+//     }
+
+//     // If we reach here — no user found in checked DBs
+//     $_SESSION["loginError"] = "Invalid employee ID or password.";
+//     header("Location: index.php");
+//     exit();
 
     
-}
+// }
 
 
 ?>
@@ -278,7 +363,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && $employee_ID && $password) {
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://cdn.jsdelivr.net/npm/aos@2.3.4/dist/aos.css" rel="stylesheet">
         <script src="https://cdn.tailwindcss.com"></script>
-        <script src="https://www.google.com/recaptcha/api.js" async defer></script>
+   
 
 
     <style>
@@ -390,10 +475,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && $employee_ID && $password) {
                                 </div>
                             </div>
 
-                            <!-- Google reCAPTCHA widget -->
-                            <div class="mb-4">
-                                <div class="g-recaptcha" data-sitekey="6LdY-KorAAAAAGVPn6PIe_Ro0UrFB-9DBYqDZ6_f"></div>
-                            </div>
+                         
 
                             <!-- Sign In Button -->
                             <button 
