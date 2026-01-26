@@ -1,7 +1,8 @@
 ﻿<?php
-require_once __DIR__ . '/../../COMPETENCY/criticalgaps/criticalgaps/config.php';
+require_once __DIR__ . '/../../COMPETENCY/criticalgaps/config.php';
 require_once __DIR__ . '/development_plans.php';
 
+// jjj
 if (!function_exists('h')) {
     function h($v) {
         return htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
@@ -470,12 +471,12 @@ $trainingEndTimeValue = $_SERVER['REQUEST_METHOD'] === 'POST' ? (string)($_POST[
     <!-- Sidebar -->
     <?php 
     // Use relative path or absolute path based on your directory structure
-    include '../../../USM/sidebarr.php'; 
+    include '../../USM/sidebarr.php'; 
     ?>
     <!-- Content Area -->
     <div class="flex flex-col flex-1 overflow-hidden">
       <!-- Navbar -->
-      <?php include '../../../USM/navbar.php'; ?>
+      <?php include '../../USM/navbar.php'; ?>
 
       <main class="flex-1 overflow-auto p-6">
         <div class="max-w-4xl mx-auto">
@@ -839,7 +840,7 @@ $trainingEndTimeValue = $_SERVER['REQUEST_METHOD'] === 'POST' ? (string)($_POST[
     </div>
     </main>
   </div>
-  <script src="../../../soliera.js"></script>
-  <script src="../../../sidebar.js"></script>
+  <script src="../../soliera.js"></script>
+  <script src="../../sidebar.js"></script>
 </body>
 </html>

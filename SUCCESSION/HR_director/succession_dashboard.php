@@ -1,7 +1,7 @@
 ﻿<?php
 session_start();
 
-require_once __DIR__ . '/../../COMPETENCY/criticalgaps/criticalgaps/config.php';
+require_once __DIR__ . '/../../COMPETENCY/criticalgaps/config.php';
 
 
 $flashOk = (string)($_GET['ok'] ?? '');
@@ -124,13 +124,13 @@ function statusBadgeClass($status) {
     <!-- Sidebar -->
     <?php 
     // Use relative path or absolute path based on your directory structure
-    include '../../../USM/sidebarr.php'; 
+    include '../../USM/sidebarr.php'; 
     ?>
 
     <!-- Content Area -->
     <div class="flex flex-col flex-1 overflow-auto">
       <!-- Navbar -->
-      <?php include '../../../USM/navbar.php'; ?>
+      <?php include '../../USM/navbar.php'; ?>
 
         <!-- Notification Container -->
         <div id="notificationContainer"></div>
@@ -290,7 +290,7 @@ function statusBadgeClass($status) {
     </script>
     </div>
   </div>
-  <script src="../../../soliera.js"></script>
-  <script src="../../../sidebar.js"></script>
+  <script src="../../soliera.js"></script>
+  <script src="../../sidebar.js"></script>
 </body>
 </html>

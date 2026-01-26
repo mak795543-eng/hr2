@@ -205,18 +205,19 @@ $openDept = trim((string)($_GET['open_dept'] ?? ''));
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdn.jsdelivr.net/npm/daisyui@4.6.0/dist/full.css" rel="stylesheet" type="text/css" />
     <script src="https://unpkg.com/lucide@latest"></script>
+         <script src="https://unpkg.com/lucide@latest"></script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 </head>
 <body class="bg-base-200 min-h-screen">
     <div class="flex h-screen">
     <!-- Sidebar -->
-    <?php include '../../../../USM/sidebarr.php'; ?>
+    <?php include '../../USM/sidebarr.php'; ?>
 
     <!-- Content Area -->
     <div class="flex flex-col flex-1 overflow-auto">
       <!-- Navbar -->
-      <?php include '../../../../USM/navbar.php'; ?>
+      <?php include '../../USM/navbar.php'; ?>
     <div class="max-w-7xl mx-auto p-6">
         <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
             <div>
@@ -435,7 +436,10 @@ $openDept = trim((string)($_GET['open_dept'] ?? ''));
             if (dlg && typeof dlg.showModal === 'function') dlg.showModal();
         })();
     </script>
-     <script src="../../../../soliera.js"></script>
-  <script src="../../../../sidebar.js"></script>
+    <script>
+    lucide.createIcons();
+  </script>
+   <script src="../../soliera.js"></script>
+  <script src="../../sidebar.js"></script>
 </body>
 </html>
