@@ -603,13 +603,15 @@ if ($edit_mode && $module_id) {
 <body class="bg-gray-50 min-h-screen">
   <div class="flex h-screen">
     <!-- Sidebar -->
-    <?php if (file_exists(__DIR__ . '/../../USM/sidebarr.php')) { include __DIR__ . '/../../USM/sidebarr.php'; } ?>
+    <?php 
+    // Use relative path or absolute path based on your directory structure
+    include '../../USM/sidebarr.php'; 
+    ?>
 
     <!-- Content Area -->
     <div class="flex flex-col flex-1 overflow-auto">
-        <!-- Navbar -->
-        <?php if (file_exists(__DIR__ . '/../../USM/navbar.php')) { include __DIR__ . '/../../USM/navbar.php'; } ?>
-
+      <!-- Navbar -->
+      <?php include '../../USM/navbar.php'; ?>
         <!-- Success and Error Messages -->
         <?php if (isset($_SESSION['success_message'])): ?>
             <div class="alert alert-success">
