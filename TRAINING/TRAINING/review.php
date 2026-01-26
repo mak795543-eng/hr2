@@ -110,13 +110,13 @@ try {
     <!-- Sidebar -->
     <?php 
     // Use relative path or absolute path based on your directory structure
-    include '../../../USM/sidebarr.php'; 
+    include '../../USM/sidebarr.php'; 
     ?>
 
     <!-- Content Area -->
     <div class="flex flex-col flex-1 overflow-auto">
       <!-- Navbar -->
-      <?php include '../../../USM/navbar.php'; ?>
+      <?php include '../../USM/navbar.php'; ?>
     
     <main class="max-w-6xl mx-auto px-4 py-6">
         <div class="bg-white rounded-xl shadow-md p-6">
@@ -178,15 +178,29 @@ try {
     <script>
         (function () {
             const postStatusUpdate = async (programId, newStatus, reason) => {
-                const fd = new FormData();
-                fd.append('action', 'update_program_status');
-                fd.append('program_id', String(programId));
-                fd.append('status', String(newStatus));
-                if (reason !== null && reason !== undefined) fd.append('reason', String(reason));
+                try {
+                    console.log('Updating status:', { programId, newStatus, reason });
+                    
+                    const fd = new FormData();
+                    fd.append('action', 'update_program_status');
+                    fd.append('program_id', String(programId));
+                    fd.append('status', String(newStatus));
+                    if (reason !== null && reason !== undefined) fd.append('reason', String(reason));
 
-                const res = await fetch('trainingprogram.php', { method: 'POST', body: fd, credentials: 'same-origin' });
-                const data = await res.json();
-                return data;
+                    const res = await fetch('trainingprogram.php', { method: 'POST', body: fd, credentials: 'same-origin' });
+                    
+                    if (!res.ok) {
+                        console.error('HTTP error:', res.status, res.statusText);
+                        throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+                    }
+                    
+                    const data = await res.json();
+                    console.log('Response data:', data);
+                    return data;
+                } catch (error) {
+                    console.error('Error in postStatusUpdate:', error);
+                    throw error;
+                }
             };
 
             const removeRow = (programId) => {
@@ -218,13 +232,18 @@ try {
                     }) : { isConfirmed: window.confirm('Approve this training program?') };
                     if (!confirmRes.isConfirmed) return;
 
-                    const data = await postStatusUpdate(programId, 'Approved', '');
-                    if (!data || !data.success) {
-                        if (window.Swal) Swal.fire({ icon: 'error', title: 'Failed', text: (data && data.message) ? data.message : 'Unable to update status.' });
-                        return;
+                    try {
+                        const data = await postStatusUpdate(programId, 'Approved', '');
+                        if (!data || !data.success) {
+                            if (window.Swal) Swal.fire({ icon: 'error', title: 'Failed', text: (data && data.message) ? data.message : 'Unable to update status.' });
+                            return;
+                        }
+                        removeRow(programId);
+                        if (window.Swal) Swal.fire({ icon: 'success', title: 'Approved', timer: 1200, showConfirmButton: false });
+                    } catch (error) {
+                        console.error('Approve action error:', error);
+                        if (window.Swal) Swal.fire({ icon: 'error', title: 'Error', text: 'An error occurred while approving. Check console for details.' });
                     }
-                    removeRow(programId);
-                    if (window.Swal) Swal.fire({ icon: 'success', title: 'Approved', timer: 1200, showConfirmButton: false });
                     return;
                 }
 
@@ -281,13 +300,18 @@ try {
                         if (!reason) return;
                     }
 
-                    const data = await postStatusUpdate(programId, newStatus, reason);
-                    if (!data || !data.success) {
-                        if (window.Swal) Swal.fire({ icon: 'error', title: 'Failed', text: (data && data.message) ? data.message : 'Unable to update status.' });
-                        return;
+                    try {
+                        const data = await postStatusUpdate(programId, newStatus, reason);
+                        if (!data || !data.success) {
+                            if (window.Swal) Swal.fire({ icon: 'error', title: 'Failed', text: (data && data.message) ? data.message : 'Unable to update status.' });
+                            return;
+                        }
+                        removeRow(programId);
+                        if (window.Swal) Swal.fire({ icon: 'success', title: 'Updated', timer: 1200, showConfirmButton: false });
+                    } catch (error) {
+                        console.error('Reject/Compliance action error:', error);
+                        if (window.Swal) Swal.fire({ icon: 'error', title: 'Error', text: 'An error occurred while updating status. Check console for details.' });
                     }
-                    removeRow(programId);
-                    if (window.Swal) Swal.fire({ icon: 'success', title: 'Updated', timer: 1200, showConfirmButton: false });
                     return;
                 }
             });
@@ -295,7 +319,7 @@ try {
     </script>
         <script src="main.js"></script>
     <script src="maintwo.js"></script>
-    <script src="../../../soliera.js"></script>
-  <script src="../../../sidebar.js"></script>
+    <script src="../../soliera.js"></script>
+  <script src="../../sidebar.js"></script>
 </body>
 </html>

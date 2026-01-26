@@ -3035,7 +3035,7 @@ $conn->close();
 
   <!-- Include JavaScript file -->
   <script src="../../JS/learning_modules_repository.js"></script>
-   <script src="../../soliera.js"></script>
+  <script src="../../soliera.js"></script>
   <script src="../../sidebar.js"></script>
 </body>
 </html>

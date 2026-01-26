@@ -762,5 +762,7 @@ try {
     </script>
     <script src="main.js"></script>
     <script src="maintwo.js"></script>
+      <script src="../../soliera.js"></script>
+  <script src="../../sidebar.js"></script>
 </body>
 </html>
