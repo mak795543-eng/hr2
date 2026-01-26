@@ -24,13 +24,13 @@ $conn->close();
     <!-- Sidebar -->
     <?php 
     // Use relative path or absolute path based on your directory structure
-    include '../../../USM/sidebarr.php'; 
+    include '../../USM/sidebarr.php'; 
     ?>
 
 
     <div class="flex flex-col flex-1 overflow-auto">
       <!-- Navbar -->
-      <?php include '../../../USM/navbar.php'; ?>
+      <?php include '../../USM/navbar.php'; ?>
 
 
       <div class="container mx-auto px-4 py-8">
@@ -52,8 +52,8 @@ $conn->close();
       </div>
     </div>
   </div>
-  <script src="../../../soliera.js"></script>
-  <script src="../../../sidebar.js"></script>
+  <script src="../../soliera.js"></script>
+  <script src="../../sidebar.js"></script>
 </body>
 </html>
 
