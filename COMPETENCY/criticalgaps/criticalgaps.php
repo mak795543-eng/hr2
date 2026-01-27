@@ -1,5 +1,5 @@
 <?php
-session_start();
+
 require_once __DIR__ . '/config.php';
 
 function h($v) {
@@ -21,19 +21,8 @@ $allowedStatuses = ['Retrain', 'Reskilling', 'Refresher Training', 'Upskilling',
 $filterStatus = ($statusFilter !== 'all' && in_array($statusFilter, $allowedStatuses, true)) ? $statusFilter : 'all';
 
 $employees = getEmployees($filterStatus, $search, $departmentFilter);
+require('../../partials/header.php');
 ?>
-<!DOCTYPE html>
-<html lang="en" data-theme="light">
-<head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Critical Roles</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-         <script src="https://unpkg.com/lucide@latest"></script>
-    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet" type="text/css" />
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-    <script src="https://unpkg.com/lucide@latest"></script>
-</head>
 <body class="bg-base-200 min-h-screen">
     <div class="flex h-screen">
     <!-- Sidebar -->
@@ -824,11 +813,6 @@ $employees = getEmployees($filterStatus, $search, $departmentFilter);
         if (event.target === this) this.close();
     });
 </script>
-  </script>
-    <script>
-    lucide.createIcons();
-  </script>
-   <script src="../../soliera.js"></script>
-  <script src="../../sidebar.js"></script>
-</body>
-</html>
+ <?php require('../../partials/footer.php'); ?>
+    
+    

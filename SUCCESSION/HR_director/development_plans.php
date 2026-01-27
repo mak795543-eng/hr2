@@ -3,7 +3,6 @@
 require_once __DIR__ . '/../../COMPETENCY/criticalgaps/config.php';
 
 if (session_status() === PHP_SESSION_NONE) {
-    session_start();
 }
 
 $DEVELOPMENT_PLANS = [
@@ -1143,27 +1142,23 @@ try {
     }
 } catch (Throwable $e) {
 }
+require('../../partials/header.php');
 ?>
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Development Plans Repository</title>
-    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet" type="text/css" />
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-</head>
-<body class="bg-base-200">
-  <div class=\"flex h-screen\">
+ <body class="bg-gray-50 min-h-screen">
+ <div class="flex h-screen">
     <!-- Sidebar -->
     <?php 
     // Use relative path or absolute path based on your directory structure
-    include '../../../USM/sidebarr.php'; 
+    include '../../USM/sidebarr.php'; 
     ?>
+
     <!-- Content Area -->
-    <div class=\"flex flex-col flex-1 overflow-auto\">      <!-- Navbar -->
-      <?php include '../../../USM/navbar.php'; ?>
+    <div class="flex flex-col flex-1 overflow-auto">
+      <!-- Navbar -->
+      <?php include '../../USM/navbar.php'; ?>
+    
+            
+            <main class="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto">
 
     <div class="max-w-7xl mx-auto p-6">
         <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">

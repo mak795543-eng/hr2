@@ -25,6 +25,16 @@ if ($errorMessage === '' && $_SERVER['REQUEST_METHOD'] === 'POST' && !$viewOnly)
     $developmentPlan = trim((string)($_POST['development_plan'] ?? ''));
     $targetScoreRaw = trim((string)($_POST['target_score'] ?? ''));
 
+    $succTargetRole = trim((string)($_POST['succ_target_role'] ?? ''));
+    $succReadinessLevel = trim((string)($_POST['succ_readiness_level'] ?? ''));
+    $targetDateRaw = trim((string)($_POST['target_date'] ?? ''));
+    $succLeadershipFocus = trim((string)($_POST['succ_leadership_focus'] ?? ''));
+    $succStretchAssignments = trim((string)($_POST['succ_stretch_assignments'] ?? ''));
+    $succMentorCoach = trim((string)($_POST['succ_mentor_coach'] ?? ''));
+    $succCoachingPlan = trim((string)($_POST['succ_coaching_plan'] ?? ''));
+    $succAssessmentPlan = trim((string)($_POST['succ_assessment_plan'] ?? ''));
+    $succFinalOutcome = trim((string)($_POST['succ_final_outcome'] ?? ''));
+
     $trainingType = trim((string)($_POST['training_type'] ?? ''));
     $trainingMode = trim((string)($_POST['training_mode'] ?? ''));
     $idpDeliveryMode = trim((string)($_POST['idp_delivery_mode'] ?? ''));
@@ -56,16 +66,71 @@ if ($errorMessage === '' && $_SERVER['REQUEST_METHOD'] === 'POST' && !$viewOnly)
         $targetScore = (float)$targetScoreRaw;
     }
 
+    $targetDate = null;
+    if ($targetDateRaw !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $targetDateRaw)) {
+        $targetDate = $targetDateRaw;
+    }
+
+    $isSuccessionReadyPost = ((string)($_POST['employee_status'] ?? '')) === 'Succession Ready';
+    if ($isSuccessionReadyPost) {
+        $allowedReadiness = ['Ready Now', 'Ready in 6 Months', 'Ready in 12 Months'];
+        if ($succTargetRole === '') {
+            $errorMessage = 'Please provide the Target Succession Role.';
+        } elseif (!in_array($succReadinessLevel, $allowedReadiness, true)) {
+            $errorMessage = 'Please select a valid Readiness Level.';
+        } elseif ($targetDate === null) {
+            $errorMessage = 'Please provide the Expected Transition Timeline.';
+        }
+
+        if ($errorMessage === '') {
+            $norm = function (string $v): string {
+                $v = trim($v);
+                if ($v === '') return '';
+                $v = str_replace(["\r\n", "\r", "\n"], ' | ', $v);
+                $v = preg_replace('/\s+/', ' ', $v);
+                return trim((string)$v);
+            };
+
+            $metaLines = [];
+            $metaLines[] = '[Succession Ready IDP]';
+            $metaLines[] = 'Target Succession Role: ' . $succTargetRole;
+            $metaLines[] = 'Readiness Level: ' . $succReadinessLevel;
+            $metaLines[] = 'Expected Transition Timeline: ' . ($targetDate ?? '');
+            if ($succMentorCoach !== '') {
+                $metaLines[] = 'Assigned Mentor/Coach: ' . $succMentorCoach;
+            }
+            if ($succFinalOutcome !== '') {
+                $metaLines[] = 'Final Succession Validation Outcome: ' . $succFinalOutcome;
+            }
+            if ($succLeadershipFocus !== '') {
+                $metaLines[] = 'Leadership & Strategic Competencies: ' . $norm($succLeadershipFocus);
+            }
+            if ($succStretchAssignments !== '') {
+                $metaLines[] = 'Stretch Assignments & Exposure: ' . $norm($succStretchAssignments);
+            }
+            if ($succCoachingPlan !== '') {
+                $metaLines[] = 'Coaching & Knowledge Transfer: ' . $norm($succCoachingPlan);
+            }
+            if ($succAssessmentPlan !== '') {
+                $metaLines[] = 'Readiness Assessment & Evaluation: ' . $norm($succAssessmentPlan);
+            }
+            $metaLines[] = '';
+
+            $developmentPlan = implode("\n", $metaLines) . trim((string)$developmentPlan);
+        }
+    }
+
     try {
         $stmt = $pdo->prepare(
             "UPDATE succession_submissions
              SET development_plan = ?,
                  target_score = ?,
+                 target_date = IFNULL(?, target_date),
                  idp_status = 'Created',
                  idp_created_at = CURRENT_TIMESTAMP
              WHERE employee_id = ?"
         );
-        $stmt->execute([$developmentPlan, $targetScore, $employeeId]);
+        $stmt->execute([$developmentPlan, $targetScore, $targetDate, $employeeId]);
 
         try {
             $pdo->prepare(
@@ -113,9 +178,9 @@ if ($errorMessage === '' && $_SERVER['REQUEST_METHOD'] === 'POST' && !$viewOnly)
             $ins = $pdo->prepare(
                 "INSERT INTO individual_development_plans
                      (employee_id, employee_name, position, department, competency, succession_status,
-                      development_plan, target_score, delivery_mode, idp_status)
+                      development_plan, target_score, target_date, delivery_mode, idp_status)
                  VALUES
-                     (?, ?, ?, ?, ?, ?, ?, ?, ?, 'under_review')
+                     (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'under_review')
                  ON DUPLICATE KEY UPDATE
                      employee_name = VALUES(employee_name),
                      position = VALUES(position),
@@ -124,6 +189,7 @@ if ($errorMessage === '' && $_SERVER['REQUEST_METHOD'] === 'POST' && !$viewOnly)
                      succession_status = VALUES(succession_status),
                      development_plan = VALUES(development_plan),
                      target_score = VALUES(target_score),
+                     target_date = IFNULL(VALUES(target_date), target_date),
                      delivery_mode = VALUES(delivery_mode),
                      idp_status = CASE WHEN individual_development_plans.idp_status IN ('requested','approved') THEN individual_development_plans.idp_status ELSE 'under_review' END"
             );
@@ -136,6 +202,7 @@ if ($errorMessage === '' && $_SERVER['REQUEST_METHOD'] === 'POST' && !$viewOnly)
                 $src['status'],
                 $developmentPlan,
                 $targetScore,
+                $targetDate,
                 $idpDeliveryMode,
             ]);
 
@@ -386,6 +453,7 @@ if ($employeeId !== '') {
                 END AS status,
                 ss.development_plan,
                 ss.target_score,
+                ss.target_date,
                 ss.idp_status,
                 ss.idp_created_at,
                 ss.created_at
@@ -408,11 +476,35 @@ if ($employeeId !== '') {
     $stmt->execute([$employeeId]);
     $row = $stmt->fetch();
 }
-
 if (!$row) {
     http_response_code(404);
     $errorMessage = 'Employee record not found in Succession Submissions.';
 }
+
+$employeeStatus = (string)($row['status'] ?? '');
+$isSuccessionReady = $employeeStatus === 'Succession Ready';
+
+$extractMeta = function (string $plan, string $key): string {
+    $plan = (string)$plan;
+    $key = preg_quote($key, '/');
+    if (preg_match('/^' . $key . '\s*:\s*(.*)$/mi', $plan, $m)) {
+        return trim((string)($m[1] ?? ''));
+    }
+    return '';
+};
+
+$prefillPlan = (string)($row['development_plan'] ?? '');
+$succTargetRoleValue = $_SERVER['REQUEST_METHOD'] === 'POST' ? (string)($_POST['succ_target_role'] ?? '') : $extractMeta($prefillPlan, 'Target Succession Role');
+$succReadinessLevelValue = $_SERVER['REQUEST_METHOD'] === 'POST' ? (string)($_POST['succ_readiness_level'] ?? '') : $extractMeta($prefillPlan, 'Readiness Level');
+$succMentorCoachValue = $_SERVER['REQUEST_METHOD'] === 'POST' ? (string)($_POST['succ_mentor_coach'] ?? '') : $extractMeta($prefillPlan, 'Assigned Mentor/Coach');
+$succFinalOutcomeValue = $_SERVER['REQUEST_METHOD'] === 'POST' ? (string)($_POST['succ_final_outcome'] ?? '') : $extractMeta($prefillPlan, 'Final Succession Validation Outcome');
+
+$succLeadershipFocusValue = $_SERVER['REQUEST_METHOD'] === 'POST' ? (string)($_POST['succ_leadership_focus'] ?? '') : $extractMeta($prefillPlan, 'Leadership & Strategic Competencies');
+$succStretchAssignmentsValue = $_SERVER['REQUEST_METHOD'] === 'POST' ? (string)($_POST['succ_stretch_assignments'] ?? '') : $extractMeta($prefillPlan, 'Stretch Assignments & Exposure');
+$succCoachingPlanValue = $_SERVER['REQUEST_METHOD'] === 'POST' ? (string)($_POST['succ_coaching_plan'] ?? '') : $extractMeta($prefillPlan, 'Coaching & Knowledge Transfer');
+$succAssessmentPlanValue = $_SERVER['REQUEST_METHOD'] === 'POST' ? (string)($_POST['succ_assessment_plan'] ?? '') : $extractMeta($prefillPlan, 'Readiness Assessment & Evaluation');
+
+$targetDateValue = $_SERVER['REQUEST_METHOD'] === 'POST' ? (string)($_POST['target_date'] ?? '') : (string)($row['target_date'] ?? '');
 
 $generalSkillsBreakdown = [];
 if ($row) {
@@ -452,19 +544,9 @@ $trainingStartDateValue = $_SERVER['REQUEST_METHOD'] === 'POST' ? (string)($_POS
 $trainingStartTimeValue = $_SERVER['REQUEST_METHOD'] === 'POST' ? (string)($_POST['training_start_time'] ?? '') : '';
 $trainingEndDateValue = $_SERVER['REQUEST_METHOD'] === 'POST' ? (string)($_POST['training_end_date'] ?? '') : '';
 $trainingEndTimeValue = $_SERVER['REQUEST_METHOD'] === 'POST' ? (string)($_POST['training_end_time'] ?? '') : '';
+require('../../partials/header.php');
 ?>
-<!DOCTYPE html>
-<html lang="en" data-theme="light">
-<head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Individual Development Plan</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet" type="text/css" />
-    <script src="https://unpkg.com/lucide@latest"></script>
-    <link rel="stylesheet" href="../../../soliera.css" />
-    <link rel="stylesheet" href="../../../sidebar.css" />
-</head>
+
 <body class="bg-gray-50 min-h-screen">
 
   <div class="flex h-screen">
@@ -481,7 +563,7 @@ $trainingEndTimeValue = $_SERVER['REQUEST_METHOD'] === 'POST' ? (string)($_POST[
       <main class="flex-1 overflow-auto p-6">
         <div class="max-w-4xl mx-auto">
             <div class="flex items-center justify-between mb-6">
-                <h1 class="text-2xl font-bold text-gray-900">Individual Development Plan</h1>
+                <h1 class="text-2xl font-bold text-gray-900"><?php echo $isSuccessionReady ? 'Succession Ready IDP' : 'Individual Development Plan'; ?></h1>
                 <div class="flex items-center gap-4">
                 
                     <a href="succession_dashboard.php" class="text-sm font-semibold text-gray-700 hover:text-gray-900">Back to Dashboard</a>
@@ -565,9 +647,66 @@ $trainingEndTimeValue = $_SERVER['REQUEST_METHOD'] === 'POST' ? (string)($_POST[
 
             <form method="post" class="bg-white border border-gray-200 rounded-lg p-5 shadow-sm">
                 <input type="hidden" name="idp_delivery_mode" id="idp_delivery_mode" value="<?php echo h($idpDeliveryModeValue); ?>" />
+                <input type="hidden" name="employee_status" value="<?php echo h($employeeStatus); ?>" />
+
+                <?php if ($isSuccessionReady): ?>
+                    <div class="mb-6 border border-gray-200 rounded-md p-4">
+                        <div class="text-sm font-semibold text-gray-900 mb-4">Target Role Alignment</div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-800 mb-2">Target Succession Role</label>
+                                <input type="text" name="succ_target_role" value="<?php echo h($succTargetRoleValue); ?>" class="w-full border border-gray-300 rounded-md p-3 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900" <?php echo $viewOnly ? 'readonly' : ''; ?> />
+                            </div>
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-800 mb-2">Readiness Level</label>
+                                <select name="succ_readiness_level" class="w-full border border-gray-300 rounded-md p-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-gray-900" <?php echo $viewOnly ? 'disabled' : ''; ?>>
+                                    <option value="" disabled <?php echo $succReadinessLevelValue === '' ? 'selected' : ''; ?>>Select readiness</option>
+                                    <option value="Ready Now" <?php echo $succReadinessLevelValue === 'Ready Now' ? 'selected' : ''; ?>>Ready Now</option>
+                                    <option value="Ready in 6 Months" <?php echo $succReadinessLevelValue === 'Ready in 6 Months' ? 'selected' : ''; ?>>Ready in 6 Months</option>
+                                    <option value="Ready in 12 Months" <?php echo $succReadinessLevelValue === 'Ready in 12 Months' ? 'selected' : ''; ?>>Ready in 12 Months</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-800 mb-2">Expected Transition Timeline</label>
+                                <input type="date" name="target_date" value="<?php echo h($targetDateValue); ?>" class="w-full border border-gray-300 rounded-md p-3 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900" <?php echo $viewOnly ? 'readonly' : ''; ?> />
+                            </div>
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-800 mb-2">Assigned Mentor or Coach</label>
+                                <input type="text" name="succ_mentor_coach" value="<?php echo h($succMentorCoachValue); ?>" class="w-full border border-gray-300 rounded-md p-3 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900" <?php echo $viewOnly ? 'readonly' : ''; ?> />
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 gap-4 mt-4">
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-800 mb-2">Leadership &amp; Strategic Competencies</label>
+                                <textarea name="succ_leadership_focus" rows="3" class="w-full border border-gray-300 rounded-md p-3 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900" <?php echo $viewOnly ? 'readonly' : ''; ?>><?php echo h($succLeadershipFocusValue); ?></textarea>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-800 mb-2">Stretch Assignments &amp; Exposure (OIC, project leadership, strategic meetings)</label>
+                                <textarea name="succ_stretch_assignments" rows="3" class="w-full border border-gray-300 rounded-md p-3 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900" <?php echo $viewOnly ? 'readonly' : ''; ?>><?php echo h($succStretchAssignmentsValue); ?></textarea>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-800 mb-2">Coaching &amp; Knowledge Transfer Plan</label>
+                                <textarea name="succ_coaching_plan" rows="3" class="w-full border border-gray-300 rounded-md p-3 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900" <?php echo $viewOnly ? 'readonly' : ''; ?>><?php echo h($succCoachingPlanValue); ?></textarea>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-800 mb-2">Readiness Assessment &amp; Validation</label>
+                                <textarea name="succ_assessment_plan" rows="3" class="w-full border border-gray-300 rounded-md p-3 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900" <?php echo $viewOnly ? 'readonly' : ''; ?>><?php echo h($succAssessmentPlanValue); ?></textarea>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-800 mb-2">Final Succession Validation Outcome</label>
+                                <select name="succ_final_outcome" class="w-full border border-gray-300 rounded-md p-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-gray-900" <?php echo $viewOnly ? 'disabled' : ''; ?>>
+                                    <option value="" <?php echo $succFinalOutcomeValue === '' ? 'selected' : ''; ?>>Pending</option>
+                                    <option value="Validated" <?php echo $succFinalOutcomeValue === 'Validated' ? 'selected' : ''; ?>>Validated</option>
+                                    <option value="Not Validated" <?php echo $succFinalOutcomeValue === 'Not Validated' ? 'selected' : ''; ?>>Not Validated</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                <?php endif; ?>
                 <?php if (count($suggestedPlans) > 0): ?>
                     <div class="mb-4">
-                        <label class="block text-sm font-semibold text-gray-800 mb-2">Suggested Development Plans</label>
+                        <label class="block text-sm font-semibold text-gray-800 mb-2"><?php echo $isSuccessionReady ? 'Strategic Development Activities' : 'Suggested Development Plans'; ?></label>
                         <div id="suggested_plans" class="space-y-3">
                             <?php $skillIndex = 0; ?>
                             <?php foreach ($suggestedPlans as $skillName => $planData): ?>
@@ -603,10 +742,10 @@ $trainingEndTimeValue = $_SERVER['REQUEST_METHOD'] === 'POST' ? (string)($_POST[
                 <?php endif; ?>
 
                 <div class="mb-4">
-                    <label class="block text-sm font-semibold text-gray-800 mb-2">Development Plan</label>
+                    <label class="block text-sm font-semibold text-gray-800 mb-2"><?php echo $isSuccessionReady ? 'Strategic Development Activity Plan' : 'Development Plan'; ?></label>
                     <div class="w-full border border-gray-200 rounded-md p-3 bg-white mb-2">
                         <div id="development_plan_bubbles_inner" class="flex flex-wrap gap-2"></div>
-                        <div id="development_plan_bubbles_empty" class="text-xs text-gray-500">No selected trainings yet.</div>
+                        <div id="development_plan_bubbles_empty" class="text-xs text-gray-500"><?php echo $isSuccessionReady ? 'No selected activities yet.' : 'No selected trainings yet.'; ?></div>
                     </div>
                     <textarea id="development_plan" name="development_plan" class="hidden" <?php echo $viewOnly ? 'readonly' : ''; ?>><?php echo h($row['development_plan'] ?? ''); ?></textarea>
                 </div>
@@ -619,10 +758,10 @@ $trainingEndTimeValue = $_SERVER['REQUEST_METHOD'] === 'POST' ? (string)($_POST[
                 </div>
 
                 <div class="border-t border-gray-200 pt-6 mb-6">
-                    <div class="text-sm font-semibold text-gray-900 mb-4">Training Request</div>
+                    <div class="text-sm font-semibold text-gray-900 mb-4"><?php echo $isSuccessionReady ? 'Strategic Development Activity Request' : 'Training Request'; ?></div>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
-                            <label class="block text-sm font-semibold text-gray-800 mb-2">Training Type</label>
+                            <label class="block text-sm font-semibold text-gray-800 mb-2"><?php echo $isSuccessionReady ? 'Activity Type' : 'Training Type'; ?></label>
                             <select name="training_type" class="w-full border border-gray-300 rounded-md p-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-gray-900" <?php echo $viewOnly ? 'disabled' : ''; ?>>
                                 <option value="" <?php echo $trainingTypeValue === '' ? 'selected' : ''; ?> disabled>Select training type</option>
                                 <option value="Orientation" <?php echo $trainingTypeValue === 'Orientation' ? 'selected' : ''; ?>>Orientation</option>
@@ -633,7 +772,7 @@ $trainingEndTimeValue = $_SERVER['REQUEST_METHOD'] === 'POST' ? (string)($_POST[
                             </select>
                         </div>
                         <div>
-                            <label class="block text-sm font-semibold text-gray-800 mb-2">Training Mode</label>
+                            <label class="block text-sm font-semibold text-gray-800 mb-2"><?php echo $isSuccessionReady ? 'Activity Mode' : 'Training Mode'; ?></label>
                             <select name="training_mode" class="w-full border border-gray-300 rounded-md p-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-gray-900" <?php echo $viewOnly ? 'disabled' : ''; ?>>
                                 <option value="Onsite" <?php echo $trainingModeValue === 'Onsite' ? 'selected' : ''; ?>>Onsite</option>
                                 <option value="Online" <?php echo $trainingModeValue === 'Online' ? 'selected' : ''; ?>>Online</option>
@@ -840,7 +979,4 @@ $trainingEndTimeValue = $_SERVER['REQUEST_METHOD'] === 'POST' ? (string)($_POST[
     </div>
     </main>
   </div>
-  <script src="../../soliera.js"></script>
-  <script src="../../sidebar.js"></script>
-</body>
-</html>
+  <?php require('../../partials/footer.php') ?>
