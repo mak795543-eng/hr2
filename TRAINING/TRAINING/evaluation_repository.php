@@ -1,5 +1,5 @@
 <?php
-session_start();
+
 require_once __DIR__ . '/db.php';
 
 function h($v) {
@@ -317,18 +317,8 @@ if (isset($_GET['print']) && (string)$_GET['print'] === '1') {
         exit;
     }
 }
+require('../../partials/header.php');
 ?>
-<!DOCTYPE html>
-<html lang="en" data-theme="light">
-<head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Evaluation Repository</title>
-   <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.6.0/dist/full.css" rel="stylesheet" type="text/css" />
-    <script src="https://unpkg.com/lucide@latest"></script>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <style media="print">
         .no-print { display: none !important; }
         details.collapse > summary { list-style: none; }
@@ -477,7 +467,4 @@ if (isset($_GET['print']) && (string)$_GET['print'] === '1') {
         </main>
     </div>
 </div>
-  <script src="../../soliera.js"></script>
-  <script src="../../sidebar.js"></script>
-</body>
-</html>
+  <?php require('../../partials/footer.php') ?>

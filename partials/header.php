@@ -1,4 +1,34 @@
-<?php session_start() ?>
+
+<?php session_start();
+// Simple dd() function for plain PHP
+// dd(! isset($_SESSION['employee_id']));
+function dd($vars) {
+    echo '<pre>'; // Format output nicely
+        var_dump($vars); // Dump the variable
+    echo '</pre>';
+    die(); // Stop execution
+}
+
+if(!isset($_SESSION['employee_id'])){
+    header('Location: /hr2/USM/index.php');
+    exit;
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['logout'])) {
+    $_SESSION = [];
+    
+    if (ini_get("session.use_cookies")) {
+        $params = session_get_cookie_params();
+        setcookie(session_name(), '', time() - 42000,
+            $params["path"], $params["domain"],
+            $params["secure"], $params["httponly"]
+        );
+    }
+    session_destroy();
+    header('Location: /hr2/USM/index.php');
+    exit;
+}
+?>
 <!DOCTYPE html>
 
 <html lang="en" data-theme="light">

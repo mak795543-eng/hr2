@@ -1,5 +1,5 @@
 ﻿<?php
-require_once __DIR__ . '/../../COMPETENCY/criticalgaps/criticalgaps/config.php';
+require_once __DIR__ . '/../../COMPETENCY/criticalgaps/config.php';
 
 function h($v) {
     return htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
@@ -92,11 +92,11 @@ $rows = $stmt->fetchAll();
     <!-- Sidebar -->
     <?php 
     // Use relative path or absolute path based on your directory structure
-    include '../../../USM/sidebarr.php'; 
+    include '../../USM/sidebarr.php'; 
     ?>
     <!-- Content Area -->
     <div class=\"flex flex-col flex-1 overflow-auto\">      <!-- Navbar -->
-      <?php include '../../../USM/navbar.php'; ?>
+      <?php include '../../USM/navbar.php'; ?>
 
     <div class="max-w-7xl mx-auto p-6">
         <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-6">
@@ -186,8 +186,8 @@ $rows = $stmt->fetchAll();
     </div>
     </div>
   </div>
-  <script src="../../../soliera.js"></script>
-  <script src="../../../sidebar.js"></script>
+  <script src="../../soliera.js"></script>
+  <script src="../../sidebar.js"></script>
 </body>
 </html>
 
