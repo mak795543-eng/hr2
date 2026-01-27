@@ -158,7 +158,7 @@ if (!function_exists('hasAccess')) {
                                 Training Requests
                             </span>
                             </a>
-                       </div>        
+</div>      
                 </div>
             <?php endif; ?>
 
