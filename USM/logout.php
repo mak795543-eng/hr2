@@ -12,7 +12,7 @@ $role          = $_SESSION['role'] ?? null;
 if ($employee_id && $employee_name) {
     try {
         // Switch to rest_core_2_usm DB
-        $dbName = "hr2usm";
+        $dbName = "hr2_usmhr2";
         $db = $connections[$dbName] ?? null;
 
         if ($db) {
