@@ -364,13 +364,13 @@ if (!empty($evaluations)) {
     <!-- Sidebar -->
     <?php 
     // Use relative path or absolute path based on your directory structure
-    include '../../../USM/sidebarr.php'; 
+    include '../../USM/sidebarr.php'; 
     ?>
 
     <!-- Content Area -->
     <div class="flex flex-col flex-1 overflow-auto">
       <!-- Navbar -->
-      <?php include '../../../USM/navbar.php'; ?>
+      <?php include '../../USM/navbar.php'; ?>
     
         <main class="container mx-auto px-4 py-6 space-y-6">
             <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
@@ -624,7 +624,7 @@ if (!empty($evaluations)) {
         calc();
     })();
 </script>
-<script src="../../../soliera.js"></script>
-  <script src="../../../sidebar.js"></script>
+<script src="../../soliera.js"></script>
+  <script src="../../sidebar.js"></script>
 </body>
 </html>

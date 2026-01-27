@@ -25,9 +25,29 @@ $module_id = null;
 // IMPROVED: Check if file content is passed from upload with better processing
 if (isset($_GET['file_content']) && !empty($_GET['file_content'])) {
     $file_content = urldecode($_GET['file_content']);
+    $file_name = isset($_GET['file_name']) ? urldecode($_GET['file_name']) : 'uploaded_file';
+    
+    // Log the file processing for debugging
+    error_log("Processing uploaded file: " . $file_name);
+    error_log("Content length: " . strlen($file_content));
     
     // Enhanced content processing
     $module_content = processUploadedContent($file_content);
+    
+    // Set a default title if not provided
+    if (empty($module_title) && !empty($file_name)) {
+        $module_title = pathinfo($file_name, PATHINFO_FILENAME);
+        // Clean up the title (replace underscores and hyphens with spaces)
+        $module_title = str_replace(['_', '-'], ' ', $module_title);
+        $module_title = ucwords(trim($module_title));
+    }
+    
+    error_log("Processed content length: " . strlen($module_content));
+    
+    // Set a session message to indicate successful file upload
+    if (!empty($module_content) && strpos($module_content, 'Error reading file:') !== 0) {
+        $_SESSION['success_message'] = "File content successfully loaded into the editor!";
+    }
 }
 
 // Check if we're editing an existing module
@@ -67,18 +87,59 @@ if (isset($_GET['edit']) && !empty($_GET['edit'])) {
 
 // Function to process uploaded content with better formatting
 function processUploadedContent($content) {
+    // Handle error messages from file reading
+    if (strpos($content, 'Error reading file:') === 0) {
+        return '<p class="text-error">' . htmlspecialchars($content) . '</p>';
+    }
+    
+    // Handle binary file messages
+    if (strpos($content, 'File:') === 0 && strpos($content, 'Type:') !== false && strpos($content, 'binary data') !== false) {
+        return '<div class="file-info">
+            <h3>File Information</h3>
+            <p>' . nl2br(htmlspecialchars($content)) . '</p>
+            <p><em>Please edit the content manually in the editor below.</em></p>
+        </div>';
+    }
+    
     // If content appears to be HTML, process it
     if (strpos($content, '<') !== false && strpos($content, '>') !== false) {
         return processHtmlContent($content);
     }
     
-    // If content is plain text with line breaks, preserve them
+    // If content is plain text with line breaks, preserve them and convert to paragraphs
     if (strpos($content, "\n") !== false) {
-        return nl2br(htmlspecialchars($content));
+        $lines = explode("\n", $content);
+        $paragraphs = [];
+        $currentParagraph = '';
+        
+        foreach ($lines as $line) {
+            $trimmedLine = trim($line);
+            
+            // Empty line indicates new paragraph
+            if (empty($trimmedLine)) {
+                if (!empty($currentParagraph)) {
+                    $paragraphs[] = '<p>' . htmlspecialchars($currentParagraph) . '</p>';
+                    $currentParagraph = '';
+                }
+            } else {
+                // Add to current paragraph
+                if (!empty($currentParagraph)) {
+                    $currentParagraph .= ' ';
+                }
+                $currentParagraph .= $trimmedLine;
+            }
+        }
+        
+        // Add the last paragraph if it exists
+        if (!empty($currentParagraph)) {
+            $paragraphs[] = '<p>' . htmlspecialchars($currentParagraph) . '</p>';
+        }
+        
+        return implode("\n", $paragraphs);
     }
     
-    // Default: return as plain text with HTML escaping
-    return htmlspecialchars($content);
+    // Default: return as paragraph with HTML escaping
+    return '<p>' . htmlspecialchars($content) . '</p>';
 }
 
 // Function to process HTML content while preserving structure
@@ -577,6 +638,31 @@ if ($edit_mode && $module_id) {
       height: 1.25rem;
     }
 
+    /* File info styling */
+    .file-info {
+      background-color: #f8f9fa;
+      border: 1px solid #e9ecef;
+      border-radius: 0.5rem;
+      padding: 1.5rem;
+      margin: 1rem 0;
+    }
+
+    .file-info h3 {
+      color: #495057;
+      margin-bottom: 1rem;
+      font-size: 1.1rem;
+    }
+
+    .file-info p {
+      margin-bottom: 0.5rem;
+      line-height: 1.5;
+    }
+
+    .text-error {
+      color: #dc3545;
+      font-weight: 500;
+    }
+
     /* FIXED: SweetAlert2 Custom Styles - REMOVED the problematic CSS */
     /* Only keep minimal styling to ensure buttons are visible */
     .swal2-popup {
@@ -603,13 +689,15 @@ if ($edit_mode && $module_id) {
 <body class="bg-gray-50 min-h-screen">
   <div class="flex h-screen">
     <!-- Sidebar -->
-    <?php if (file_exists(__DIR__ . '/../../USM/sidebarr.php')) { include __DIR__ . '/../../USM/sidebarr.php'; } ?>
+    <?php 
+    // Use relative path or absolute path based on your directory structure
+
+    ?>
 
     <!-- Content Area -->
     <div class="flex flex-col flex-1 overflow-auto">
-        <!-- Navbar -->
-        <?php if (file_exists(__DIR__ . '/../../USM/navbar.php')) { include __DIR__ . '/../../USM/navbar.php'; } ?>
-
+      <!-- Navbar -->
+      <?php include '../../USM/navbar.php'; ?>
         <!-- Success and Error Messages -->
         <?php if (isset($_SESSION['success_message'])): ?>
             <div class="alert alert-success">
@@ -806,7 +894,13 @@ if ($edit_mode && $module_id) {
             <div class="page-container">
                 <div class="page-margins">
                     <div class="editor-content" id="editor" contenteditable="true">
-                        <?php echo !empty($module_content) ? $module_content : '<p>Start typing your document here...</p>'; ?>
+                        <?php 
+                        if (!empty($module_content)) {
+                            echo $module_content;
+                        } else {
+                            echo '<p>Start typing your document here...</p>';
+                        }
+                        ?>
                     </div>
                 </div>
             </div>
@@ -832,7 +926,7 @@ if ($edit_mode && $module_id) {
 
         <!-- Theme Toggle Button -->
         <button class="theme-toggle" id="themeToggle">
-            <i class="fas fa-moon"></i>
+    
         </button>
     </div>
   </div>
@@ -891,6 +985,28 @@ if ($edit_mode && $module_id) {
       const autoSaveStatusElement = document.getElementById('autoSaveStatus');
       const autoSaveIndicator = document.getElementById('autoSaveIndicator');
       const pageInfoElement = document.getElementById('pageInfo');
+      
+      // Check if content was uploaded from file
+      const urlParams = new URLSearchParams(window.location.search);
+      const hasFileContent = urlParams.has('file_content');
+      const fileName = urlParams.get('file_name');
+      
+      // Show notification if file was uploaded
+      if (hasFileContent && fileName) {
+          setTimeout(() => {
+              if (window.Swal) {
+                  Swal.fire({
+                      icon: 'success',
+                      title: 'File Uploaded Successfully',
+                      text: `Content from "${fileName}" has been loaded into the editor.`,
+                      timer: 3000,
+                      showConfirmButton: false,
+                      position: 'top-end',
+                      toast: true
+                  });
+              }
+          }, 1000);
+      }
       
       // Toolbar elements
       const fontFamily = document.getElementById('fontFamily');
@@ -1769,6 +1885,8 @@ if ($edit_mode && $module_id) {
           animation: swal2-hide 0.3s !important;
       }
   </style>
+   <script src="../../soliera.js"></script>
+  <script src="../../sidebar.js"></script>
 </body>
 </html>
 

@@ -67,6 +67,7 @@ $conn->close();
   <script src="https://unpkg.com/lucide@latest"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <!-- SweetAlert2 CSS -->
+      <script src="https://unpkg.com/lucide@latest"></script>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
   <link rel="stylesheet" href="../../CSS/learning_theme.css">
   <style>
@@ -634,17 +635,17 @@ $conn->close();
 </style>
 </head>
 <body class="bg-gray-50 min-h-screen">
-  <div class="flex h-screen">
+<div class="flex h-screen">
     <!-- Sidebar -->
     <?php 
     // Use relative path or absolute path based on your directory structure
-    include '../../../USM/sidebarr.php'; 
+    include '../../USM/sidebarr.php'; 
     ?>
 
     <!-- Content Area -->
     <div class="flex flex-col flex-1 overflow-auto">
       <!-- Navbar -->
-      <?php include '../../../USM/navbar.php'; ?>
+      <?php include '../../USM/navbar.php'; ?>
 
         <!-- Main Content -->
         <div class="container mx-auto px-4 py-8">
@@ -2490,8 +2491,13 @@ $conn->close();
       });
     });
   </script>
-   <script src="../../../soliera.js"></script>
-  <script src="../../../sidebar.js"></script>
+    <script>
+    lucide.createIcons();
+  </script>
+   <!-- Include JavaScript file -->
+  <script src="../../JS/learning_modules_repository.js"></script>
+   <script src="../../soliera.js"></script>
+  <script src="../../sidebar.js"></script>
 </body>
 </html>
 
