@@ -31,7 +31,7 @@ try {
     }
 
     if ($action === 'list') {
-        $sql = "SELECT id, name, description FROM competency_criteria ORDER BY id DESC";
+        $sql = "SELECT id, name, description, required_level FROM competency_criteria ORDER BY id DESC";
         $res = $conn->query($sql);
         if (!$res) {
             throw new RuntimeException($conn->error ?: 'Query failed');
@@ -43,6 +43,7 @@ try {
                 'id' => (int)($r['id'] ?? 0),
                 'name' => (string)($r['name'] ?? ''),
                 'description' => (string)($r['description'] ?? ''),
+                'required_level' => (float)($r['required_level'] ?? 0),
             ];
         }
         $res->free();
@@ -54,6 +55,7 @@ try {
     if ($action === 'create') {
         $name = trim((string)($payload['name'] ?? ''));
         $description = trim((string)($payload['description'] ?? ''));
+        $requiredLevelRaw = $payload['required_level'] ?? null;
 
         if ($name === '' || $description === '') {
             http_response_code(422);
@@ -61,9 +63,19 @@ try {
             exit;
         }
 
-        $stmt = $conn->prepare("INSERT INTO competency_criteria (name, description) VALUES (?, ?)");
+        if (!is_numeric($requiredLevelRaw)) {
+            http_response_code(422);
+            echo json_encode(['success' => false, 'message' => 'Required level is required']);
+            exit;
+        }
+
+        $requiredLevel = (float)$requiredLevelRaw;
+        if ($requiredLevel < 0) $requiredLevel = 0;
+        if ($requiredLevel > 100) $requiredLevel = 100;
+
+        $stmt = $conn->prepare("INSERT INTO competency_criteria (name, description, required_level) VALUES (?, ?, ?)");
         if (!$stmt) throw new RuntimeException($conn->error);
-        $stmt->bind_param('ss', $name, $description);
+        $stmt->bind_param('ssd', $name, $description, $requiredLevel);
 
         $ok = $stmt->execute();
         if (!$ok) {
@@ -91,6 +103,7 @@ try {
         $id = isset($payload['id']) ? (int)$payload['id'] : 0;
         $name = trim((string)($payload['name'] ?? ''));
         $description = trim((string)($payload['description'] ?? ''));
+        $requiredLevelRaw = $payload['required_level'] ?? null;
 
         if ($id <= 0) {
             http_response_code(422);
@@ -104,9 +117,19 @@ try {
             exit;
         }
 
-        $stmt = $conn->prepare("UPDATE competency_criteria SET name = ?, description = ? WHERE id = ?");
+        if (!is_numeric($requiredLevelRaw)) {
+            http_response_code(422);
+            echo json_encode(['success' => false, 'message' => 'Required level is required']);
+            exit;
+        }
+
+        $requiredLevel = (float)$requiredLevelRaw;
+        if ($requiredLevel < 0) $requiredLevel = 0;
+        if ($requiredLevel > 100) $requiredLevel = 100;
+
+        $stmt = $conn->prepare("UPDATE competency_criteria SET name = ?, description = ?, required_level = ? WHERE id = ?");
         if (!$stmt) throw new RuntimeException($conn->error);
-        $stmt->bind_param('ssi', $name, $description, $id);
+        $stmt->bind_param('ssdi', $name, $description, $requiredLevel, $id);
 
         $ok = $stmt->execute();
         if (!$ok) {
