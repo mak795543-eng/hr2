@@ -173,9 +173,9 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && $employee_ID && $password) {
     mysqli_stmt_bind_param($stmt, "s", $employee_ID);
     mysqli_stmt_execute($stmt);
     $result = mysqli_stmt_get_result($stmt);
-    
+
     if ($result && mysqli_num_rows($result) > 0) {
-        
+
         $row = mysqli_fetch_assoc($result);
         // dd($row);
         $Department_ID = $row["Dept_id"];
@@ -184,7 +184,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && $employee_ID && $password) {
 
         // === Password check (plain equality in your original; keep but recommend hashing)
         if ($password === $row["password"]) {
-        // dd("test2");
+            // dd("test2");
 
             // generate OTP and store PENDING login state (do NOT mark full session yet)
             $otp = rand(100000, 999999);
@@ -226,34 +226,34 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && $employee_ID && $password) {
     }
 
     // Check in Department USM (this one seems to bypass 2FA in your original - preserved)
-    $stmt = mysqli_prepare($usm_connection, "SELECT email, employee_name, password, role, Dept_id FROM department_accounts WHERE employee_id = ?");
-    mysqli_stmt_bind_param($stmt, "s", $employee_ID);
-    mysqli_stmt_execute($stmt);
-    $result = mysqli_stmt_get_result($stmt);
+    //     $stmt = mysqli_prepare($usm_connection, "SELECT email, employee_name, password, role, Dept_id FROM department_accounts WHERE employee_id = ?");
+    //     mysqli_stmt_bind_param($stmt, "s", $employee_ID);
+    //     mysqli_stmt_execute($stmt);
+    //     $result = mysqli_stmt_get_result($stmt);
 
-    if ($result && mysqli_num_rows($result) > 0) {
-        $row = mysqli_fetch_assoc($result);
-        $Department_ID = $row["Dept_id"];
-        $Role = $row["role"];
-        $Name = $row["employee_name"];
+    //     if ($result && mysqli_num_rows($result) > 0) {
+    //         $row = mysqli_fetch_assoc($result);
+    //         $Department_ID = $row["Dept_id"];
+    //         $Role = $row["role"];
+    //         $Name = $row["employee_name"];
 
-        if ($password === $row["password"]) {
-            // Full login for this DB (as in original)
-            $_SESSION["employee_id"] = $employee_ID;
-            // fix: use $Role (was $role in original)
-            $_SESSION["role"] = $Role;
-            $_SESSION["Dept_id"] = $row["Dept_id"];
-            $_SESSION["email"] = $row["email"] ?? $row["Email"] ?? '';
-            header("Location: dashboard.php");
-            exit();
-        } else {
-            incrementLoginAttempts($employee_ID);
-            logAttempt($usm_connection, $employee_ID, $Name, $Role, 'Failed', 'Login', 0, 'Incorrect password', '');
-            $_SESSION["loginError"] = "Incorrect password.";
-            header("Location: index.php");
-            exit();
-        }
-}
+    //         if ($password === $row["password"]) {
+    //             // Full login for this DB (as in original)
+    //             $_SESSION["employee_id"] = $employee_ID;
+    //             // fix: use $Role (was $role in original)
+    //             $_SESSION["role"] = $Role;
+    //             $_SESSION["Dept_id"] = $row["Dept_id"];
+    //             $_SESSION["email"] = $row["email"] ?? $row["Email"] ?? '';
+    //             header("Location: dashboard.php");
+    //             exit();
+    //         } else {
+    //             incrementLoginAttempts($employee_ID);
+    //             logAttempt($usm_connection, $employee_ID, $Name, $Role, 'Failed', 'Login', 0, 'Incorrect password', '');
+    //             $_SESSION["loginError"] = "Incorrect password.";
+    //             header("Location: index.php");
+    //             exit();
+    //         }
+    // }
 }
 
 // === Main Login Logic ===
@@ -347,36 +347,38 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && $employee_ID && $password) {
 //     header("Location: index.php");
 //     exit();
 
-    
+
 // }
 
 
 ?>
 <!DOCTYPE html>
 <html lang="en" data-theme="light">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Soliera Hotel - Department Login</title>
-    
-    <link href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css" rel="stylesheet"/>
+
+    <link href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css" rel="stylesheet" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://cdn.jsdelivr.net/npm/aos@2.3.4/dist/aos.css" rel="stylesheet">
-        <script src="https://cdn.tailwindcss.com"></script>
-   
+    <script src="https://cdn.tailwindcss.com"></script>
+
 
 
     <style>
         /* Add any custom styles here if needed */
     </style>
 </head>
+
 <body>
-   <section class="relative w-full h-screen">
+    <section class="relative w-full h-screen">
         <!-- Background image with overlay -->
         <div class="absolute inset-0 bg-cover bg-center z-0" style="background-image: url('hotel3.jpg');"></div>
         <div class="absolute inset-0 bg-black/40 z-10"></div>
         <div class="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-black/70 z-10"></div>
-        
+
         <!-- Content container -->
         <div class="relative z-10 w-full h-full flex justify-center items-center p-4">
             <div class="w-1/2 flex justify-center items-center max-md:hidden">
@@ -391,7 +393,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && $employee_ID && $password) {
                     </div>
                 </div>
             </div>
-            
+
             <div class="w-1/2 flex justify-center items-center max-md:w-full">
                 <div class="max-w-md w-full bg-white/10 backdrop-blur-lg p-6 rounded-xl shadow-2xl border border-white/20">
                     <!-- Card Header -->
@@ -399,7 +401,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && $employee_ID && $password) {
                         <h2 class="text-2xl font-bold text-white">Sign in to your account</h2>
                         <p class="text-white/80 mt-1">Enter your credentials to continue</p>
                     </div>
-                    
+
                     <!-- Card Body -->
                     <div>
                         <form method="POST" action="<?php echo htmlspecialchars($_SERVER["PHP_SELF"]); ?>">
@@ -412,18 +414,17 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && $employee_ID && $password) {
                                     <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                                         <box-icon name='user' color="rgba(255,255,255,0.5)"></box-icon>
                                     </div>
-                                    <input 
-                                        id="employee_id" 
-                                        type="text" 
-                                        class="w-full pl-10 pr-3 py-3 bg-white/5 border border-white/20 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-transparent placeholder-white/50" 
+                                    <input
+                                        id="employee_id"
+                                        type="text"
+                                        class="w-full pl-10 pr-3 py-3 bg-white/5 border border-white/20 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-transparent placeholder-white/50"
                                         placeholder="Your ID"
                                         required
                                         name="employee_id"
-                                        value="<?php echo htmlspecialchars($employee_ID); ?>"
-                                    >
+                                        value="<?php echo htmlspecialchars($employee_ID); ?>">
                                 </div>
                             </div>
-                            
+
                             <!-- Password Input with Toggle -->
                             <div class="mb-6">
                                 <label class="block text-white/90 text-sm font-medium mb-2" for="password">
@@ -433,32 +434,30 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && $employee_ID && $password) {
                                     <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                                         <box-icon name='key' color="rgba(255,255,255,0.5)"></box-icon>
                                     </div>
-                                    <input 
-                                        id="password" 
-                                        type="password" 
-                                        class="w-full pl-10 pr-10 py-3 bg-white/5 border border-white/20 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-transparent placeholder-white/50" 
+                                    <input
+                                        id="password"
+                                        type="password"
+                                        class="w-full pl-10 pr-10 py-3 bg-white/5 border border-white/20 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-transparent placeholder-white/50"
                                         placeholder="••••••••"
                                         required
                                         name="password"
-                                        value="<?php echo htmlspecialchars($password); ?>"
-                                    >
-                                    <button 
-                                        type="button" 
+                                        value="<?php echo htmlspecialchars($password); ?>">
+                                    <button
+                                        type="button"
                                         class="absolute inset-y-0 right-0 flex items-center pr-3 text-white/50 hover:text-white focus:outline-none"
-                                        onclick="togglePasswordVisibility()"
-                                    >
+                                        onclick="togglePasswordVisibility()">
                                         <svg id="eye-icon" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                                            <path d="M10 12a2 2 0 100-4 2 2 0 000 4z"/>
-                                            <path fill-rule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clip-rule="evenodd"/>
+                                            <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
+                                            <path fill-rule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clip-rule="evenodd" />
                                         </svg>
                                         <svg id="eye-slash-icon" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 hidden" viewBox="0 0 20 20" fill="currentColor">
-                                            <path fill-rule="evenodd" d="M3.707 2.293a1 1 0 00-1.414 1.414l14 14a1 1 0 001.414-1.414l-1.473-1.473A10.014 10.014 0 0019.542 10C18.268 5.943 14.478 3 10 3a9.958 9.958 0 00-4.512 1.074l-1.78-1.781zm4.261 4.26l1.514 1.515a2.003 2.003 0 012.45 2.45l1.514 1.514a4 4 0 00-5.478-5.478z" clip-rule="evenodd"/>
-                                            <path d="M12.454 16.697L9.75 13.992a4 4 0 01-3.742-3.741L2.335 6.578A9.98 9.98 0 00.458 10c1.274 4.057 5.065 7 9.542 7 .847 0 1.669-.105 2.454-.303z"/>
+                                            <path fill-rule="evenodd" d="M3.707 2.293a1 1 0 00-1.414 1.414l14 14a1 1 0 001.414-1.414l-1.473-1.473A10.014 10.014 0 0019.542 10C18.268 5.943 14.478 3 10 3a9.958 9.958 0 00-4.512 1.074l-1.78-1.781zm4.261 4.26l1.514 1.515a2.003 2.003 0 012.45 2.45l1.514 1.514a4 4 0 00-5.478-5.478z" clip-rule="evenodd" />
+                                            <path d="M12.454 16.697L9.75 13.992a4 4 0 01-3.742-3.741L2.335 6.578A9.98 9.98 0 00.458 10c1.274 4.057 5.065 7 9.542 7 .847 0 1.669-.105 2.454-.303z" />
                                         </svg>
                                     </button>
                                 </div>
                             </div>
-                            
+
                             <!-- Remember Me & Forgot Password -->
                             <div class="flex items-center justify-between mb-6">
                                 <div class="flex items-center">
@@ -468,21 +467,20 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && $employee_ID && $password) {
                                     </label>
                                 </div>
                                 <div class="text-sm">
-                                  <a href="javascript:void(0)" onclick="toggleForgotModal(true)" class="font-medium text-blue-400 hover:text-blue-300">
-    Forgot password?
-</a>
+                                    <a href="javascript:void(0)" onclick="toggleForgotModal(true)" class="font-medium text-blue-400 hover:text-blue-300">
+                                        Forgot password?
+                                    </a>
 
                                 </div>
                             </div>
 
-                         
+
 
                             <!-- Sign In Button -->
-                            <button 
-                                type="submit" 
+                            <button
+                                type="submit"
                                 value="Login"
-                                class="w-full bg-[#EDB886] hover:bg-[#F7B32B] text-white font-bold py-3 px-4 rounded-lg transition duration-300"
-                            >
+                                class="w-full bg-[#EDB886] hover:bg-[#F7B32B] text-white font-bold py-3 px-4 rounded-lg transition duration-300">
                                 Login
                             </button>
                         </form>
@@ -491,50 +489,50 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && $employee_ID && $password) {
             </div>
         </div>
 
-       <!-- Forgot Password Modal -->
-<div id="forgot-modal" class="fixed inset-0 bg-black/20 backdrop-blur-sm hidden items-center justify-center z-50">
-    <div class="bg-white/90 backdrop-blur-md rounded-xl p-6 w-full max-w-md shadow-xl border border-white/20">
-        <div class="flex justify-between items-center mb-4">
-            <h2 class="text-xl font-bold text-gray-800">Reset your password</h2>
-            <button onclick="toggleForgotModal(false)" class="text-gray-500 hover:text-gray-700">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-            </button>
-        </div>
-        
-        <form action="forgot_password.php" method="POST">
-            <div class="mb-4">
-                <label class="block mb-2 text-sm font-medium text-gray-700">Email address</label>
-                <input type="email" name="email" required 
-                       class="w-full border border-gray-300 px-3 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-            </div>
-            
-            <div class="flex justify-end gap-3">
-                <button type="button" onclick="toggleForgotModal(false)" 
-                        class="px-4 py-2 rounded-lg bg-gray-200 hover:bg-gray-300 text-gray-800 transition">
-                    Cancel
-                </button>
-                <button type="submit" 
-                        class="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition">
-                    Send Reset Link
-                </button>
-            </div>
-        </form>
-    </div>
-</div>
+        <!-- Forgot Password Modal -->
+        <div id="forgot-modal" class="fixed inset-0 bg-black/20 backdrop-blur-sm hidden items-center justify-center z-50">
+            <div class="bg-white/90 backdrop-blur-md rounded-xl p-6 w-full max-w-md shadow-xl border border-white/20">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-xl font-bold text-gray-800">Reset your password</h2>
+                    <button onclick="toggleForgotModal(false)" class="text-gray-500 hover:text-gray-700">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
 
-<script>
-function toggleForgotModal(show) {
-    const modal = document.getElementById('forgot-modal');
-    if (show) {
-        modal.classList.remove('hidden');
-    } else {
-        modal.classList.add('hidden');
-    }
-}
-</script>
-        
+                <form action="forgot_password.php" method="POST">
+                    <div class="mb-4">
+                        <label class="block mb-2 text-sm font-medium text-gray-700">Email address</label>
+                        <input type="email" name="email" required
+                            class="w-full border border-gray-300 px-3 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                    </div>
+
+                    <div class="flex justify-end gap-3">
+                        <button type="button" onclick="toggleForgotModal(false)"
+                            class="px-4 py-2 rounded-lg bg-gray-200 hover:bg-gray-300 text-gray-800 transition">
+                            Cancel
+                        </button>
+                        <button type="submit"
+                            class="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition">
+                            Send Reset Link
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <script>
+            function toggleForgotModal(show) {
+                const modal = document.getElementById('forgot-modal');
+                if (show) {
+                    modal.classList.remove('hidden');
+                } else {
+                    modal.classList.add('hidden');
+                }
+            }
+        </script>
+
         <div class="absolute left-5 bottom-5 text-white text-sm z-20">Build By: BSIT - 4102</div>
     </section>
 
@@ -545,12 +543,12 @@ function toggleForgotModal(show) {
             duration: 1000,
             once: true
         });
-        
+
         function togglePasswordVisibility() {
             const passwordInput = document.getElementById('password');
             const eyeIcon = document.getElementById('eye-icon');
             const eyeSlashIcon = document.getElementById('eye-slash-icon');
-            
+
             if (passwordInput.type === 'password') {
                 passwordInput.type = 'text';
                 eyeIcon.classList.add('hidden');
@@ -563,18 +561,17 @@ function toggleForgotModal(show) {
         }
 
         function toggleForgotModal(show) {
-    const modal = document.getElementById("forgot-modal");
-    if (show) {
-        modal.classList.remove("hidden", "opacity-0");
-        modal.classList.add("flex");
-    } else {
-        modal.classList.add("hidden");
-        modal.classList.remove("flex");
-    }
-}
-
+            const modal = document.getElementById("forgot-modal");
+            if (show) {
+                modal.classList.remove("hidden", "opacity-0");
+                modal.classList.add("flex");
+            } else {
+                modal.classList.add("hidden");
+                modal.classList.remove("flex");
+            }
+        }
     </script>
-    
+
     <?php if (isset($_SESSION["loginError"])): ?>
         <script>
             Swal.fire({
@@ -584,8 +581,9 @@ function toggleForgotModal(show) {
                 confirmButtonColor: '#3085d6'
             });
         </script>
-    <?php 
+    <?php
         unset($_SESSION["loginError"]);
     endif; ?>
 </body>
+
 </html>
