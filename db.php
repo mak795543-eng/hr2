@@ -1,14 +1,14 @@
 <?php
 // main_connection.php
 
-$dbHost = getenv('DB_HOST') ?: "127.0.0.1";
-$dbUser = getenv('DB_USER') ?: "root";       // or "hr2_usm" if you have that MySQL user
-$dbPassEnv = getenv('DB_PASS');
+$dbHost = getenv('DB_HOST') ?: "localhost";
+$dbUser = getenv('DB_USER') ?: "hr2_usm";       // or "hr2_usm" if you have that MySQL user
+$dbPassEnv = getenv('DB_PASSWORD');
 $dbPass = $dbPassEnv !== false
     ? $dbPassEnv
-    : (($dbUser === 'root' && ($dbHost === 'localhost' || $dbHost === '127.0.0.1')) ? '' : 'makmak01');
+    : (($dbUser === 'root' && ($dbHost === 'localhost' || $dbHost === 'localhost')) ? '' : 'makmak01');
 $dbPrefix = getenv('DB_PREFIX') ?: '';
-$dbName = "hr2_usmhr2";
+$dbName = "hr2_usm";
 
 $getDbEnv = function (string $dbName, string $suffix) use ($dbPrefix) {
     $envKeyDbName = $dbName;
