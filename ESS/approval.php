@@ -11,6 +11,41 @@ if (!is_dir($uploadDir)) {
 $success_message = '';
 $error_message = '';
 
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_profile_request'])) {
+    $rid = (int)($_POST['request_id'] ?? 0);
+    $newStatus = trim((string)($_POST['status'] ?? ''));
+    $remarks = trim((string)($_POST['remarks'] ?? ''));
+
+    $allowed = ['Approved', 'Rejected', 'Pending'];
+    if ($rid <= 0 || !in_array($newStatus, $allowed, true)) {
+        $error_message = 'Invalid request.';
+    } elseif (!$conn) {
+        $error_message = 'Database connection unavailable.';
+    } else {
+        $approverId = ess_employee_id($conn);
+        $reviewedBy = is_int($approverId) ? $approverId : 0;
+        $reviewedAt = date('Y-m-d H:i:s');
+
+        $stmt = mysqli_prepare($conn, 'UPDATE profile_update_requests SET status = ?, remarks = ?, reviewed_by = ?, reviewed_at = ?, seen_by_employee = 0 WHERE id = ?');
+        if (!$stmt) {
+            $error_message = 'Failed to update request.';
+        } else {
+            mysqli_stmt_bind_param($stmt, 'ssisi', $newStatus, $remarks, $reviewedBy, $reviewedAt, $rid);
+            $ok = mysqli_stmt_execute($stmt);
+            mysqli_stmt_close($stmt);
+
+            if (!$ok) {
+                $error_message = 'Failed to update request.';
+            } else {
+                $success_message = 'Profile request updated successfully.';
+            }
+        }
+    }
+}
+
+$section = (string)($_GET['section'] ?? 'documents');
+$section = in_array($section, ['documents', 'profiles'], true) ? $section : 'documents';
+
 function ess_is_compliance(string $remarks): bool {
     return str_starts_with(trim($remarks), '[COMPLIANCE]');
 }
@@ -101,10 +136,14 @@ $filter = (string)($_GET['status'] ?? 'all');
 $allowedFilters = ['all', 'for approval', 'approved', 'rejected', 'for compliance'];
 $filter = in_array(strtolower($filter), $allowedFilters, true) ? strtolower($filter) : 'all';
 
+$profileFilter = (string)($_GET['pstatus'] ?? 'all');
+$profileAllowed = ['all', 'pending', 'approved', 'rejected'];
+$profileFilter = in_array(strtolower($profileFilter), $profileAllowed, true) ? strtolower($profileFilter) : 'all';
+
 $viewParam = (string)($_GET['view'] ?? '');
 $downloadParam = (string)($_GET['download'] ?? '');
 
-if ($downloadParam !== '') {
+if ($section === 'documents' && $downloadParam !== '') {
     if ($conn) {
         $id = (int)$downloadParam;
         $stmt = mysqli_prepare($conn, 'SELECT document_title, file_path FROM submitted_documents WHERE id = ? LIMIT 1');
@@ -135,7 +174,7 @@ if ($downloadParam !== '') {
     exit;
 }
 
-if ($viewParam !== '') {
+if ($section === 'documents' && $viewParam !== '') {
     if ($conn) {
         $id = (int)$viewParam;
         $stmt = mysqli_prepare($conn, 'SELECT document_title, file_path FROM submitted_documents WHERE id = ? LIMIT 1');
@@ -176,7 +215,7 @@ if ($viewParam !== '') {
     exit;
 }
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_status'])) {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_status']) && $section === 'documents') {
     $id = trim((string)($_POST['id'] ?? ''));
     $newStatus = trim((string)($_POST['status'] ?? ''));
     $remarks = trim((string)($_POST['remarks'] ?? ''));
@@ -261,6 +300,26 @@ if ($conn) {
         }
     }
 }
+
+$profileRows = [];
+if ($conn) {
+    $where = '';
+    if ($profileFilter === 'pending') {
+        $where = "WHERE r.status = 'Pending'";
+    } elseif ($profileFilter === 'approved') {
+        $where = "WHERE r.status = 'Approved'";
+    } elseif ($profileFilter === 'rejected') {
+        $where = "WHERE r.status = 'Rejected'";
+    }
+
+    $sql = "SELECT r.id, r.employee_id, e.employee_no, e.first_name, e.last_name, r.status, r.remarks, r.created_at, r.reviewed_at FROM profile_update_requests r LEFT JOIN employees e ON e.id = r.employee_id {$where} ORDER BY r.created_at DESC";
+    $res = mysqli_query($conn, $sql);
+    if ($res) {
+        while ($row = mysqli_fetch_assoc($res)) {
+            $profileRows[] = $row;
+        }
+    }
+}
 ?>
 <!DOCTYPE html>
 <html lang="en" data-theme="light">
@@ -283,12 +342,19 @@ if ($conn) {
         <div class="max-w-6xl mx-auto">
           <div class="flex items-start justify-between gap-4">
             <div>
-              <h1 class="text-xl md:text-2xl font-bold text-gray-800">Document Approval</h1>
-              <p class="text-sm text-gray-500">Review submitted documents and mark them as Approved, Rejected, or For Compliance.</p>
+              <h1 class="text-xl md:text-2xl font-bold text-gray-800">Approvals</h1>
+              <p class="text-sm text-gray-500">Manage document submissions and profile change requests.</p>
             </div>
             <div class="flex items-center gap-2">
               <a href="submitdocument.php" class="btn btn-outline btn-sm">Submit Document</a>
               <a href="mydocuments.php" class="btn btn-ghost btn-sm">Repository</a>
+            </div>
+          </div>
+
+          <div class="mt-6">
+            <div class="tabs tabs-boxed">
+              <a class="tab <?php echo $section === 'documents' ? 'tab-active' : ''; ?>" href="?section=documents&status=<?php echo urlencode($filter); ?>">Document Submissions</a>
+              <a class="tab <?php echo $section === 'profiles' ? 'tab-active' : ''; ?>" href="?section=profiles&pstatus=<?php echo urlencode($profileFilter); ?>">Profile Requests</a>
             </div>
           </div>
 
@@ -306,6 +372,7 @@ if ($conn) {
             </div>
           <?php endif; ?>
 
+          <?php if ($section === 'documents'): ?>
           <div class="mt-6 card bg-base-100 border border-base-200 shadow-sm">
             <div class="card-body">
               <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
@@ -390,16 +457,21 @@ if ($conn) {
                               <i data-lucide="download" class="w-4 h-4"></i>
                               <span class="hidden sm:inline ml-1">Download</span>
                             </a>
-                            <button
-                              class="btn btn-primary btn-xs"
-                              type="button"
-                              data-update-id="<?php echo htmlspecialchars($id); ?>"
-                              data-update-status="<?php echo htmlspecialchars($status); ?>"
-                              data-update-remarks="<?php echo htmlspecialchars($remarks); ?>"
-                              data-update-file="<?php echo htmlspecialchars($orig); ?>"
-                            >
-                              Update
-                            </button>
+
+                            <form method="POST" action="<?php echo htmlspecialchars((string)$_SERVER['REQUEST_URI']); ?>" class="inline">
+                              <input type="hidden" name="update_status" value="1" />
+                              <input type="hidden" name="id" value="<?php echo htmlspecialchars($id); ?>" />
+                              <input type="hidden" name="status" value="Approved" />
+                              <input type="hidden" name="remarks" value="" />
+                              <button class="btn btn-success btn-xs" type="submit">Approved</button>
+                            </form>
+                            <form method="POST" action="<?php echo htmlspecialchars((string)$_SERVER['REQUEST_URI']); ?>" class="inline">
+                              <input type="hidden" name="update_status" value="1" />
+                              <input type="hidden" name="id" value="<?php echo htmlspecialchars($id); ?>" />
+                              <input type="hidden" name="status" value="Rejected" />
+                              <input type="hidden" name="remarks" value="" />
+                              <button class="btn btn-error btn-xs" type="submit">Rejected</button>
+                            </form>
                           </div>
                         </td>
                       </tr>
@@ -410,6 +482,90 @@ if ($conn) {
 
             </div>
           </div>
+          <?php else: ?>
+          <div class="mt-6 card bg-base-100 border border-base-200 shadow-sm">
+            <div class="card-body">
+              <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                <div class="flex items-center gap-2">
+                  <div class="p-2 rounded-xl bg-base-200">
+                    <i data-lucide="user-check" class="w-5 h-5"></i>
+                  </div>
+                  <div>
+                    <h2 class="font-semibold text-gray-800">Profile Requests</h2>
+                    <p class="text-sm text-gray-500">Total: <?php echo (int)count($profileRows); ?></p>
+                  </div>
+                </div>
+
+                <div class="flex flex-col sm:flex-row gap-2">
+                  <select id="profileStatusFilter" class="select select-bordered w-full sm:w-56">
+                    <option value="all" <?php echo $profileFilter === 'all' ? 'selected' : ''; ?>>All Status</option>
+                    <option value="pending" <?php echo $profileFilter === 'pending' ? 'selected' : ''; ?>>Pending</option>
+                    <option value="approved" <?php echo $profileFilter === 'approved' ? 'selected' : ''; ?>>Approved</option>
+                    <option value="rejected" <?php echo $profileFilter === 'rejected' ? 'selected' : ''; ?>>Rejected</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="mt-4 overflow-x-auto">
+                <table class="table">
+                  <thead>
+                    <tr>
+                      <th>Employee</th>
+                      <th>Requested</th>
+                      <th>Status</th>
+                      <th>Remarks</th>
+                      <th class="text-right">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <?php if (count($profileRows) === 0): ?>
+                      <tr>
+                        <td colspan="5" class="text-center text-gray-500 py-10">No profile requests found.</td>
+                      </tr>
+                    <?php endif; ?>
+
+                    <?php foreach ($profileRows as $r): ?>
+                      <?php
+                        $rid = (string)($r['id'] ?? '');
+                        $empNo = (string)($r['employee_no'] ?? '');
+                        $name = trim(((string)($r['first_name'] ?? '')) . ' ' . ((string)($r['last_name'] ?? '')));
+                        $created = (string)($r['created_at'] ?? '');
+                        $status = (string)($r['status'] ?? 'Pending');
+                        $remarks = (string)($r['remarks'] ?? '');
+                      ?>
+                      <tr>
+                        <td class="text-gray-800 font-medium"><?php echo htmlspecialchars(($empNo !== '' ? $empNo : 'Employee') . ($name !== '' ? (' - ' . $name) : '')); ?></td>
+                        <td class="text-gray-700"><?php echo htmlspecialchars(safeDateTime($created)); ?></td>
+                        <td>
+                          <span class="badge badge-sm <?php echo badgeClassForStatus(strtolower($status) === 'pending' ? 'for approval' : $status); ?>"><?php echo htmlspecialchars($status); ?></span>
+                        </td>
+                        <td class="text-gray-700"><?php echo htmlspecialchars($remarks); ?></td>
+                        <td class="text-right">
+                          <div class="flex justify-end gap-2">
+                            <form method="POST" action="<?php echo htmlspecialchars((string)$_SERVER['REQUEST_URI']); ?>" class="inline">
+                              <input type="hidden" name="update_profile_request" value="1" />
+                              <input type="hidden" name="request_id" value="<?php echo htmlspecialchars($rid); ?>" />
+                              <input type="hidden" name="status" value="Approved" />
+                              <input type="hidden" name="remarks" value="" />
+                              <button class="btn btn-success btn-xs" type="submit">Approved</button>
+                            </form>
+                            <form method="POST" action="<?php echo htmlspecialchars((string)$_SERVER['REQUEST_URI']); ?>" class="inline">
+                              <input type="hidden" name="update_profile_request" value="1" />
+                              <input type="hidden" name="request_id" value="<?php echo htmlspecialchars($rid); ?>" />
+                              <input type="hidden" name="status" value="Rejected" />
+                              <input type="hidden" name="remarks" value="" />
+                              <button class="btn btn-error btn-xs" type="submit">Rejected</button>
+                            </form>
+                          </div>
+                        </td>
+                      </tr>
+                    <?php endforeach; ?>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+          <?php endif; ?>
         </div>
       </main>
     </div>
@@ -443,6 +599,47 @@ if ($conn) {
           <button class="btn">Close</button>
         </form>
       </div>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+  </dialog>
+
+  <dialog id="profileUpdateModal" class="modal">
+    <div class="modal-box">
+      <div class="flex items-start justify-between gap-3">
+        <div>
+          <h3 class="font-bold text-lg">Update Profile Request</h3>
+          <p id="profileUpdateEmployee" class="text-sm text-gray-500"></p>
+        </div>
+        <form method="dialog">
+          <button class="btn btn-sm btn-ghost" aria-label="Close">
+            <i data-lucide="x" class="w-4 h-4"></i>
+          </button>
+        </form>
+      </div>
+
+      <form method="POST" class="mt-4 space-y-3">
+        <input type="hidden" name="update_profile_request" value="1" />
+        <input type="hidden" name="request_id" id="profileRequestId" value="" />
+
+        <div class="form-control">
+          <label class="label"><span class="label-text">Status</span></label>
+          <select name="status" id="profileRequestStatus" class="select select-bordered" required>
+            <option value="Pending">Pending</option>
+            <option value="Approved">Approved</option>
+            <option value="Rejected">Rejected</option>
+          </select>
+        </div>
+
+        <div class="form-control">
+          <label class="label"><span class="label-text">Remarks</span></label>
+          <textarea name="remarks" id="profileRequestRemarks" class="textarea textarea-bordered" placeholder="Optional remarks..."></textarea>
+        </div>
+
+        <div class="modal-action">
+          <button class="btn btn-primary" type="submit">Save</button>
+          <form method="dialog"><button class="btn" type="button">Cancel</button></form>
+        </div>
+      </form>
     </div>
     <form method="dialog" class="modal-backdrop"><button>close</button></form>
   </dialog>
@@ -499,12 +696,27 @@ if ($conn) {
       lucide.createIcons();
 
       const filter = document.getElementById('statusFilter');
-      filter.addEventListener('change', function () {
-        const v = this.value;
-        const url = new URL(window.location.href);
-        url.searchParams.set('status', v);
-        window.location.href = url.toString();
-      });
+      if (filter) {
+        filter.addEventListener('change', function () {
+          const v = this.value;
+          const url = new URL(window.location.href);
+          url.searchParams.set('section', 'documents');
+          url.searchParams.set('status', v);
+          window.location.href = url.toString();
+        });
+      }
+
+      const pFilter = document.getElementById('profileStatusFilter');
+      if (pFilter) {
+        pFilter.addEventListener('change', function () {
+          const v = this.value;
+          const url = new URL(window.location.href);
+          url.searchParams.set('section', 'profiles');
+          url.searchParams.set('pstatus', v);
+          url.searchParams.delete('status');
+          window.location.href = url.toString();
+        });
+      }
 
       const viewModal = document.getElementById('docViewModal');
       const viewTitle = document.getElementById('docViewTitle');
@@ -555,6 +767,29 @@ if ($conn) {
 
           if (updateModal && typeof updateModal.showModal === 'function') {
             updateModal.showModal();
+          }
+        });
+      });
+
+      const profileModal = document.getElementById('profileUpdateModal');
+      const profileRequestId = document.getElementById('profileRequestId');
+      const profileRequestStatus = document.getElementById('profileRequestStatus');
+      const profileRequestRemarks = document.getElementById('profileRequestRemarks');
+      const profileUpdateEmployee = document.getElementById('profileUpdateEmployee');
+
+      document.querySelectorAll('[data-profile-update-id]').forEach((btn) => {
+        btn.addEventListener('click', function () {
+          if (!profileRequestId || !profileRequestStatus || !profileRequestRemarks) return;
+
+          profileRequestId.value = this.getAttribute('data-profile-update-id') || '';
+          profileRequestStatus.value = this.getAttribute('data-profile-update-status') || 'Pending';
+          profileRequestRemarks.value = this.getAttribute('data-profile-update-remarks') || '';
+          if (profileUpdateEmployee) {
+            profileUpdateEmployee.textContent = (this.getAttribute('data-profile-update-emp') || 'Employee') + ' - Profile request';
+          }
+
+          if (profileModal && typeof profileModal.showModal === 'function') {
+            profileModal.showModal();
           }
         });
       });

@@ -264,6 +264,12 @@ if (!function_exists('hasAccess')) {
                                 Training Approvals
                             </span>
                         </a>
+                         <a href="<?php echo $base_url; ?>ESS/approval.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
+                            <span class="flex items-center gap-2">
+                                <i data-lucide="check-circle" class="w-4 h-4 text-[#F7B32B]"></i>
+                                ESS Document Approvals
+                            </span>
+                        </a>
                         <a href="<?php echo $base_url; ?>TRAINING/TRAINING/request_logs.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
                             <span class="flex items-center gap-2">
                                 <i data-lucide="list-checks" class="w-4 h-4 text-[#F7B32B]"></i>
