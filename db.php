@@ -1,6 +1,12 @@
 <?php
 // main_connection.php
-
+function dd($v)
+{
+    echo '<pre>';
+    var_dump($v);
+    echo '</pre>';
+    die();
+}
 $dbHost = getenv('DB_HOST') ?: "localhost";
 $dbUser = getenv('DB_USER') ?: "hr2_usm";       // or "hr2_usm" if you have that MySQL user
 $dbPassEnv = getenv('DB_PASSWORD') ?? 'hr2.soliera';
