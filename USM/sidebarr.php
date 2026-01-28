@@ -112,7 +112,7 @@ if (!function_exists('hasAccess')) {
                 </div>
 
                 <div class="collapse group">
-                  <input type="checkbox" class="peer" />
+                    <input type="checkbox" class="peer" />
                     <div class="collapse-title flex items-center justify-between px-4 py-3 text-sm font-medium rounded-lg transition-all peer-checked:bg-blue-600/50 text-white group">
                         <div class="flex items-center">
                             <div class="p-1.5 rounded-lg bg-blue-800/30 group-hover:bg-blue-700/50 transition-colors">
@@ -140,14 +140,14 @@ if (!function_exists('hasAccess')) {
                                 <i data-lucide="clipboard-list" class="w-4 h-4 text-[#F7B32B]"></i>
                                 Training Requests
                             </span>
-                            </a>
-                             <a href="<?php echo $base_url; ?>TRAINING/TRAINING/request_logs.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
+                        </a>
+                        <a href="<?php echo $base_url; ?>TRAINING/TRAINING/request_logs.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
                             <span class="flex items-center gap-2">
                                 <i data-lucide="send" class="w-4 h-4 text-[#F7B32B]"></i>
                                 Department Request Logs
                             </span>
                         </a>
-</div>      
+                    </div>
                 </div>
             <?php endif; ?>
 
@@ -159,7 +159,7 @@ if (!function_exists('hasAccess')) {
                 </div>
 
                 <div class="collapse group">
-                                    <input type="checkbox" class="peer" />
+                    <input type="checkbox" class="peer" />
                     <div class="collapse-title flex items-center justify-between px-4 py-3 text-sm font-medium rounded-lg transition-all peer-checked:bg-blue-600/50 text-white group">
                         <div class="flex items-center">
                             <div class="p-1.5 rounded-lg bg-blue-800/30 group-hover:bg-blue-700/50 transition-colors">
@@ -195,7 +195,7 @@ if (!function_exists('hasAccess')) {
                                 Competency Criteria
                             </span>
                         </a>
-                        
+
                     </div>
                 </div>
             <?php endif; ?>
@@ -264,7 +264,7 @@ if (!function_exists('hasAccess')) {
                                 Training Approvals
                             </span>
                         </a>
-                         <a href="<?php echo $base_url; ?>ESS/approval.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
+                        <a href="<?php echo $base_url; ?>ESS/approval.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
                             <span class="flex items-center gap-2">
                                 <i data-lucide="check-circle" class="w-4 h-4 text-[#F7B32B]"></i>
                                 ESS Document Approvals
