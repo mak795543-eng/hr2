@@ -41,15 +41,11 @@ $resolvePass = function (string $host, string $user, $passEnvValue) {
 // ✅ List only the databases you want to connect to
 if (!isset($targetDatabases) || !is_array($targetDatabases)) {
     $targetDatabases = [
-        "job_desc",
-        "hr2usm",
-        "learning_db",
-        "schema_training_request",
-        "critical_gaps",
-        
-        
-
-
+        "hr2_job_desc",
+        "hr2_usm",
+        "hr2_learning_db",
+        "hr2_schema_training_request",
+        "hr2_critical_gaps",
     ];
 }
 
