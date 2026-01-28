@@ -1,9 +1,9 @@
 <?php
-session_start();
 
-include("../main_connection.php");
 
-$db_name = "rest_core_2_usm";
+include("../db.php");
+
+$db_name = "hr2usm";
 $conn = $connections[$db_name] ?? die("❌ Connection not found for $db_name");
 
 // Get current logged-in user
