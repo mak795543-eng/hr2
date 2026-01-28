@@ -60,7 +60,7 @@ foreach ($targetDatabases as $dbName) {
 
     $connectHost = $perHost !== false ? $perHost : $dbHost;
     $connectUser = $perUser !== false ? $perUser : $dbUser;
-    $connectPass = $resolvePass($connectHost, $connectUser, $perPass);
+    // $connectPass = $resolvePass($connectHost, $connectUser, $perPass);
     $connectDbName = $perName !== false
         ? $perName
         : ($dbPrefix !== '' && strpos($dbName, $dbPrefix) !== 0 ? ($dbPrefix . $dbName) : $dbName);
