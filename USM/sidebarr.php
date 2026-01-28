@@ -25,13 +25,16 @@ if (!function_exists('hasAccess')) {
 }
 ?>
 
-<div class="bg-[#001f54] pt-5 pb-4 flex flex-col fixed md:relative h-full transition-all duration-300 ease-in-out shadow-xl transform -translate-x-full md:transform-none md:translate-x-0" id="sidebar">
+<div class="bg-[#001f54] pt-5 pb-4 flex flex-col fixed md:relative h-full w-64 transition-all duration-300 ease-in-out shadow-xl transform -translate-x-full md:transform-none md:translate-x-0" id="sidebar">
     <!-- Sidebar Header -->
     <div class="flex flex-col sm:flex-row items-center justify-between px-4 mb-6 text-center">
         <h1 class="text-xl sm:text-2xl font-bold text-white flex items-center gap-2">
-            <img src="<?php echo $base_url; ?>logo/logofinal.png"
+            <img id="sidebar-logo" src="<?php echo $base_url; ?>logo/logofinal.png"
                 alt="Logo"
                 class="h-12 sm:h-16 md:h-20 w-auto max-w-full">
+            <img id="sonly" src="<?php echo $base_url; ?>logo/logofinal.png"
+                alt="Logo"
+                class="hidden h-10 w-auto max-w-full">
         </h1>
     </div>
 
@@ -61,7 +64,7 @@ if (!function_exists('hasAccess')) {
             <!-- LEARNING MANAGEMENT SECTION (Training Development Officer) -->
             <?php if (hasAccess('learning_management', $allowed_modules, $is_supervisor)): ?>
                 <div class="px-4 py-2 mt-4">
-                    <p class="text-xs font-semibold text-blue-300 uppercase tracking-wider">Training Development Officer</p>
+                    <p class="text-xs font-semibold text-blue-300 uppercase tracking-wider section-title">Training Development Officer</p>
                 </div>
 
                 <div class="collapse group">
@@ -113,7 +116,7 @@ if (!function_exists('hasAccess')) {
             <!-- TRAINING MANAGEMENT SECTION -->
             <?php if (hasAccess('training_management', $allowed_modules, $is_supervisor)): ?>
                 <div class="px-4 py-2 mt-4">
-                    <p class="text-xs font-semibold text-blue-300 uppercase tracking-wider">Training Management</p>
+                    <p class="text-xs font-semibold text-blue-300 uppercase tracking-wider section-title">Training Management</p>
                 </div>
 
                 <div class="collapse group">
@@ -162,10 +165,11 @@ if (!function_exists('hasAccess')) {
                 </div>
             <?php endif; ?>
 
+
             <!-- COMPETENCY MANAGEMENT SECTION -->
             <?php if (hasAccess('competency_management', $allowed_modules, $is_supervisor)): ?>
                 <div class="px-4 py-2 mt-4">
-                    <p class="text-xs font-semibold text-blue-300 uppercase tracking-wider">Competency Management</p>
+                    <p class="text-xs font-semibold text-blue-300 uppercase tracking-wider section-title">Competency Management</p>
                 </div>
 
                 <div class="collapse group">
@@ -204,6 +208,7 @@ if (!function_exists('hasAccess')) {
                                 General Skills Management
                             </span>
                         </a>
+                        
                     </div>
                 </div>
             <?php endif; ?>
@@ -211,7 +216,7 @@ if (!function_exists('hasAccess')) {
             <!-- SUCCESSION PLANNING SECTION -->
             <?php if (hasAccess('succession_planning', $allowed_modules, $is_supervisor)): ?>
                 <div class="px-4 py-2 mt-4">
-                    <p class="text-xs font-semibold text-blue-300 uppercase tracking-wider">Succession Planning</p>
+                    <p class="text-xs font-semibold text-blue-300 uppercase tracking-wider section-title">Succession Planning</p>
                 </div>
 
                 <div class="collapse group">
@@ -251,7 +256,7 @@ if (!function_exists('hasAccess')) {
             <!-- APPROVALS SECTION (HR Managers) -->
             <?php if (hasAccess('approvals', $allowed_modules, $is_supervisor)): ?>
                 <div class="px-4 py-2 mt-4">
-                    <p class="text-xs font-semibold text-blue-300 uppercase tracking-wider">HR Managers</p>
+                    <p class="text-xs font-semibold text-blue-300 uppercase tracking-wider section-title">HR Managers</p>
                 </div>
 
                 <div class="collapse group">
@@ -285,34 +290,13 @@ if (!function_exists('hasAccess')) {
                             </span>
                         </a>
                     </div>
-                    <i class="w-4 h-4 text-blue-200 transform transition-transform duration-200 peer-checked:rotate-90 dropdown-icon" data-lucide="chevron-down"></i>
-                </div>
-                <div class="collapse-content pl-14 pr-4 py-1 space-y-1"> 
-                    <a href="<?php echo $base_url; ?>TRAINING/TRAINING/review.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
-                        <span class="flex items-center gap-2">
-                            <i data-lucide="check-circle" class="w-4 h-4 text-[#F7B32B]"></i>
-                            Training Approvals
-                        </span>
-                    </a>
-                    <a href="<?php echo $base_url; ?>TRAINING/TRAINING/request_logs.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
-                        <span class="flex items-center gap-2">
-                            <i data-lucide="list-checks" class="w-4 h-4 text-[#F7B32B]"></i>
-                            Department Request Logs
-                        </span>
-                    </a>
-                    <a href="<?php echo $base_url; ?>LEARNING/hr_manager/review_dashboard.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
-                        <span class="flex items-center gap-2">
-                            <i data-lucide="book-open-check" class="w-4 h-4 text-[#F7B32B]"></i>
-                            Learning & Examination Review
-                        </span>
-                    </a>
                 </div>
             <?php endif; ?>
 
             <!-- APPLICANT ASSESSMENT SECTION -->
             <?php if (hasAccess('applicant_assessment', $allowed_modules, $is_supervisor)): ?>
                 <div class="px-4 py-2 mt-4">
-                    <p class="text-xs font-semibold text-blue-300 uppercase tracking-wider">Applicants</p>
+                    <p class="text-xs font-semibold text-blue-300 uppercase tracking-wider section-title">Applicants</p>
                 </div>
 
                 <div class="collapse group">
@@ -340,7 +324,7 @@ if (!function_exists('hasAccess')) {
             <!-- ESS SECTION -->
             <?php if (hasAccess('employee_self_service', $allowed_modules, $is_supervisor)): ?>
                 <div class="px-4 py-2 mt-4">
-                    <p class="text-xs font-semibold text-blue-300 uppercase tracking-wider">Employee Self Service</p>
+                    <p class="text-xs font-semibold text-blue-300 uppercase tracking-wider section-title">Employee Self Service</p>
                 </div>
 
                 <div class="collapse group">
@@ -404,7 +388,7 @@ if (!function_exists('hasAccess')) {
             <!-- USER MANAGEMENT SECTION (Admin Only) -->
             <?php if (hasAccess('user_management', $allowed_modules, $is_supervisor)): ?>
                 <div class="px-4 py-2 mt-4">
-                    <p class="text-xs font-semibold text-blue-300 uppercase tracking-wider">Administration</p>
+                    <p class="text-xs font-semibold text-blue-300 uppercase tracking-wider section-title">Administration</p>
                 </div>
 
                 <div class="collapse group">
@@ -443,7 +427,7 @@ if (!function_exists('hasAccess')) {
 
             <!-- ACCOUNT SECTION -->
             <div class="px-4 py-2 mt-4">
-                <p class="text-xs font-semibold text-blue-300 uppercase tracking-wider">Account</p>
+                <p class="text-xs font-semibold text-blue-300 uppercase tracking-wider section-title">Account</p>
             </div>
             <form action="<?php echo $base_url; ?>USM/logout.php" method="POST" class="px-4 py-3">
                 <button type="submit" class="flex items-center w-full text-sm font-medium rounded-lg transition-all hover:bg-blue-600/50 text-white group">
