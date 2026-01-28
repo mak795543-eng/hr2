@@ -205,4 +205,4 @@ require('../../partials/header.php');
             </div>
         </div>
     </main>
-      <?php require('../../partials/footer.php') ?>
+    <?php require('../../partials/footer.php') ?>
