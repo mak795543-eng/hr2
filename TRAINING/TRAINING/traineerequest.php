@@ -1,5 +1,5 @@
 <?php
-session_start();
+
 require_once __DIR__ . '/db.php';
 
 $tableHasColumn = function(mysqli $conn, string $table, string $column): bool {
