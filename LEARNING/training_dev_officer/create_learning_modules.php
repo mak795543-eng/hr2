@@ -22,32 +22,23 @@ $module_status = 'pending';
 $edit_mode = false;
 $module_id = null;
 
-// IMPROVED: Check if file content is passed from upload with better processing
-if (isset($_GET['file_content']) && !empty($_GET['file_content'])) {
-    $file_content = urldecode($_GET['file_content']);
-    $file_name = isset($_GET['file_name']) ? urldecode($_GET['file_name']) : 'uploaded_file';
-    
-    // Log the file processing for debugging
-    error_log("Processing uploaded file: " . $file_name);
-    error_log("Content length: " . strlen($file_content));
-    
-    // Enhanced content processing
+if (isset($_SESSION['learning_uploaded_file_content']) && $_SESSION['learning_uploaded_file_content'] !== '') {
+    $file_content = (string)$_SESSION['learning_uploaded_file_content'];
+    $file_name = isset($_SESSION['learning_uploaded_file_name']) ? (string)$_SESSION['learning_uploaded_file_name'] : (isset($_GET['file_name']) ? (string)$_GET['file_name'] : 'uploaded_file');
+
     $module_content = processUploadedContent($file_content);
-    
-    // Set a default title if not provided
+
     if (empty($module_title) && !empty($file_name)) {
         $module_title = pathinfo($file_name, PATHINFO_FILENAME);
-        // Clean up the title (replace underscores and hyphens with spaces)
         $module_title = str_replace(['_', '-'], ' ', $module_title);
         $module_title = ucwords(trim($module_title));
     }
-    
-    error_log("Processed content length: " . strlen($module_content));
-    
-    // Set a session message to indicate successful file upload
+
     if (!empty($module_content) && strpos($module_content, 'Error reading file:') !== 0) {
         $_SESSION['success_message'] = "File content successfully loaded into the editor!";
     }
+
+    unset($_SESSION['learning_uploaded_file_content'], $_SESSION['learning_uploaded_file_name']);
 }
 
 // Check if we're editing an existing module
@@ -988,7 +979,7 @@ if ($edit_mode && $module_id) {
       
       // Check if content was uploaded from file
       const urlParams = new URLSearchParams(window.location.search);
-      const hasFileContent = urlParams.has('file_content');
+      const hasFileContent = urlParams.get('uploaded') === '1';
       const fileName = urlParams.get('file_name');
       
       // Show notification if file was uploaded
@@ -1071,8 +1062,15 @@ if ($edit_mode && $module_id) {
       
       // Initialize editor
       function initEditor() {
-          // Load saved content from localStorage
-          loadSavedContent();
+          // If user came from file upload, do not overwrite editor with old localStorage draft
+          if (!hasFileContent) {
+              loadSavedContent();
+          } else {
+              try {
+                  localStorage.removeItem(storageKey);
+              } catch (e) {
+              }
+          }
           
           // Set default font and size
           editor.style.fontFamily = fontFamily.value;
@@ -1099,10 +1097,14 @@ if ($edit_mode && $module_id) {
           
           // Focus the editor
           editor.focus();
+
+          // Keep hidden field in sync with the actual editor content
+          moduleContent.value = editor.innerHTML;
       }
       
       // Load saved content from localStorage
       function loadSavedContent() {
+          if (hasFileContent) return;
           const savedContent = localStorage.getItem(storageKey);
           if (savedContent && savedContent !== editor.innerHTML) {
               if (!<?php echo $edit_mode ? 'true' : 'false'; ?> || !editor.innerHTML.trim() || editor.innerHTML.includes('Start typing your document here')) {

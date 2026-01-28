@@ -82,6 +82,173 @@ if (isset($_POST['edit_module']) && isset($_POST['ajax'])) {
     exit();
 }
 
+if (isset($_POST['store_extracted']) && isset($_POST['ajax'])) {
+    header('Content-Type: application/json; charset=utf-8');
+
+    $content = (string)($_POST['content'] ?? '');
+    $fileName = (string)($_POST['file_name'] ?? 'uploaded_file');
+
+    if ($content === '') {
+        echo json_encode(['success' => false, 'message' => 'No extracted content received.']);
+        exit();
+    }
+
+    $_SESSION['learning_uploaded_file_content'] = $content;
+    $_SESSION['learning_uploaded_file_name'] = $fileName;
+
+    echo json_encode(['success' => true, 'file_name' => $fileName]);
+    exit();
+}
+
+if (isset($_POST['extract_file']) && isset($_POST['ajax'])) {
+    header('Content-Type: application/json; charset=utf-8');
+
+    try {
+        if (!isset($_FILES['file']) || !is_array($_FILES['file'])) {
+            echo json_encode(['success' => false, 'message' => 'No file uploaded.']);
+            exit();
+        }
+
+        $uploadError = (int)($_FILES['file']['error'] ?? UPLOAD_ERR_NO_FILE);
+        if ($uploadError !== UPLOAD_ERR_OK) {
+            $uploadErrorMessages = [
+                UPLOAD_ERR_INI_SIZE => 'The uploaded file exceeds the server limit (upload_max_filesize).',
+                UPLOAD_ERR_FORM_SIZE => 'The uploaded file exceeds the form limit (MAX_FILE_SIZE).',
+                UPLOAD_ERR_PARTIAL => 'The file was only partially uploaded.',
+                UPLOAD_ERR_NO_FILE => 'No file uploaded.',
+                UPLOAD_ERR_NO_TMP_DIR => 'Missing a temporary folder on the server.',
+                UPLOAD_ERR_CANT_WRITE => 'Failed to write file to disk on the server.',
+                UPLOAD_ERR_EXTENSION => 'File upload stopped by a PHP extension on the server.',
+            ];
+            $msg = $uploadErrorMessages[$uploadError] ?? ('File upload error (code ' . $uploadError . ').');
+            echo json_encode(['success' => false, 'message' => $msg]);
+            exit();
+        }
+
+        if (empty($_FILES['file']['tmp_name'])) {
+            echo json_encode(['success' => false, 'message' => 'No file uploaded.']);
+            exit();
+        }
+
+        $tmpPath = (string)$_FILES['file']['tmp_name'];
+        $origName = (string)($_FILES['file']['name'] ?? 'uploaded_file');
+        $size = (int)($_FILES['file']['size'] ?? 0);
+        $mime = (string)($_FILES['file']['type'] ?? '');
+
+        if (!is_uploaded_file($tmpPath)) {
+            echo json_encode(['success' => false, 'message' => 'Upload validation failed. Please try again.']);
+            exit();
+        }
+
+        if ($size > 10 * 1024 * 1024) {
+            echo json_encode(['success' => false, 'message' => 'File too large. Maximum is 10MB.']);
+            exit();
+        }
+
+        $ext = strtolower(pathinfo($origName, PATHINFO_EXTENSION));
+
+        $content = '';
+        if (in_array($ext, ['txt', 'csv', 'html', 'htm', 'rtf'], true)) {
+            $content = (string)@file_get_contents($tmpPath);
+        } elseif ($ext === 'pdf') {
+            $autoload = __DIR__ . '/../../tanu-ai/vendor/autoload.php';
+            if (file_exists($autoload)) {
+                require_once $autoload;
+            }
+            if (class_exists('Smalot\\PdfParser\\Parser')) {
+                try {
+                    $parser = new \Smalot\PdfParser\Parser();
+                    $pdf = $parser->parseFile($tmpPath);
+                    $content = (string)$pdf->getText();
+                } catch (Throwable $e) {
+                    $content = "File: {$origName}\nType: {$mime}\nSize: {$size}\n\n[Unable to extract PDF content. Please edit the content manually in the editor.]";
+                }
+            } else {
+                $content = "File: {$origName}\nType: {$mime}\nSize: {$size}\n\n[PDF parsing library not available. Please edit the content manually in the editor.]";
+            }
+        } elseif ($ext === 'docx') {
+            if (!class_exists('ZipArchive')) {
+                $content = "File: {$origName}\nType: {$mime}\nSize: {$size}\n\n[Unable to extract DOCX content because PHP Zip extension is not enabled on the server. Enable the 'zip' extension in php.ini (extension=zip) then restart Apache.]";
+            } else {
+                $zip = new ZipArchive();
+                $openRes = $zip->open($tmpPath);
+                if ($openRes === true) {
+                    $xml = (string)$zip->getFromName('word/document.xml');
+                    if ($xml === '') {
+                        $stream = $zip->getStream('word/document.xml');
+                        if (is_resource($stream)) {
+                            $xml = (string)stream_get_contents($stream);
+                            fclose($stream);
+                        }
+                    }
+                    $zip->close();
+                    if ($xml !== '') {
+                        $xml = str_replace(['</w:p>', '</w:tr>'], ["\n", "\n"], $xml);
+                        $xml = str_replace(['<w:tab/>', '<w:br/>', '<w:cr/>'], ["\t", "\n", "\n"], $xml);
+                        $text = html_entity_decode(strip_tags($xml), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+                        $text = preg_replace("/\n{3,}/", "\n\n", (string)$text);
+                        $content = trim((string)$text);
+                    }
+                } else {
+                    $content = "File: {$origName}\nType: {$mime}\nSize: {$size}\n\n[Unable to extract DOCX content. ZipArchive could not open the file (code {$openRes}).]";
+                }
+
+                if ($content === '') {
+                    $content = "File: {$origName}\nType: {$mime}\nSize: {$size}\n\n[Unable to extract DOCX content. Please edit the content manually in the editor.]";
+                }
+            }
+        } elseif ($ext === 'pptx') {
+            if (class_exists('ZipArchive')) {
+                $zip = new ZipArchive();
+                if ($zip->open($tmpPath) === true) {
+                    $slideTexts = [];
+                    for ($i = 0; $i < $zip->numFiles; $i++) {
+                        $name = $zip->getNameIndex($i);
+                        if (is_string($name) && preg_match('#^ppt/slides/slide\d+\.xml$#', $name)) {
+                            $xml = (string)$zip->getFromName($name);
+                            if ($xml !== '') {
+                                $xml = str_replace(['</a:p>', '</p:sp>', '</p:txBody>'], ["\n", "\n", "\n"], $xml);
+                                $slideTexts[] = trim(html_entity_decode(strip_tags($xml), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+                            }
+                        }
+                    }
+                    $zip->close();
+                    $content = trim(implode("\n\n", array_filter($slideTexts, static fn($t) => $t !== '')));
+                }
+            }
+            if ($content === '') {
+                $content = "File: {$origName}\nType: {$mime}\nSize: {$size}\n\n[Unable to extract PPTX content. Please edit the content manually in the editor.]";
+            }
+        } elseif ($ext === 'xlsx') {
+            if (class_exists('ZipArchive')) {
+                $zip = new ZipArchive();
+                if ($zip->open($tmpPath) === true) {
+                    $xml = (string)$zip->getFromName('xl/sharedStrings.xml');
+                    $zip->close();
+                    if ($xml !== '') {
+                        $xml = str_replace(['</si>'], ["\n"], $xml);
+                        $content = html_entity_decode(strip_tags($xml), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+                    }
+                }
+            }
+            if ($content === '') {
+                $content = "File: {$origName}\nType: {$mime}\nSize: {$size}\n\n[Unable to extract XLSX content. Please edit the content manually in the editor.]";
+            }
+        } else {
+            $content = "File: {$origName}\nType: {$mime}\nSize: {$size}\n\n[This file type is not supported for automatic extraction. Please edit the content manually in the editor.]";
+        }
+
+        $_SESSION['learning_uploaded_file_content'] = $content;
+        $_SESSION['learning_uploaded_file_name'] = $origName;
+
+        echo json_encode(['success' => true, 'file_name' => $origName]);
+        exit();
+    } catch (Throwable $e) {
+        echo json_encode(['success' => false, 'message' => 'Failed to process uploaded file: ' . $e->getMessage()]);
+        exit();
+    }
+}
+
 // NEW: Handle AJAX draft module save
 if (isset($_POST['save_draft']) && isset($_POST['ajax'])) {
     $title = $_POST['title'] ?? '';
@@ -1348,6 +1515,7 @@ $conn->close();
 
   <!-- SweetAlert2 JS -->
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <script src="https://unpkg.com/mammoth/mammoth.browser.min.js"></script>
 
   <script>
     (function () {
@@ -1603,6 +1771,10 @@ $conn->close();
       // Click on drop zone to trigger file input
       dropZone.addEventListener('click', (e) => {
         if (e.target === fileInput) return;
+        try {
+          fileInput.value = '';
+        } catch (err) {
+        }
         fileInput.click();
       });
 
@@ -1772,6 +1944,11 @@ $conn->close();
         // If there are other files, read the next one
         if (uploadedFiles.length > 0) {
           readFileContent(uploadedFiles[0]);
+        } else {
+          try {
+            fileInput.value = '';
+          } catch (err) {
+          }
         }
       }
 
@@ -1916,6 +2093,15 @@ $conn->close();
       const department = document.getElementById('departmentSelect').value;
       const role = document.getElementById('roleSelect').value;
       const topic = document.querySelector('input[name="topic"]').value;
+
+      // Fallback: if file input has a file but uploadedFiles wasn't populated (e.g. selecting same file twice)
+      try {
+        const fileInputEl = document.getElementById('fileInput');
+        if (uploadedFiles.length === 0 && fileInputEl && fileInputEl.files && fileInputEl.files.length > 0) {
+          uploadedFiles = [fileInputEl.files[0]];
+        }
+      } catch (e) {
+      }
       
       if (!title || !department || !role || !topic) {
         // Close modal first, then show SweetAlert
@@ -1930,8 +2116,10 @@ $conn->close();
         return;
       }
 
-      // MODIFIED: File upload is now optional - no error if no file is uploaded
-      if (uploadedFiles.length === 0) {
+      const selectedFile = uploadedFiles.length > 0 ? uploadedFiles[0] : null;
+
+      // File upload is optional - no error if no file is uploaded
+      if (!selectedFile) {
         // Close modal first, then show SweetAlert with success message
         closeCurrentModal();
         Swal.fire({
@@ -1957,30 +2145,129 @@ $conn->close();
         return;
       }
 
-      // If file was uploaded, proceed with file content
-      // Create URL parameters - encode the file content properly
-      const params = new URLSearchParams({
-        title: title,
-        department: department,
-        role: role,
-        topic: topic
-      });
-
-      // Add file content to URL parameters if available
-      if (selectedFileContent) {
-        // Encode the content for URL (handle special characters)
-        const encodedContent = encodeURIComponent(selectedFileContent);
-        const fileName = uploadedFiles[0].name;
-        
-        params.append('file_content', encodedContent);
-        params.append('file_name', fileName);
-      }
-      
-      // Close modal and redirect
       closeCurrentModal();
-      
-      // Redirect to create learning modules page with all parameters
-      window.location.href = 'create_learning_modules.php?' + params.toString();
+
+      if (window.Swal) {
+        Swal.fire({
+          title: 'Processing file...',
+          allowOutsideClick: false,
+          allowEscapeKey: false,
+          didOpen: () => Swal.showLoading()
+        });
+      }
+
+      const fileExt = (selectedFile && selectedFile.name) ? selectedFile.name.split('.').pop().toLowerCase() : '';
+
+      if (fileExt === 'docx' && window.mammoth && typeof window.mammoth.convertToHtml === 'function') {
+        const reader = new FileReader();
+
+        reader.onload = function (e) {
+          const arrayBuffer = e.target.result;
+          window.mammoth.convertToHtml({ arrayBuffer: arrayBuffer })
+            .then(function (result) {
+              const html = (result && result.value) ? String(result.value) : '';
+              const payload = new FormData();
+              payload.append('ajax', '1');
+              payload.append('store_extracted', '1');
+              payload.append('file_name', selectedFile.name);
+              payload.append('content', html);
+
+              return fetch('learning_module_repository.php', {
+                method: 'POST',
+                body: payload,
+                credentials: 'same-origin'
+              });
+            })
+            .then(function (res) { return res.json(); })
+            .then(function (data) {
+              if (!data || !data.success) {
+                throw new Error((data && data.message) ? data.message : 'Failed to process file.');
+              }
+
+              if (window.Swal) Swal.close();
+
+              const params = new URLSearchParams({
+                title: title,
+                department: department,
+                role: role,
+                topic: topic,
+                uploaded: '1'
+              });
+              if (data.file_name) params.append('file_name', data.file_name);
+              window.location.href = 'create_learning_modules.php?' + params.toString();
+            })
+            .catch(function (err) {
+              if (window.Swal) {
+                Swal.fire({
+                  title: 'Upload Failed',
+                  text: err && err.message ? err.message : 'Upload failed.',
+                  icon: 'error',
+                  confirmButtonText: 'OK',
+                  confirmButtonColor: '#3b82f6'
+                });
+              }
+            });
+        };
+
+        reader.onerror = function () {
+          if (window.Swal) {
+            Swal.fire({
+              title: 'Upload Failed',
+              text: 'Failed to read the DOCX file in the browser.',
+              icon: 'error',
+              confirmButtonText: 'OK',
+              confirmButtonColor: '#3b82f6'
+            });
+          }
+        };
+
+        reader.readAsArrayBuffer(selectedFile);
+        return;
+      }
+
+      const fd = new FormData();
+      fd.append('ajax', '1');
+      fd.append('extract_file', '1');
+      fd.append('file', selectedFile);
+
+      fetch('learning_module_repository.php', {
+        method: 'POST',
+        body: fd,
+        credentials: 'same-origin'
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (!data || !data.success) {
+          throw new Error((data && data.message) ? data.message : 'Failed to process file.');
+        }
+
+        if (window.Swal) Swal.close();
+
+        const params = new URLSearchParams({
+          title: title,
+          department: department,
+          role: role,
+          topic: topic,
+          uploaded: '1'
+        });
+
+        if (data.file_name) {
+          params.append('file_name', data.file_name);
+        }
+
+        window.location.href = 'create_learning_modules.php?' + params.toString();
+      })
+      .catch(err => {
+        if (window.Swal) {
+          Swal.fire({
+            title: 'Upload Failed',
+            text: err && err.message ? err.message : 'Upload failed.',
+            icon: 'error',
+            confirmButtonText: 'OK',
+            confirmButtonColor: '#3b82f6'
+          });
+        }
+      });
     }
 
     // Department and Role Data
