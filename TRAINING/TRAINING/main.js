@@ -1852,7 +1852,26 @@
       postTrainingBtn.addEventListener('click', () => {
         const programId = postTrainingBtn.getAttribute('data-program-id');
         if (!programId) return;
-        window.location.href = `post_training.php?program_id=${encodeURIComponent(String(programId))}`;
+        (async () => {
+          const fd = new FormData();
+          fd.append('action', 'post_training');
+          fd.append('program_id', String(programId));
+          try {
+            const res = await fetch('trainingprogram.php', { method: 'POST', body: fd, credentials: 'same-origin' });
+            const data = await res.json();
+            if (!data || !data.success) {
+              const msg = (data && data.message) ? data.message : 'Unable to post training.';
+              if (window.Swal) await swalFire({ icon: 'error', title: 'Failed', text: msg }, getOpenDialogTarget());
+              else window.alert(msg);
+              return;
+            }
+            if (window.Swal) await swalFire({ icon: 'success', title: 'Posted', text: 'Training has been posted.', timer: 1200, showConfirmButton: false }, getOpenDialogTarget());
+            window.location.href = 'posted_trainings.php';
+          } catch (_) {
+            if (window.Swal) await swalFire({ icon: 'error', title: 'Failed', text: 'Unexpected error while posting.' }, getOpenDialogTarget());
+            else window.alert('Unexpected error while posting.');
+          }
+        })();
       });
     }
 
@@ -2225,16 +2244,8 @@
         fd.append('max_participants', (qs('#max-participants') || {}).value || '');
         fd.append('training_level', (qs('#competency-level') || {}).value || '');
 
-        try {
-          const vals = Array.from(document.querySelectorAll('.js-training-objective'))
-            .filter((el) => el && el.checked)
-            .map((el) => String(el.value || ''))
-            .filter((v) => v.trim() !== '');
-          fd.append('training_objectives_json', JSON.stringify(vals));
-        } catch (_) {
-          fd.append('training_objectives_json', '[]');
-        }
-        fd.append('training_objectives_other', (qs('#training-objectives-other') || {}).value || '');
+        fd.append('training_objectives_json', '[]');
+        fd.append('training_objectives_other', '');
 
         const ta = (qs('#target-audience') || {}).value || '';
         let tr = '';
