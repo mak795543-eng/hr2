@@ -816,7 +816,7 @@ $conn->close();
 
                 <!-- Form Actions -->
                 <div class="bg-gray-50 p-6 md:p-8 border-t border-gray-200">
-                  <div class="flex flex-col md:flex-row justify-between gap-4">
+                  <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div class="action-buttons">
                       <button type="button" onclick="window.location.href='examination_repository.php'" class="btn btn-ghost btn-compact">
                         <span class="btn-icon-text">
@@ -837,7 +837,7 @@ $conn->close();
                         </span>
                       </button>
                     </div>
-                    <div class="action-buttons">
+                    <div class="action-buttons md:justify-end">
                       <button type="button" id="previewExam" class="btn btn-outline btn-compact">
                         <span class="btn-icon-text">
                           <i class="fas fa-eye"></i>
@@ -1241,6 +1241,15 @@ $conn->close();
       const questionTemplate = document.getElementById('questionTemplate');
       const createExamBtn = document.getElementById('createExamBtn');
       let questionCount = 0;
+
+      const urlParams = new URLSearchParams(window.location.search);
+      const targetRaw = parseInt(urlParams.get('question_count') || '', 10);
+      const targetQuestionLimit = Number.isFinite(targetRaw) && targetRaw > 0 ? targetRaw : 10;
+
+      function syncAddQuestionButtonState() {
+        if (!addQuestionBtn) return;
+        addQuestionBtn.disabled = questionCount >= targetQuestionLimit;
+      }
       
       // Answer Key Modal Elements
       const answerKeyModal = document.getElementById('answerKeyModal');
@@ -2154,7 +2163,21 @@ $conn->close();
       
       // Add question button handler
       addQuestionBtn.addEventListener('click', function() {
+        if (questionCount >= targetQuestionLimit) {
+          if (window.Swal) {
+            Swal.fire({
+              title: 'Target question limit reached',
+              text: `You can only add up to ${targetQuestionLimit} question(s).`,
+              icon: 'info',
+              confirmButtonText: 'OK',
+              confirmButtonColor: '#3b82f6'
+            });
+          }
+          syncAddQuestionButtonState();
+          return;
+        }
         addQuestion();
+        syncAddQuestionButtonState();
       });
       
       // Clear draft button handler
@@ -2178,6 +2201,10 @@ $conn->close();
       
       // Function to add a new question
       function addQuestion() {
+        if (questionCount >= targetQuestionLimit) {
+          syncAddQuestionButtonState();
+          return;
+        }
         questionCount++;
         const questionClone = document.importNode(questionTemplate.content, true);
         const questionDiv = questionClone.querySelector('.question-item');
@@ -2280,6 +2307,8 @@ $conn->close();
         
         // Auto-save after adding question
         setTimeout(saveFormState, 100);
+
+        syncAddQuestionButtonState();
       }
       
       // Function to initialize Multiple Choice question with blank options
@@ -2678,6 +2707,8 @@ $conn->close();
           const questionNumber = question.querySelector('.question-number');
           questionNumber.textContent = `Q${index + 1}`;
         });
+
+        syncAddQuestionButtonState();
       }
       
       // Create Exam button handler - UPDATED FIXED VERSION

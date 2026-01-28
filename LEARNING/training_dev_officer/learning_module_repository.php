@@ -717,57 +717,32 @@ $conn->close();
       opacity: 0.5;
     }
 
-    /* NEW: Smaller card and font styles */
     .module-card {
-      font-size: 11px !important;
+      font-size: inherit;
     }
     
     .module-card .card-title {
-      font-size: 14px !important;
+      font-size: 1.125rem;
       font-weight: 600;
     }
     
-    .module-card .card-body {
-      padding: 0.75rem !important;
-    }
-    
-    .module-card .badge {
-      font-size: 10px !important;
-      padding: 0.25rem 0.5rem !important;
-    }
-    
     .module-card p {
-      font-size: 11px !important;
-      margin-bottom: 0.25rem !important;
+      font-size: 0.875rem;
     }
     
     .module-reason {
-      font-size: 10px !important;
-      padding: 0.5rem !important;
+      font-size: 0.875rem;
     }
     
     .card-actions .btn-sm-border {
-      font-size: 10px !important;
-      padding: 0.25rem 0.5rem !important;
+      font-size: 0.875rem;
+      padding: 0.375rem 0.75rem;
     }
 
-    /* NEW: Smaller top navigation buttons */
     .top-nav-buttons {
       display: flex;
       gap: 0.5rem;
       flex-wrap: wrap;
-    }
-    
-    .top-nav-buttons .btn {
-      font-size: 12px !important;
-      padding: 0.4rem 0.8rem !important;
-      height: auto !important;
-      min-height: 2rem !important;
-    }
-    
-    .top-nav-buttons .btn i {
-      font-size: 11px !important;
-      margin-right: 0.3rem !important;
     }
   </style>
 </head>
@@ -1107,7 +1082,6 @@ $conn->close();
             <button class="btn btn-primary flex-1" id="approved-edit-btn">
               <i class="fas fa-edit mr-2"></i>Edit
             </button>
-            <button class="btn btn-border flex-1" id="approved-convert-btn">Convert</button>
           </div>
         </div>
       </div>
@@ -2555,11 +2529,9 @@ $conn->close();
       if (moduleData.status === 'pending') {
         if (postBtn) postBtn.style.display = 'none';
         if (editBtn) editBtn.style.display = 'none';
-        if (convertBtn) convertBtn.style.display = 'none';
       } else {
         if (postBtn) postBtn.style.display = '';
         if (editBtn) editBtn.style.display = '';
-        if (convertBtn) convertBtn.style.display = '';
       }
       
       // Set document preview with ACTUAL content from database
@@ -2581,43 +2553,9 @@ $conn->close();
         editModule(moduleData.id);
       };
       
-      document.getElementById('approved-convert-btn').onclick = function() {
-        closeCurrentModal();
-        Swal.fire({
-          title: 'Convert Module?',
-          text: "This module will be converted using AI to create a quiz/exam.",
-          icon: 'question',
-          input: 'number',
-          inputLabel: 'Number of questions',
-          inputValue: 10,
-          inputAttributes: {
-            min: 1,
-            max: 25,
-            step: 1
-          },
-          showCancelButton: true,
-          confirmButtonText: 'Yes, convert it!',
-          cancelButtonText: 'Cancel',
-          confirmButtonColor: '#8b5cf6',
-          cancelButtonColor: '#6b7280',
-          reverseButtons: true
-        }).then((result) => {
-          if (result.isConfirmed) {
-            const count = result.value || 10;
-            Swal.fire({
-              title: 'Generating Questions...',
-              text: 'Please wait while we generate an examination from your module.',
-              icon: 'info',
-              showConfirmButton: false,
-              allowOutsideClick: false,
-              didOpen: () => {
-                Swal.showLoading();
-                window.location.href = `convert_module_to_exam.php?module_id=${encodeURIComponent(moduleData.id)}&question_count=${encodeURIComponent(String(count))}`;
-              }
-            });
-          }
-        });
-      };
+      if (convertBtn) {
+        convertBtn.style.display = 'none';
+      }
       
       document.getElementById('approved-download-file').onclick = function() {
         downloadModuleFile(moduleData);

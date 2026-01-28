@@ -1,5 +1,5 @@
 <?php
-session_start();
+
 require_once __DIR__ . '/db.php';
 
 $programId = isset($_GET['program_id']) ? (int)$_GET['program_id'] : 0;

@@ -1,5 +1,5 @@
 <?php
-session_start();
+
 require_once __DIR__ . '/db.php';
 
 $tableName = 'logistics_requests';
@@ -191,6 +191,27 @@ if ($requestId) {
     $detail = $stmt->get_result()->fetch_assoc();
 }
 
+$detailItems = [];
+$detailDeliveryLocation = '';
+$detailContactPerson = '';
+$detailNeededByDate = '';
+
+if (!empty($detail)) {
+    $rawItems = (string)($detail['items_requested'] ?? '');
+    $decodedItems = json_decode($rawItems, true);
+    if (is_array($decodedItems)) {
+        $detailItems = $decodedItems;
+    }
+
+    $rawDetails = (string)($detail['details_json'] ?? '');
+    $decodedDetails = json_decode($rawDetails, true);
+    if (is_array($decodedDetails)) {
+        $detailDeliveryLocation = (string)($decodedDetails['delivery']['location'] ?? '');
+        $detailContactPerson = (string)($decodedDetails['delivery']['contact_person'] ?? '');
+        $detailNeededByDate = (string)($decodedDetails['basic']['needed_by_date'] ?? '');
+    }
+}
+
  if ($programId) {
      $stmt = $conn->prepare("SELECT lr.id AS request_id, lr.status, lr.created_at, tp.id AS program_id, tp.training_title, tp.start_datetime, tp.end_datetime, tp.participants_needed, tp.status AS program_status
          FROM logistics_requests lr
@@ -210,16 +231,7 @@ if ($requestId) {
      $requests = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
  }
 ?>
-<!DOCTYPE html>
-<html lang="en" data-theme="light">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Logistics - Items Requests</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.6.0/dist/full.css" rel="stylesheet" type="text/css" />
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
     <script>
         (function () {
             if (!window.Swal || window.__SWAL_DAISY_PATCHED__) return;
@@ -300,13 +312,7 @@ if ($requestId) {
         .card-table td[data-label="Actions"]::before { display: none; }
     </style>
 </head>
-<body class="bg-gray-50 min-h-screen">
-<div class="flex h-screen">
-    <?php if (file_exists(__DIR__ . '/../USM/sidebarr.php')) { include '../USM/sidebarr.php'; } ?>
-    <div class="flex flex-col flex-1 overflow-auto">
-        <?php if (file_exists(__DIR__ . '/../USM/navbar.php')) { include '../USM/navbar.php'; } ?>
 
-        <main class="container mx-auto px-4 py-6">
             <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-6">
                 <div>
                     <h1 class="text-2xl font-bold text-gray-800">Logistics Requests</h1>
@@ -340,8 +346,55 @@ if ($requestId) {
 
                         <div class="mt-4">
                             <div class="font-semibold text-gray-700 mb-1">Items Requested</div>
-                            <div class="text-gray-700 whitespace-pre-line"><?php echo htmlspecialchars((string)($detail['items_requested'] ?? '')); ?></div>
+                            <?php if (!empty($detailItems)) : ?>
+                                <div class="overflow-x-auto">
+                                    <table class="table table-sm">
+                                        <thead>
+                                            <tr>
+                                                <th>Category</th>
+                                                <th>Item</th>
+                                                <th class="text-right">Qty</th>
+                                                <th>Unit</th>
+                                                <th>Remarks</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <?php foreach ($detailItems as $it) : ?>
+                                                <tr>
+                                                    <td><?php echo htmlspecialchars((string)($it['category'] ?? '')); ?></td>
+                                                    <td><?php echo htmlspecialchars((string)($it['name'] ?? '')); ?></td>
+                                                    <td class="text-right"><?php echo htmlspecialchars((string)($it['quantity'] ?? '')); ?></td>
+                                                    <td><?php echo htmlspecialchars((string)($it['unit'] ?? '')); ?></td>
+                                                    <td><?php echo htmlspecialchars((string)($it['remarks'] ?? '')); ?></td>
+                                                </tr>
+                                            <?php endforeach; ?>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            <?php else : ?>
+                                <div class="text-gray-700 whitespace-pre-line"><?php echo htmlspecialchars((string)($detail['items_requested'] ?? '')); ?></div>
+                            <?php endif; ?>
                         </div>
+
+                        <?php if (trim($detailDeliveryLocation) !== '' || trim($detailContactPerson) !== '' || trim($detailNeededByDate) !== '') : ?>
+                            <div class="mt-4">
+                                <div class="font-semibold text-gray-700 mb-1">Delivery Information</div>
+                                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    <div>
+                                        <div class="text-xs text-gray-500">Delivery Location</div>
+                                        <div class="text-gray-800"><?php echo htmlspecialchars($detailDeliveryLocation !== '' ? $detailDeliveryLocation : '-'); ?></div>
+                                    </div>
+                                    <div>
+                                        <div class="text-xs text-gray-500">Contact Person</div>
+                                        <div class="text-gray-800"><?php echo htmlspecialchars($detailContactPerson !== '' ? $detailContactPerson : '-'); ?></div>
+                                    </div>
+                                    <div>
+                                        <div class="text-xs text-gray-500">Needed By</div>
+                                        <div class="text-gray-800"><?php echo htmlspecialchars($detailNeededByDate !== '' ? $detailNeededByDate : '-'); ?></div>
+                                    </div>
+                                </div>
+                            </div>
+                        <?php endif; ?>
 
                         <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>

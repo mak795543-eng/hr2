@@ -269,7 +269,21 @@ $conn->close();
       border: 1px solid #e5e7eb;
       border-radius: 0.5rem;
       padding: 1.5rem;
-      text-align: center;
+      text-align: left;
+    }
+
+    .stat-card .stat-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+    }
+
+    .stat-card .stat-icon {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #4b5563;
     }
     
     .stat-number {
@@ -404,49 +418,77 @@ $conn->close();
             <!-- Stats Section -->
             <div class="stats-grid mb-6">
               <div class="stat-card">
-                <div class="stat-number"><?php echo count($posted_modules); ?></div>
-                <div class="stat-label">Total Posted Modules</div>
+                <div class="stat-inner">
+                  <div>
+                    <div class="stat-label">Total Posted Modules</div>
+                    <div class="stat-number"><?php echo count($posted_modules); ?></div>
+                  </div>
+                  <div class="stat-icon">
+                    <i data-lucide="layers" class="w-7 h-7"></i>
+                  </div>
+                </div>
               </div>
               <div class="stat-card">
-                <div class="stat-number">
-                  <?php 
-                    $current_month = date('Y-m');
-                    $monthly_count = 0;
-                    foreach ($posted_modules as $module) {
-                      if (date('Y-m', strtotime($module['created_at'])) === $current_month) {
-                        $monthly_count++;
-                      }
-                    }
-                    echo $monthly_count;
-                  ?>
+                <div class="stat-inner">
+                  <div>
+                    <div class="stat-label">Posted This Month</div>
+                    <div class="stat-number">
+                      <?php 
+                        $current_month = date('Y-m');
+                        $monthly_count = 0;
+                        foreach ($posted_modules as $module) {
+                          if (date('Y-m', strtotime($module['created_at'])) === $current_month) {
+                            $monthly_count++;
+                          }
+                        }
+                        echo $monthly_count;
+                      ?>
+                    </div>
+                  </div>
+                  <div class="stat-icon">
+                    <i data-lucide="calendar" class="w-7 h-7"></i>
+                  </div>
                 </div>
-                <div class="stat-label">Posted This Month</div>
               </div>
               <div class="stat-card">
-                <div class="stat-number">
-                  <?php
-                    $departments = [];
-                    foreach ($posted_modules as $module) {
-                      if (!in_array($module['department'], $departments)) {
-                        $departments[] = $module['department'];
-                      }
-                    }
-                    echo count($departments);
-                  ?>
+                <div class="stat-inner">
+                  <div>
+                    <div class="stat-label">Active Departments</div>
+                    <div class="stat-number">
+                      <?php
+                        $departments = [];
+                        foreach ($posted_modules as $module) {
+                          if (!in_array($module['department'], $departments)) {
+                            $departments[] = $module['department'];
+                          }
+                        }
+                        echo count($departments);
+                      ?>
+                    </div>
+                  </div>
+                  <div class="stat-icon">
+                    <i data-lucide="building-2" class="w-7 h-7"></i>
+                  </div>
                 </div>
-                <div class="stat-label">Active Departments</div>
               </div>
               <div class="stat-card">
-                <div class="stat-number">
-                  <?php 
-                    if (!empty($posted_modules)) {
-                      echo date('M j', strtotime($posted_modules[0]['created_at']));
-                    } else {
-                      echo 'N/A';
-                    }
-                  ?>
+                <div class="stat-inner">
+                  <div>
+                    <div class="stat-label">Latest Post</div>
+                    <div class="stat-number">
+                      <?php 
+                        if (!empty($posted_modules)) {
+                          echo date('M j', strtotime($posted_modules[0]['created_at']));
+                        } else {
+                          echo 'N/A';
+                        }
+                      ?>
+                    </div>
+                  </div>
+                  <div class="stat-icon">
+                    <i data-lucide="clock" class="w-7 h-7"></i>
+                  </div>
                 </div>
-                <div class="stat-label">Latest Post</div>
               </div>
             </div>
 
@@ -512,8 +554,11 @@ $conn->close();
                       <?php if (!empty($module['remarks'])): ?>
                         <p class="text-sm text-gray-500">Notes: <?php echo htmlspecialchars($module['remarks']); ?></p>
                       <?php endif; ?>
+
                       <div class="card-actions justify-end mt-4">
-                        <button class="btn-sm-border" onclick="convertPostedModule(<?php echo $module['id']; ?>)">Convert</button>
+                        <button class="btn btn-sm btn-border" type="button" onclick="viewPostedModule(<?php echo (int)$module['id']; ?>)">
+                          <i class="fas fa-eye mr-1"></i> View
+                        </button>
                       </div>
                     </div>
                   </div>
@@ -576,12 +621,7 @@ $conn->close();
           </div>
           
           <!-- CRUD Actions - Colors removed but design preserved -->
-          <div class="action-buttons">
-            <button class="action-btn" id="posted-convert-btn">
-              <i class="fas fa-sync-alt mr-2"></i>
-              Convert to Quiz
-            </button>
-          </div>
+          <div class="action-buttons"></div>
         </div>
       </div>
       
@@ -709,11 +749,6 @@ $conn->close();
       }
     }
 
-    function convertPostedModule(moduleId) {
-      currentModuleId = moduleId;
-      showConvertConfirmation();
-    }
-
     function showPostedModal(moduleData) {
       console.log('Showing posted modal for:', moduleData.title);
       
@@ -749,16 +784,6 @@ $conn->close();
           showHoldConfirmation();
         };
       }
-      
-      document.getElementById('posted-convert-btn').onclick = function() {
-        // Close the modal first
-        const modal = document.getElementById('posted_module_modal');
-        if (modal) {
-          modal.close();
-        }
-        // Then show the convert confirmation
-        showConvertConfirmation();
-      };
       
       document.getElementById('posted-download-file').onclick = function() {
         downloadModuleFile(moduleData);
@@ -826,69 +851,7 @@ $conn->close();
       });
     }
 
-    // SweetAlert for Convert Confirmation - Gray cancel, Blue confirm
-    function showConvertConfirmation() {
-      Swal.fire({
-        title: 'Convert Module to Quiz?',
-        html: `
-          <div class="text-left">
-            <p class="text-gray-600 mb-4">This module will be converted using AI to create a quiz/exam.</p>
-            <p class="text-sm text-gray-500">The conversion process may take a few moments. Do you want to proceed?</p>
-          </div>
-        `,
-        icon: 'question',
-        input: 'number',
-        inputLabel: 'Number of questions',
-        inputValue: 10,
-        inputAttributes: {
-          min: 1,
-          max: 25,
-          step: 1
-        },
-        showCancelButton: true,
-        confirmButtonText: 'Start Conversion',
-        cancelButtonText: 'Cancel',
-        confirmButtonColor: '#3b82f6',
-        cancelButtonColor: '#6b7280',
-        showLoaderOnConfirm: true,
-        preConfirm: (value) => {
-          const count = parseInt(value, 10);
-          if (!Number.isFinite(count) || count <= 0) {
-            Swal.showValidationMessage('Please enter a valid number of questions');
-            return false;
-          }
-          if (count > 25) {
-            Swal.showValidationMessage('Maximum is 25 questions');
-            return false;
-          }
-          return count;
-        },
-        allowOutsideClick: () => !Swal.isLoading()
-      }).then((result) => {
-        if (result.isConfirmed) {
-          const count = result.value || 10;
-          Swal.fire({
-            title: 'Generating Questions...',
-            text: 'Please wait while we generate an examination from your module.',
-            icon: 'info',
-            showConfirmButton: false,
-            allowOutsideClick: false,
-            didOpen: () => {
-              Swal.showLoading();
-              window.location.href = `convert_module_to_exam.php?module_id=${encodeURIComponent(currentModuleId)}&question_count=${encodeURIComponent(String(count))}`;
-            }
-          });
-        }
-      }).catch(error => {
-        Swal.fire({
-          title: 'Error!',
-          text: error.message || 'Failed to convert module',
-          icon: 'error',
-          confirmButtonText: 'OK',
-          confirmButtonColor: '#3b82f6'
-        });
-      });
-    }
+
 
     // Edit Module Function
     function editModule(moduleId) {

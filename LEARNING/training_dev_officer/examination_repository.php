@@ -126,10 +126,8 @@ $conn->close();
       margin: 0 auto;
     }
 
-    /* Center the modal content */
-    #view_document_modal .modal-box > * {
-      margin-left: auto;
-      margin-right: auto;
+    #view_document_modal .modal-box {
+      padding: 1.5rem;
     }
 
     /* Second Modal - Create Examination Modal - Make larger */
@@ -253,9 +251,15 @@ $conn->close();
       display: flex;
       gap: 1rem;
       justify-content: flex-end;
+      align-items: center;
+      flex-wrap: wrap;
       margin-top: auto;
       padding-top: 1.5rem;
       border-top: 1px solid #e5e7eb;
+    }
+
+    .form-actions button {
+      min-width: 170px;
     }
 
     /* Document Preview Modal - Bond Paper Size */
@@ -268,20 +272,35 @@ $conn->close();
     }
 
     .document-content {
-      height: 70vh;
-      max-height: 70vh;
+      height: 60vh;
+      max-height: 60vh;
       overflow-y: auto;
-      padding: 2rem;
+      padding: 1.5rem;
       background: white;
       border: 1px solid #e5e7eb;
       border-radius: 0.5rem;
       /* Bond paper styling */
-      width: 8.5in;
-      min-height: 11in;
+      width: min(8.5in, 100%);
+      max-width: 100%;
+      min-height: 0;
       margin: 0 auto;
       box-shadow: 0 0 10px rgba(0,0,0,0.1);
       background: white;
       position: relative;
+    }
+
+    #crudOperations {
+      padding-top: 0.75rem;
+      margin-top: 0.25rem;
+      border-top: 1px solid #e5e7eb;
+    }
+
+    .view-doc-actions .btn {
+      min-width: 140px;
+    }
+
+    .view-doc-actions form {
+      margin: 0;
     }
 
     /* Ensure SweetAlert buttons are always visible and on top */
@@ -760,10 +779,15 @@ $conn->close();
   <!-- View Document Modal -->
   <dialog id="view_document_modal" class="modal modal-middle">
     <div class="modal-box max-w-4xl">
-      <h3 class="font-bold text-lg mb-4" id="documentTitle">Examination Document</h3>
+      <div class="flex justify-between items-center mb-4 w-full">
+        <h3 class="font-bold text-lg" id="documentTitle">Examination Document</h3>
+        <form method="dialog">
+          <button class="btn btn-sm btn-circle btn-ghost" type="submit">✕</button>
+        </form>
+      </div>
       
       <!-- Document Preview Section -->
-      <div class="bg-base-200 p-6 rounded-lg mb-6">
+      <div class="bg-base-200 p-5 rounded-lg mb-4">
         <div class="flex justify-between items-start mb-4">
           <div>
             <h4 class="text-lg font-semibold" id="previewExamTitle">Employee Policy Examination</h4>
@@ -792,19 +816,20 @@ $conn->close();
         </div>
         
         <div class="card bg-white">
-          <div class="card-body">
-            <h4 class="card-title">Document Preview</h4>
+          <div class="card-body p-4">
+            <div class="flex items-center justify-between mb-2">
+              <h4 class="font-semibold">Document Preview</h4>
+            </div>
             <div id="documentPreviewContent" class="document-content"></div>
           </div>
         </div>
       </div>
       
       <!-- CRUD Operations Section - Dynamic based on status -->
-      <div id="crudOperations">
-        <!-- This section will be dynamically populated based on status -->
-      </div>
-      
-      <div class="modal-action">
+      <div class="view-doc-actions mt-2 pt-4 border-t border-gray-200 flex flex-wrap gap-2 justify-end items-center">
+        <div id="crudOperations" class="flex flex-wrap gap-2 justify-end items-center">
+          <!-- This section will be dynamically populated based on status -->
+        </div>
         <form method="dialog">
           <button class="btn btn-custom">Close</button>
         </form>
@@ -859,10 +884,10 @@ $conn->close();
           </div>
 
           <div class="form-actions">
-            <button id="convertModuleBtn" type="button" class="btn btn-info" disabled>
+            <button id="convertModuleBtn" type="button" class="btn btn-info" style="min-width: 170px" disabled>
               <i class="fas fa-wand-magic-sparkles mr-2"></i>Convert Module
             </button>
-            <button id="startExaminationBtn" type="button" class="btn btn-success" disabled>
+            <button id="startExaminationBtn" type="button" class="btn btn-success" style="min-width: 170px" disabled>
               <i class="fas fa-arrow-right mr-2"></i>Start Examination
             </button>
           </div>
@@ -1956,15 +1981,15 @@ $conn->close();
     // Setup CRUD operations based on status
     function setupCrudOperations(status) {
       const crudContainer = document.getElementById('crudOperations');
-      let html = '<div class="flex flex-wrap gap-2 justify-end mb-4">';
+      let html = '';
       
       switch(status) {
         case 'pending':
           html += `
-            <button class="btn btn-success" onclick="editExam('${currentExamId}')">
+            <button class="btn btn-success" style="min-width: 140px" onclick="editExam('${currentExamId}')">
               <i class="fas fa-edit mr-1"></i> Edit
             </button>
-            <button class="btn btn-danger" onclick="cancelDbExam('${currentExamId}')">
+            <button class="btn btn-danger" style="min-width: 140px" onclick="cancelDbExam('${currentExamId}')">
               <i class="fas fa-ban mr-1"></i> Cancel
             </button>
           `;
@@ -1972,10 +1997,10 @@ $conn->close();
 
         case 'cancelled':
           html += `
-            <button class="btn btn-success" onclick="editExam('${currentExamId}')">
+            <button class="btn btn-success" style="min-width: 140px" onclick="editExam('${currentExamId}')">
               <i class="fas fa-edit mr-1"></i> Edit
             </button>
-            <button class="btn btn-danger" onclick="deleteDbExam('${currentExamId}')">
+            <button class="btn btn-danger" style="min-width: 140px" onclick="deleteDbExam('${currentExamId}')">
               <i class="fas fa-trash mr-1"></i> Delete
             </button>
           `;
@@ -1983,10 +2008,10 @@ $conn->close();
 
         case 'approved':
           html += `
-            <button class="btn btn-success" onclick="postExam('${currentExamId}')">
+            <button class="btn btn-success" style="min-width: 140px" onclick="postExam('${currentExamId}')">
               <i class="fas fa-share-square mr-1"></i> Post
             </button>
-            <button class="btn btn-warning" onclick="holdExam('${currentExamId}')">
+            <button class="btn btn-warning" style="min-width: 140px" onclick="holdExam('${currentExamId}')">
               <i class="fas fa-pause-circle mr-1"></i> Hold
             </button>
           `;
@@ -1994,7 +2019,7 @@ $conn->close();
           
         case 'hold':
           html += `
-            <button class="btn btn-success" onclick="postExam('${currentExamId}')">
+            <button class="btn btn-success" style="min-width: 140px" onclick="postExam('${currentExamId}')">
               <i class="fas fa-share-square mr-1"></i> Post
             </button>
           `;
@@ -2002,7 +2027,7 @@ $conn->close();
           
         case 'rejected':
           html += `
-            <button class="btn btn-danger" onclick="deleteLocalStorageExam('${currentExamId}')">
+            <button class="btn btn-danger" style="min-width: 140px" onclick="deleteLocalStorageExam('${currentExamId}')">
               <i class="fas fa-trash mr-1"></i> Delete
             </button>
           `;
@@ -2010,13 +2035,13 @@ $conn->close();
           
         case 'compliance':
           html += `
-            <button class="btn btn-custom" onclick="showComplianceReason('${currentExamId}')">
+            <button class="btn btn-custom" style="min-width: 140px" onclick="showComplianceReason('${currentExamId}')">
               <i class="fas fa-comment-alt mr-1"></i> Reason Why
             </button>
-            <button class="btn btn-danger" onclick="deleteLocalStorageExam('${currentExamId}')">
+            <button class="btn btn-danger" style="min-width: 140px" onclick="deleteLocalStorageExam('${currentExamId}')">
               <i class="fas fa-trash mr-1"></i> Delete
             </button>
-            <button class="btn btn-success" onclick="editExam('${currentExamId}')">
+            <button class="btn btn-success" style="min-width: 140px" onclick="editExam('${currentExamId}')">
               <i class="fas fa-edit mr-1"></i> Edit
             </button>
           `;
@@ -2025,8 +2050,6 @@ $conn->close();
         default:
           html += '<p>No actions available for this status.</p>';
       }
-      
-      html += '</div>';
       crudContainer.innerHTML = html;
     }
     
