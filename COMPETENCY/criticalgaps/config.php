@@ -7,23 +7,24 @@ $cgHost = $cgHostEnv !== false ? $cgHostEnv : ($cgHostGlobal !== false ? $cgHost
 
 $cgUserEnv = getenv('CRITICAL_GAPS_DB_USER');
 $cgUserGlobal = getenv('DB_USER');
-$cgUser = $cgUserEnv !== false ? $cgUserEnv : ($cgUserGlobal !== false ? $cgUserGlobal : 'root');
+$cgUser = $cgUserEnv !== false ? $cgUserEnv : ($cgUserGlobal !== false ? $cgUserGlobal : 'hr2_critical_gaps');
 
 $cgPassEnv = getenv('CRITICAL_GAPS_DB_PASS');
 $cgPassGlobal = getenv('DB_PASS');
-$cgPass = $cgPassEnv !== false
-    ? $cgPassEnv
-    : ($cgPassGlobal !== false
-        ? $cgPassGlobal
-        : (($cgUser === 'root' && ($cgHost === 'localhost' || $cgHost === '127.0.0.1')) ? '' : 'makmak01'));
-$cgName = getenv('CRITICAL_GAPS_DB_NAME') ?: 'critical_gaps';
+$cgPass = 'hr2.soliera';
+// $cgPass = $cgPassEnv !== false
+//     ? $cgPassEnv
+//     : ($cgPassGlobal !== false
+//         ? $cgPassGlobal
+//         : (($cgUser === 'root' && ($cgHost === 'localhost' || $cgHost === '127.0.0.1')) ? '' : 'makmak01'));
+$cgName = getenv('CRITICAL_GAPS_DB_NAME') ?: 'hr2_critical_gaps';
 if ($dbPrefix !== '' && strpos($cgName, $dbPrefix) !== 0) {
     $cgName = $dbPrefix . $cgName;
 }
 define('DB_HOST', $cgHost);
 define('DB_USER', $cgUser);
-define('DB_PASS', $cgPass);
-define('DB_NAME', $cgName);
+define('DB_PASS', 'hr2.soliera');
+define('DB_NAME', 'hr2_critical_gaps');
 
 // Create database connection
 try {
@@ -42,9 +43,10 @@ try {
 }
 
 // Function to create tables if they don't exist
-function createTablesIfNotExist() {
+function createTablesIfNotExist()
+{
     global $pdo;
-    
+
     $sql = "
     CREATE TABLE IF NOT EXISTS departments (
         id INT PRIMARY KEY AUTO_INCREMENT,
@@ -196,7 +198,7 @@ function createTablesIfNotExist() {
         FOREIGN KEY (employee_id) REFERENCES employees(employee_id) ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     ";
-    
+
     // Execute each statement separately
     $statements = explode(';', $sql);
     foreach ($statements as $statement) {
@@ -213,7 +215,8 @@ function createTablesIfNotExist() {
     }
 }
 
-function ensureSchema() {
+function ensureSchema()
+{
     global $pdo;
 
     try {
@@ -322,7 +325,8 @@ function ensureSchema() {
     }
 }
 
-function insertDefaultDepartments() {
+function insertDefaultDepartments()
+{
     global $pdo;
 
     try {
@@ -347,7 +351,8 @@ function insertDefaultDepartments() {
     }
 }
 
-function insertDefaultGeneralSkills() {
+function insertDefaultGeneralSkills()
+{
     global $pdo;
 
     try {
@@ -446,7 +451,8 @@ function insertDefaultGeneralSkills() {
     }
 }
 
-function mapCompetencyToStatus(float $pct): string {
+function mapCompetencyToStatus(float $pct): string
+{
     if ($pct <= 30) return 'Retrain';
     if ($pct <= 50) return 'Reskilling';
     if ($pct <= 75) return 'Refresher Training';
@@ -454,7 +460,8 @@ function mapCompetencyToStatus(float $pct): string {
     return 'Succession Ready';
 }
 
-function computeEmployeeCompetency(string $employeeId): array {
+function computeEmployeeCompetency(string $employeeId): array
+{
     global $pdo;
 
     $deptStmt = $pdo->prepare("SELECT department FROM employees WHERE employee_id = ? LIMIT 1");
@@ -485,7 +492,8 @@ function computeEmployeeCompetency(string $employeeId): array {
     ];
 }
 
-function employeeHasGaps(string $employeeId): bool {
+function employeeHasGaps(string $employeeId): bool
+{
     global $pdo;
 
     $deptStmt = $pdo->prepare("SELECT department FROM employees WHERE employee_id = ? LIMIT 1");
@@ -512,7 +520,8 @@ function employeeHasGaps(string $employeeId): bool {
     return $cnt > 0;
 }
 
-function updateEmployeeCompetencyRow(string $employeeId): array {
+function updateEmployeeCompetencyRow(string $employeeId): array
+{
     global $pdo;
 
     $r = computeEmployeeCompetency($employeeId);
@@ -521,7 +530,8 @@ function updateEmployeeCompetencyRow(string $employeeId): array {
     return $r;
 }
 
-function syncPrePromotionEmployee(string $employeeId): void {
+function syncPrePromotionEmployee(string $employeeId): void
+{
     global $pdo;
 
     $r = computeEmployeeCompetency($employeeId);
@@ -548,9 +558,10 @@ function syncPrePromotionEmployee(string $employeeId): void {
 createTablesIfNotExist();
 
 // Function to get employees
-function getEmployees($filter = 'all', $search = '', $department = 'all') {
+function getEmployees($filter = 'all', $search = '', $department = 'all')
+{
     global $pdo;
-    
+
     try {
         $sql = "SELECT e.id, e.employee_id, e.full_name, e.position, e.department, e.last_assessment, e.next_review_date,
                        COALESCE(gs.competency, 0) AS competency,
@@ -592,13 +603,13 @@ function getEmployees($filter = 'all', $search = '', $department = 'all') {
                         AND r.status = 'Pending'
                   )";
         $params = [];
-        
+
         // Apply department filter
         if ($department !== 'all') {
             $sql .= " AND e.department = ?";
             $params[] = $department;
         }
-        
+
         // Apply status filter
         if ($filter !== 'all') {
             $sql .= " AND (
@@ -612,7 +623,7 @@ function getEmployees($filter = 'all', $search = '', $department = 'all') {
             ) = ?";
             $params[] = $filter;
         }
-        
+
         // Apply search
         if (!empty($search)) {
             $sql .= " AND (e.full_name LIKE ? OR e.employee_id LIKE ? OR e.position LIKE ? OR e.department LIKE ?)";
@@ -622,7 +633,7 @@ function getEmployees($filter = 'all', $search = '', $department = 'all') {
             $params[] = $searchTerm;
             $params[] = $searchTerm;
         }
-        
+
         $sql .= " ORDER BY 
             CASE
                 WHEN COALESCE(gs.competency, 0) <= 30 THEN 1
@@ -633,11 +644,10 @@ function getEmployees($filter = 'all', $search = '', $department = 'all') {
             END,
             COALESCE(gs.competency, 0) DESC,
             e.full_name ASC";
-        
+
         $stmt = $pdo->prepare($sql);
         $stmt->execute($params);
         return $stmt->fetchAll();
-        
     } catch (PDOException $e) {
         error_log("Error in getEmployees: " . $e->getMessage());
         return [];
@@ -645,16 +655,17 @@ function getEmployees($filter = 'all', $search = '', $department = 'all') {
 }
 
 // Function to get employee details
-function getEmployeeDetails($employee_id) {
+function getEmployeeDetails($employee_id)
+{
     global $pdo;
-    
+
     try {
         // Get employee basic info
         $sql = "SELECT * FROM employees WHERE employee_id = ?";
         $stmt = $pdo->prepare($sql);
         $stmt->execute([$employee_id]);
         $employee = $stmt->fetch();
-        
+
         if ($employee) {
             // Get employee general skills by department
             $sql = "SELECT s.skill_name, s.category, s.description,
@@ -690,9 +701,8 @@ function getEmployeeDetails($employee_id) {
                 $employee['status'] = 'Succession Ready';
             }
         }
-        
+
         return $employee;
-        
     } catch (PDOException $e) {
         error_log("Error in getEmployeeDetails: " . $e->getMessage());
         return null;
@@ -700,9 +710,10 @@ function getEmployeeDetails($employee_id) {
 }
 
 // Function to get competency statistics
-function getCompetencyStats() {
+function getCompetencyStats()
+{
     global $pdo;
-    
+
     try {
         $stats = [
             'total_employees' => 0,
@@ -710,7 +721,7 @@ function getCompetencyStats() {
             'by_status' => [],
             'by_department' => []
         ];
-        
+
         // Total employees and average (computed from General Skills)
         $stmt = $pdo->query(
             "SELECT COUNT(*) AS total, AVG(t.competency) AS average
@@ -774,12 +785,10 @@ function getCompetencyStats() {
              ORDER BY t.department"
         );
         $stats['by_department'] = $stmt->fetchAll();
-        
+
         return $stats;
-        
     } catch (PDOException $e) {
         error_log("Error in getCompetencyStats: " . $e->getMessage());
         return [];
     }
 }
-?>

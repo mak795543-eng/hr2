@@ -2,7 +2,7 @@
 session_start();
 
 if (!isset($_SESSION['role'])) {
-  header("Location: USM/index.php");
+  header("Location: index.php");
   exit();
 }
 
@@ -42,6 +42,7 @@ if ($conn && $employeeId) {
 
 <!DOCTYPE html>
 <html lang="en" data-theme="light">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -53,7 +54,7 @@ if ($conn && $employeeId) {
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
   <!-- SweetAlert2 JS -->
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css"/>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css" />
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <link rel="stylesheet" href="soliera.css">
   <link rel="stylesheet" href="sidebar.css">
@@ -62,37 +63,43 @@ if ($conn && $employeeId) {
     .sidebar-mini {
       width: 70px;
     }
+
     .sidebar-mini .sidebar-text {
       display: none;
     }
+
     .sidebar-mini .collapse-content {
       display: none;
     }
+
     .sidebar-mini .collapse-title {
       justify-content: center;
     }
+
     .sidebar-mini .dropdown-icon {
       display: none;
     }
+
     .sidebar-mini .section-title {
       display: none;
     }
   </style>
 </head>
+
 <body class="bg-gray-50 min-h-screen">
 
   <div class="flex h-screen">
     <!-- Sidebar -->
-    <?php 
+    <?php
     // Use relative path or absolute path based on your directory structure
-    include 'USM/sidebarr.php'; 
+    include 'USM/sidebarr.php';
     ?>
 
     <!-- Content Area -->
     <div class="flex flex-col flex-1 overflow-auto">
       <!-- Navbar -->
       <?php include 'USM/navbar.php'; ?>
-      
+
       <!-- Main Content -->
       <main class="flex-1 p-6 overflow-auto">
         <!-- Dashboard Content -->
@@ -107,7 +114,7 @@ if ($conn && $employeeId) {
             </p>
           </div>
 
-       
+
         </div>
       </main>
     </div>
@@ -117,18 +124,18 @@ if ($conn && $employeeId) {
   <script>
     // Initialize Lucide icons
     lucide.createIcons();
-    
+
     // Sidebar toggle functionality
     document.addEventListener('DOMContentLoaded', function() {
       const sidebar = document.getElementById('sidebar');
       const toggleBtn = document.getElementById('sidebarToggle');
-      
+
       if (toggleBtn) {
         toggleBtn.addEventListener('click', function() {
           sidebar.classList.toggle('sidebar-mini');
         });
       }
-      
+
       // Collapse functionality
       const collapseInputs = document.querySelectorAll('.collapse input[type="checkbox"]');
       collapseInputs.forEach(input => {
@@ -148,4 +155,5 @@ if ($conn && $employeeId) {
   <script src="soliera.js"></script>
   <script src="sidebar.js"></script>
 </body>
+
 </html>
