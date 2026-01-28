@@ -1,3 +1,4 @@
+ <?php $base_url = getenv('APP_BASE_PATH') ?: '/hr2/'; ?>
  <form id="logoutForm" method="POST" action="">
         <input type="hidden" name="logout" value="1">
     </form>
@@ -32,7 +33,7 @@
  <script>
      lucide.createIcons();
  </script>
- <script src="../../soliera.js"></script>
- <script src="../../sidebar.js"></script>
+ <script src="<?php echo $base_url; ?>soliera.js"></script>
+ <script src="<?php echo $base_url; ?>sidebar.js"></script>
  </body>
  </html>
