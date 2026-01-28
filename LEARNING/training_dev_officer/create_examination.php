@@ -71,6 +71,33 @@ if ($module_id) {
     $stmt->close();
 }
 
+$module_plain_text = '';
+if ($module_data) {
+    $parts = [];
+    foreach (['content', 'learning_objectives', 'key_points'] as $field) {
+        if (!array_key_exists($field, $module_data)) {
+            continue;
+        }
+        $val = (string)($module_data[$field] ?? '');
+        if ($val === '') {
+            continue;
+        }
+        $plain = html_entity_decode(strip_tags($val), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $plain = preg_replace('/\s+/', ' ', $plain);
+        $plain = trim((string)$plain);
+        if ($plain !== '') {
+            $parts[] = $plain;
+        }
+    }
+    $module_plain_text = trim(implode("\n\n", $parts));
+    $maxChars = 14000;
+    if ($module_plain_text !== '' && function_exists('mb_strlen') && mb_strlen($module_plain_text, 'UTF-8') > $maxChars) {
+        $module_plain_text = mb_substr($module_plain_text, 0, $maxChars, 'UTF-8');
+    } elseif ($module_plain_text !== '' && strlen($module_plain_text) > $maxChars) {
+        $module_plain_text = substr($module_plain_text, 0, $maxChars);
+    }
+}
+
 $conn->close();
 ?>
 <!DOCTYPE html>
@@ -845,107 +872,193 @@ $conn->close();
           <div class="module-section">
             <div class="bg-white rounded-2xl shadow-lg overflow-hidden h-full flex flex-col">
               <div class="bg-primary text-white p-4 relative">
-                <h2 class="text-xl font-bold">
-                  <i class="fas fa-book mr-2"></i>
-                  Learning Module
-                </h2>
+                <div class="flex items-center justify-between gap-3">
+                  <h2 class="text-xl font-bold">
+                    <i class="fas fa-book mr-2"></i>
+                    Learning Module
+                  </h2>
+                  <div class="flex items-center gap-2">
+                    <button type="button" id="btnShowModulePreview" class="btn btn-sm btn-outline btn-compact text-white border-white/40 hover:border-white/60">Module</button>
+                    <button type="button" id="btnShowAiPreview" class="btn btn-sm btn-outline btn-compact text-white border-white/40 hover:border-white/60">AI Preview</button>
+                    <button type="button" id="btnHideRightPanel" class="btn btn-sm btn-outline btn-compact text-white border-white/40 hover:border-white/60">Hide</button>
+                  </div>
+                </div>
               </div>
               
               <div class="p-4 flex-1 flex flex-col">
-                <?php if ($module_data): ?>
-                  <div class="module-content-container" id="moduleScrollContainer">
+                <div id="rightPanelModule" class="flex-1 flex flex-col">
+                  <?php if ($module_data): ?>
+                    <div class="module-content-container" id="moduleScrollContainer">
+                      <div class="module-content">
+                        <div class="module-header">
+                          <h3 class="text-2xl font-bold text-gray-800 mb-2"><?php echo htmlspecialchars($module_data['title']); ?></h3>
+                          <div class="flex flex-wrap gap-2">
+                            <span class="badge badge-primary"><?php echo htmlspecialchars($module_data['department']); ?></span>
+                            <span class="badge badge-secondary"><?php echo htmlspecialchars($module_data['roles']); ?></span>
+                          </div>
+                        </div>
+                        
+                        <?php if (!empty($module_data['content'])): ?>
+                          <div class="module-section-content">
+                            <h4 class="section-title">
+                              <i class="fas fa-file-alt"></i>
+                              Module Content
+                            </h4>
+                            <div class="section-content">
+                              <?php 
+                              if (strip_tags($module_data['content']) === $module_data['content']) {
+                                  echo nl2br(htmlspecialchars($module_data['content']));
+                              } else {
+                                  echo $module_data['content'];
+                              }
+                              ?>
+                            </div>
+                          </div>
+                        <?php endif; ?>
+                        
+                        <?php if (!empty($module_data['learning_objectives'])): ?>
+                          <div class="module-section-content">
+                            <h4 class="section-title">
+                              <i class="fas fa-bullseye"></i>
+                              Learning Objectives
+                            </h4>
+                            <div class="section-content">
+                              <?php 
+                              if (strip_tags($module_data['learning_objectives']) === $module_data['learning_objectives']) {
+                                  echo nl2br(htmlspecialchars($module_data['learning_objectives']));
+                              } else {
+                                  echo $module_data['learning_objectives'];
+                              }
+                              ?>
+                            </div>
+                          </div>
+                        <?php endif; ?>
+                        
+                        <?php if (!empty($module_data['key_points'])): ?>
+                          <div class="module-section-content">
+                            <h4 class="section-title">
+                              <i class="fas fa-key"></i>
+                              Key Points
+                            </h4>
+                            <div class="section-content">
+                              <?php 
+                              if (strip_tags($module_data['key_points']) === $module_data['key_points']) {
+                                  echo nl2br(htmlspecialchars($module_data['key_points']));
+                              } else {
+                                  echo $module_data['key_points'];
+                              }
+                              ?>
+                            </div>
+                          </div>
+                        <?php endif; ?>
+                        
+                        <!-- Add more content to ensure scrolling -->
+                        <div class="module-section-content">
+                          <h4 class="section-title">
+                            <i class="fas fa-info-circle"></i>
+                            Additional Information
+                          </h4>
+                          <div class="section-content">
+                            <p>This section contains additional information about the module that extends the content to ensure scrolling is available.</p>
+                            <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.</p>
+                            <p>Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.</p>
+                            <p>Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.</p>
+                            <p>Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.</p>
+                          </div>
+                        </div>
+                        
+                        <div class="highlight-box">
+                          <p class="font-medium text-primary">Use this module as a reference while creating your examination questions.</p>
+                        </div>
+                      </div>
+                    </div>
+                  <?php else: ?>
+                    <div class="text-center py-8 flex-1 flex items-center justify-center">
+                      <div>
+                        <i class="fas fa-book-open text-4xl text-gray-400 mb-4"></i>
+                        <p class="text-gray-500">No module selected</p>
+                        <p class="text-sm text-gray-400 mt-2">Select a module from the examination repository to view its content here.</p>
+                      </div>
+                    </div>
+                  <?php endif; ?>
+                </div>
+
+                <div id="rightPanelAi" class="flex-1 flex flex-col hidden">
+                  <div class="module-content-container" id="aiScrollContainer">
                     <div class="module-content">
                       <div class="module-header">
-                        <h3 class="text-2xl font-bold text-gray-800 mb-2"><?php echo htmlspecialchars($module_data['title']); ?></h3>
+                        <h3 class="text-2xl font-bold text-gray-800 mb-2">AI Preview</h3>
                         <div class="flex flex-wrap gap-2">
-                          <span class="badge badge-primary"><?php echo htmlspecialchars($module_data['department']); ?></span>
-                          <span class="badge badge-secondary"><?php echo htmlspecialchars($module_data['roles']); ?></span>
+                          <button type="button" id="aiUseModuleText" class="btn btn-outline btn-compact btn-sm">Use Module Text</button>
                         </div>
                       </div>
-                      
-                      <?php if (!empty($module_data['content'])): ?>
-                        <div class="module-section-content">
-                          <h4 class="section-title">
-                            <i class="fas fa-file-alt"></i>
-                            Module Content
-                          </h4>
-                          <div class="section-content">
-                            <?php 
-                            if (strip_tags($module_data['content']) === $module_data['content']) {
-                                echo nl2br(htmlspecialchars($module_data['content']));
-                            } else {
-                                echo $module_data['content'];
-                            }
-                            ?>
+
+                      <div class="space-y-4">
+                        <div class="form-control">
+                          <label class="label">
+                            <span class="label-text font-semibold text-gray-700">Question Type</span>
+                          </label>
+                          <select id="aiQuestionType" class="select select-bordered w-full">
+                            <option value="mixed">Mixed Questions</option>
+                            <option value="true_false">True or False</option>
+                            <option value="multiple_choice">Multiple Choice</option>
+                            <option value="identification">Identification</option>
+                            <option value="fill_in_the_blank">Fill in the Blank</option>
+                            <option value="short_answer">Short Answer</option>
+                          </select>
+                        </div>
+
+                        <div class="form-control">
+                          <label class="label">
+                            <span class="label-text font-semibold text-gray-700">Number of Questions</span>
+                          </label>
+                          <input id="aiQuestionCount" type="number" min="1" max="20" value="5" class="input input-bordered w-24" />
+                        </div>
+
+                        <div class="form-control">
+                          <label class="label">
+                            <span class="label-text font-semibold text-gray-700">Lesson Content</span>
+                          </label>
+                          <textarea id="aiLesson" class="textarea textarea-bordered h-48 resize-none" placeholder="Paste your lesson content here..."></textarea>
+                        </div>
+
+                        <div class="flex justify-center">
+                          <button type="button" id="aiGenerateBtn" class="btn btn-primary btn-compact">Generate Questions</button>
+                        </div>
+
+                        <div id="aiStatus" class="hidden">
+                          <div class="alert alert-info">
+                            <i class="fas fa-spinner fa-spin"></i>
+                            <span>Generating questions...</span>
                           </div>
                         </div>
-                      <?php endif; ?>
-                      
-                      <?php if (!empty($module_data['learning_objectives'])): ?>
-                        <div class="module-section-content">
-                          <h4 class="section-title">
-                            <i class="fas fa-bullseye"></i>
-                            Learning Objectives
-                          </h4>
-                          <div class="section-content">
-                            <?php 
-                            if (strip_tags($module_data['learning_objectives']) === $module_data['learning_objectives']) {
-                                echo nl2br(htmlspecialchars($module_data['learning_objectives']));
-                            } else {
-                                echo $module_data['learning_objectives'];
-                            }
-                            ?>
+
+                        <div id="aiError" class="hidden">
+                          <div class="alert alert-error">
+                            <i class="fas fa-exclamation-triangle"></i>
+                            <span id="aiErrorMessage">An error occurred</span>
                           </div>
                         </div>
-                      <?php endif; ?>
-                      
-                      <?php if (!empty($module_data['key_points'])): ?>
-                        <div class="module-section-content">
-                          <h4 class="section-title">
-                            <i class="fas fa-key"></i>
-                            Key Points
-                          </h4>
-                          <div class="section-content">
-                            <?php 
-                            if (strip_tags($module_data['key_points']) === $module_data['key_points']) {
-                                echo nl2br(htmlspecialchars($module_data['key_points']));
-                            } else {
-                                echo $module_data['key_points'];
-                            }
-                            ?>
+
+                        <div id="aiResult" class="hidden">
+                          <div class="flex justify-end gap-2 mb-3">
+                            <button type="button" id="aiCopyBtn" class="btn btn-outline btn-primary btn-sm btn-compact">
+                              <i class="fas fa-copy mr-2"></i>
+                              Copy
+                            </button>
+                            <button type="button" id="aiDownloadBtn" class="btn btn-outline btn-secondary btn-sm btn-compact">
+                              <i class="fas fa-download mr-2"></i>
+                              Download
+                            </button>
                           </div>
-                        </div>
-                      <?php endif; ?>
-                      
-                      <!-- Add more content to ensure scrolling -->
-                      <div class="module-section-content">
-                        <h4 class="section-title">
-                          <i class="fas fa-info-circle"></i>
-                          Additional Information
-                        </h4>
-                        <div class="section-content">
-                          <p>This section contains additional information about the module that extends the content to ensure scrolling is available.</p>
-                          <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.</p>
-                          <p>Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.</p>
-                          <p>Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.</p>
-                          <p>Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.</p>
+                          <div id="aiResultContent" class="space-y-4"></div>
                         </div>
                       </div>
-                      
-                      <div class="highlight-box">
-                        <p class="font-medium text-primary">Use this module as a reference while creating your examination questions.</p>
-                      </div>
+
+                      <textarea id="aiModuleText" class="hidden"><?php echo htmlspecialchars($module_plain_text, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); ?></textarea>
                     </div>
                   </div>
-                <?php else: ?>
-                  <div class="text-center py-8 flex-1 flex items-center justify-center">
-                    <div>
-                      <i class="fas fa-book-open text-4xl text-gray-400 mb-4"></i>
-                      <p class="text-gray-500">No module selected</p>
-                      <p class="text-sm text-gray-400 mt-2">Select a module from the examination repository to view its content here.</p>
-                    </div>
-                  </div>
-                <?php endif; ?>
+                </div>
               </div>
             </div>
           </div>
@@ -1144,6 +1257,366 @@ $conn->close();
       const closePreviewModal = document.getElementById('closePreviewModal');
       const closePreviewModalBtn = document.getElementById('closePreviewModalBtn');
       const printPreview = document.getElementById('printPreview');
+
+      const splitLayout = document.getElementById('splitLayout');
+      const rightPanel = document.querySelector('.module-section');
+      const rightPanelModule = document.getElementById('rightPanelModule');
+      const rightPanelAi = document.getElementById('rightPanelAi');
+      const btnShowModulePreview = document.getElementById('btnShowModulePreview');
+      const btnShowAiPreview = document.getElementById('btnShowAiPreview');
+      const btnHideRightPanel = document.getElementById('btnHideRightPanel');
+
+      const aiQuestionTypeSelect = document.getElementById('aiQuestionType');
+      const aiQuestionCountInput = document.getElementById('aiQuestionCount');
+      const aiLessonTextarea = document.getElementById('aiLesson');
+      const aiGenerateBtn = document.getElementById('aiGenerateBtn');
+      const aiStatus = document.getElementById('aiStatus');
+      const aiError = document.getElementById('aiError');
+      const aiErrorMessage = document.getElementById('aiErrorMessage');
+      const aiResult = document.getElementById('aiResult');
+      const aiResultContent = document.getElementById('aiResultContent');
+      const aiCopyBtn = document.getElementById('aiCopyBtn');
+      const aiDownloadBtn = document.getElementById('aiDownloadBtn');
+      const aiUseModuleText = document.getElementById('aiUseModuleText');
+      const aiModuleText = document.getElementById('aiModuleText');
+
+      const setSplitColumns = (twoCols) => {
+        if (!splitLayout) return;
+        if (window.innerWidth <= 1024) {
+          splitLayout.style.gridTemplateColumns = '';
+          return;
+        }
+        splitLayout.style.gridTemplateColumns = twoCols ? '1fr 1fr' : '1fr';
+      };
+
+      const showRightPanel = (mode) => {
+        if (!rightPanel) return;
+        rightPanel.style.display = 'flex';
+        setSplitColumns(true);
+        if (rightPanelModule) {
+          rightPanelModule.classList.toggle('hidden', mode !== 'module');
+        }
+        if (rightPanelAi) {
+          rightPanelAi.classList.toggle('hidden', mode !== 'ai');
+        }
+        initializeIndependentScrolling();
+      };
+
+      const hideRightPanelFn = () => {
+        if (!rightPanel) return;
+        rightPanel.style.display = 'none';
+        setSplitColumns(false);
+        initializeIndependentScrolling();
+      };
+
+      if (btnShowModulePreview) {
+        btnShowModulePreview.addEventListener('click', () => {
+          showRightPanel('module');
+        });
+      }
+
+      if (btnShowAiPreview) {
+        btnShowAiPreview.addEventListener('click', () => {
+          showRightPanel('ai');
+        });
+      }
+
+      if (btnHideRightPanel) {
+        btnHideRightPanel.addEventListener('click', () => {
+          hideRightPanelFn();
+        });
+      }
+
+      window.addEventListener('resize', () => {
+        if (!rightPanel) return;
+        const hidden = rightPanel.style.display === 'none';
+        setSplitColumns(!hidden);
+      });
+
+      function escapeHtml(str) {
+        return String(str)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/\"/g, '&quot;')
+          .replace(/'/g, '&#039;');
+      }
+
+      const aiShowError = (message) => {
+        if (aiResult) aiResult.classList.add('hidden');
+        if (aiStatus) aiStatus.classList.add('hidden');
+        if (aiErrorMessage) aiErrorMessage.textContent = message;
+        if (aiError) aiError.classList.remove('hidden');
+      };
+
+      const aiShowLoading = (loading) => {
+        if (aiError) aiError.classList.add('hidden');
+        if (aiResult) aiResult.classList.add('hidden');
+        if (aiStatus) {
+          aiStatus.classList.toggle('hidden', !loading);
+        }
+        if (aiGenerateBtn) {
+          aiGenerateBtn.disabled = !!loading;
+        }
+      };
+
+      const aiParseQaText = (text) => {
+        const lines = String(text || '').split(/\r\n|\n|\r/);
+        const questions = {};
+        const answers = {};
+        let mode = '';
+        let current = null;
+
+        for (let i = 0; i < lines.length; i++) {
+          const t = String(lines[i] || '').trim();
+          if (!t) continue;
+
+          if (/^questions\s*:/i.test(t)) {
+            mode = 'q';
+            current = null;
+            continue;
+          }
+
+          if (/^answer\s*key\s*:/i.test(t) || /^answers\s*:/i.test(t)) {
+            mode = 'a';
+            current = null;
+            continue;
+          }
+
+          const m = t.match(/^(\d{1,3})\.(.*)$/);
+          if (m) {
+            const idx = parseInt(m[1], 10);
+            const body = String(m[2] || '').trim();
+            current = Number.isFinite(idx) ? idx : null;
+            if (!current) continue;
+
+            if (mode === 'a') {
+              answers[current] = (answers[current] ? (answers[current] + '\n' + body) : body);
+            } else {
+              mode = 'q';
+              questions[current] = (questions[current] ? (questions[current] + '\n' + body) : body);
+            }
+            continue;
+          }
+
+          if (current && mode === 'q' && questions[current]) {
+            questions[current] += '\n' + t;
+            continue;
+          }
+
+          if (current && mode === 'a' && answers[current]) {
+            answers[current] += '\n' + t;
+            continue;
+          }
+        }
+
+        const keys = Object.keys(questions)
+          .map((k) => parseInt(k, 10))
+          .filter((k) => Number.isFinite(k))
+          .sort((a, b) => a - b);
+
+        const items = keys.map((k) => {
+          const qRaw = String(questions[k] || '').trim();
+          const aRaw = String(answers[k] || '').trim();
+          const parts = qRaw.split('\n').map((s) => s.trim()).filter(Boolean);
+
+          const qLines = [];
+          const options = [];
+          for (let i = 0; i < parts.length; i++) {
+            const line = parts[i];
+            if (/^[A-Da-d][\)\.|:|-]\s*/.test(line)) {
+              options.push(line.replace(/^[A-Da-d][\)\.|:|-]\s*/, '').trim());
+            } else {
+              qLines.push(line);
+            }
+          }
+
+          let answerLetter = '';
+          let answerText = aRaw;
+          answerText = answerText.replace(/^answer\s*[:\-]\s*/i, '').trim();
+          answerText = answerText.replace(/^correct\s*[:\-]\s*/i, '').trim();
+          const letterMatch = answerText.match(/^([A-Da-d])\b/);
+          if (letterMatch) {
+            answerLetter = String(letterMatch[1]).toUpperCase();
+            answerText = answerText.replace(/^[A-Da-d][\)\.|:|-]?\s*/, '').trim();
+          }
+
+          let correctIndex = -1;
+          if (options.length > 0) {
+            if (answerLetter) {
+              correctIndex = answerLetter.charCodeAt(0) - 65;
+              if (correctIndex < 0 || correctIndex >= options.length) {
+                correctIndex = -1;
+              }
+            }
+            if (correctIndex === -1 && answerText) {
+              const idx = options.findIndex((opt) => opt.toLowerCase() === answerText.toLowerCase());
+              if (idx >= 0) {
+                correctIndex = idx;
+              }
+            }
+          }
+
+          return {
+            number: k,
+            questionText: qLines.join(' '),
+            options,
+            answerRaw: aRaw,
+            correctIndex
+          };
+        });
+
+        return { items };
+      };
+
+      const aiRenderResult = (text) => {
+        const parsed = aiParseQaText(text);
+        const items = parsed.items || [];
+        if (!aiResultContent) return;
+
+        if (items.length === 0) {
+          aiResultContent.innerHTML = `
+            <div class="alert alert-warning">
+              <i class="fas fa-exclamation-triangle"></i>
+              <span>No questions were parsed from the AI response. Please try again.</span>
+            </div>
+          `;
+        } else {
+          let html = '';
+          items.forEach((q) => {
+            let optionsHtml = '';
+            if (Array.isArray(q.options) && q.options.length > 0) {
+              optionsHtml += '<div class="space-y-2 mt-3">';
+              q.options.forEach((opt, idx) => {
+                const letter = String.fromCharCode(65 + idx);
+                const isCorrect = idx === q.correctIndex;
+                const rowClass = isCorrect ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-200';
+                const badgeClass = isCorrect ? 'bg-green-600 text-white' : 'bg-gray-200 text-gray-700';
+                optionsHtml += `
+                  <div class="flex items-center gap-3 p-2 rounded border ${rowClass}">
+                    <span class="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${badgeClass}">${letter}</span>
+                    <span class="text-gray-700 flex-1">${escapeHtml(opt)}</span>
+                    ${isCorrect ? '<span class="text-green-700 font-semibold">Correct</span>' : ''}
+                  </div>
+                `;
+              });
+              optionsHtml += '</div>';
+            }
+
+            html += `
+              <div class="card bg-white border border-gray-200">
+                <div class="card-body p-4">
+                  <div class="flex items-start gap-3">
+                    <span class="flex-shrink-0 w-8 h-8 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-full flex items-center justify-center text-sm font-bold">${q.number}</span>
+                    <div class="flex-1">
+                      <p class="font-medium text-gray-800">${escapeHtml(q.questionText || '')}</p>
+                      ${optionsHtml}
+                      ${q.answerRaw ? `
+                        <div class="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg">
+                          <div class="flex items-center gap-2 text-green-700 font-semibold">
+                            <i class="fas fa-key"></i>
+                            <span>Answer:</span>
+                            <span class="font-normal">${escapeHtml(q.answerRaw)}</span>
+                          </div>
+                        </div>
+                      ` : ''}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            `;
+          });
+          aiResultContent.innerHTML = html;
+        }
+
+        if (aiError) aiError.classList.add('hidden');
+        if (aiStatus) aiStatus.classList.add('hidden');
+        if (aiResult) aiResult.classList.remove('hidden');
+      };
+
+      const aiGenerate = () => {
+        const lesson = aiLessonTextarea ? aiLessonTextarea.value.trim() : '';
+        const questionType = aiQuestionTypeSelect ? aiQuestionTypeSelect.value : 'mixed';
+        const countRaw = aiQuestionCountInput ? parseInt(aiQuestionCountInput.value, 10) : 5;
+        const questionCountNum = Number.isFinite(countRaw) ? countRaw : 5;
+
+        if (!lesson) {
+          aiShowError('Please enter lesson content');
+          return;
+        }
+
+        if (lesson.length < 10) {
+          aiShowError('Lesson content is too short. Please provide more detailed content.');
+          return;
+        }
+
+        if (!Number.isFinite(questionCountNum) || questionCountNum < 1 || questionCountNum > 20) {
+          aiShowError('Please enter a valid number of questions (1-20)');
+          return;
+        }
+
+        aiShowLoading(true);
+
+        fetch('ai_api.php', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ lesson, questionType, questionCount: questionCountNum })
+        })
+          .then((res) => res.json())
+          .then((data) => {
+            aiShowLoading(false);
+            if (data && data.output) {
+              aiRenderResult(String(data.output));
+            } else {
+              aiShowError('Error: ' + (data && data.error ? data.error : 'Unknown error occurred'));
+            }
+          })
+          .catch(() => {
+            aiShowLoading(false);
+            aiShowError('Request failed. Please try again.');
+          });
+      };
+
+      if (aiGenerateBtn) {
+        aiGenerateBtn.addEventListener('click', () => {
+          aiGenerate();
+        });
+      }
+
+      if (aiUseModuleText && aiLessonTextarea && aiModuleText) {
+        aiUseModuleText.addEventListener('click', () => {
+          const t = String(aiModuleText.value || aiModuleText.textContent || '').trim();
+          if (t) {
+            aiLessonTextarea.value = t;
+          }
+        });
+      }
+
+      if (aiCopyBtn && aiResultContent) {
+        aiCopyBtn.addEventListener('click', async () => {
+          try {
+            await navigator.clipboard.writeText(aiResultContent.innerText);
+            showToast('Copied to clipboard!', 'success');
+          } catch (e) {
+            showToast('Copy failed', 'error');
+          }
+        });
+      }
+
+      if (aiDownloadBtn && aiResultContent) {
+        aiDownloadBtn.addEventListener('click', () => {
+          const resultText = aiResultContent.innerText;
+          const blob = new Blob([resultText], { type: 'text/plain' });
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = 'exam_questions.txt';
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          window.URL.revokeObjectURL(url);
+        });
+      }
       
       // Auto-save functionality
       let autoSaveInterval;
@@ -1152,38 +1625,46 @@ $conn->close();
       function initializeIndependentScrolling() {
         const examScrollContainer = document.getElementById('examScrollContainer');
         const moduleScrollContainer = document.getElementById('moduleScrollContainer');
-        
-        // Force scrollbars to be always visible
+        const aiScrollContainer = document.getElementById('aiScrollContainer');
+        const isRightHidden = rightPanel && rightPanel.style.display === 'none';
+        const isAiMode = rightPanelAi && !rightPanelAi.classList.contains('hidden');
+
         examScrollContainer.style.overflowY = 'scroll';
         if (moduleScrollContainer) {
-          moduleScrollContainer.style.overflowY = 'scroll';
+          moduleScrollContainer.style.overflowY = isRightHidden ? 'hidden' : (isAiMode ? 'hidden' : 'scroll');
         }
-        
-        // Add mouse enter events for exam section
-        examScrollContainer.addEventListener('mouseenter', function() {
-          if (moduleScrollContainer) {
-            moduleScrollContainer.style.overflowY = 'hidden';
-          }
-        });
-        
-        // Add mouse enter events for module section
-        if (moduleScrollContainer) {
-          moduleScrollContainer.addEventListener('mouseenter', function() {
+        if (aiScrollContainer) {
+          aiScrollContainer.style.overflowY = isRightHidden ? 'hidden' : (isAiMode ? 'scroll' : 'hidden');
+        }
+
+        if (!initializeIndependentScrolling.__bound) {
+          examScrollContainer.addEventListener('mouseenter', function() {
+            if (moduleScrollContainer) moduleScrollContainer.style.overflowY = 'hidden';
+            if (aiScrollContainer) aiScrollContainer.style.overflowY = 'hidden';
+          });
+
+          examScrollContainer.addEventListener('mouseleave', function() {
+            if (moduleScrollContainer) moduleScrollContainer.style.overflowY = (rightPanel && rightPanel.style.display === 'none') ? 'hidden' : ((rightPanelAi && !rightPanelAi.classList.contains('hidden')) ? 'hidden' : 'scroll');
+            if (aiScrollContainer) aiScrollContainer.style.overflowY = (rightPanel && rightPanel.style.display === 'none') ? 'hidden' : ((rightPanelAi && !rightPanelAi.classList.contains('hidden')) ? 'scroll' : 'hidden');
+          });
+
+          const onRightEnter = function() {
             examScrollContainer.style.overflowY = 'hidden';
-          });
-        }
-        
-        // Add mouse leave events to restore scrolling
-        examScrollContainer.addEventListener('mouseleave', function() {
-          if (moduleScrollContainer) {
-            moduleScrollContainer.style.overflowY = 'scroll';
-          }
-        });
-        
-        if (moduleScrollContainer) {
-          moduleScrollContainer.addEventListener('mouseleave', function() {
+          };
+          const onRightLeave = function() {
             examScrollContainer.style.overflowY = 'scroll';
-          });
+          };
+
+          if (moduleScrollContainer) {
+            moduleScrollContainer.addEventListener('mouseenter', onRightEnter);
+            moduleScrollContainer.addEventListener('mouseleave', onRightLeave);
+          }
+          if (aiScrollContainer) {
+            aiScrollContainer.addEventListener('mouseenter', onRightEnter);
+            aiScrollContainer.addEventListener('mouseleave', onRightLeave);
+          }
+
+          initializeIndependentScrolling.__bound = true;
         }
       }
       
