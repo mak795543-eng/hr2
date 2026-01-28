@@ -1,16 +1,23 @@
 <?php
 session_start();
-
+function dd($vars)
+{
+    echo '<pre>'; // Format output nicely
+    var_dump($vars); // Dump the variable
+    echo '</pre>';
+    die(); // Stop execution
+}
 if (!isset($_SESSION['employee_id'])) {
-    header('Location: /hr2/USM/index.php');
+    header('Location: /hr2/index.php');
     exit;
 }
-
 $base_url = getenv('APP_BASE_PATH') ?: '/hr2/';
 $apiUrl = $base_url . 'COMPETENCY/api/competency_criteria.php';
+// dd('test');
 ?>
 <!DOCTYPE html>
 <html lang="en" data-theme="light">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -27,12 +34,14 @@ $apiUrl = $base_url . 'COMPETENCY/api/competency_criteria.php';
             -webkit-box-orient: vertical;
             overflow: hidden;
         }
+
         .tooltip-content {
             max-width: 300px;
             word-wrap: break-word;
         }
     </style>
 </head>
+
 <body class="bg-gray-50 min-h-screen">
     <div class="flex h-screen">
         <?php include '../USM/sidebarr.php'; ?>
@@ -113,8 +122,7 @@ $apiUrl = $base_url . 'COMPETENCY/api/competency_criteria.php';
                         class="input input-bordered w-full"
                         placeholder="e.g., Leadership, Technical Expertise, Communication"
                         maxlength="100"
-                        required
-                    >
+                        required>
                     <div class="label">
                         <span class="label-text-alt text-red-500 hidden" id="nameError">This competency name already exists</span>
                     </div>
@@ -131,8 +139,7 @@ $apiUrl = $base_url . 'COMPETENCY/api/competency_criteria.php';
                         class="textarea textarea-bordered h-32"
                         placeholder="Describe the competency, its importance, and how it's measured..."
                         maxlength="500"
-                        required
-                    ></textarea>
+                        required></textarea>
                 </div>
 
                 <div class="form-control mb-6">
@@ -148,8 +155,7 @@ $apiUrl = $base_url . 'COMPETENCY/api/competency_criteria.php';
                         min="0"
                         max="100"
                         step="0.1"
-                        required
-                    >
+                        required>
                 </div>
 
                 <div class="modal-action">
@@ -266,7 +272,9 @@ $apiUrl = $base_url . 'COMPETENCY/api/competency_criteria.php';
             const url = API_URL + '?action=' + encodeURIComponent(action);
             const res = await fetch(url, {
                 method: payload ? 'POST' : 'GET',
-                headers: payload ? { 'Content-Type': 'application/json' } : undefined,
+                headers: payload ? {
+                    'Content-Type': 'application/json'
+                } : undefined,
                 body: payload ? JSON.stringify(payload) : undefined,
                 credentials: 'same-origin'
             });
@@ -275,7 +283,10 @@ $apiUrl = $base_url . 'COMPETENCY/api/competency_criteria.php';
             try {
                 data = await res.json();
             } catch (e) {
-                data = { success: false, message: 'Invalid server response' };
+                data = {
+                    success: false,
+                    message: 'Invalid server response'
+                };
             }
 
             if (!res.ok || !data || data.success === false) {
@@ -301,9 +312,18 @@ $apiUrl = $base_url . 'COMPETENCY/api/competency_criteria.php';
 
             try {
                 if (id) {
-                    await apiRequest('update', { id, name, description, required_level: requiredLevel });
+                    await apiRequest('update', {
+                        id,
+                        name,
+                        description,
+                        required_level: requiredLevel
+                    });
                 } else {
-                    await apiRequest('create', { name, description, required_level: requiredLevel });
+                    await apiRequest('create', {
+                        name,
+                        description,
+                        required_level: requiredLevel
+                    });
                 }
 
                 competencyModal.close();
@@ -332,7 +352,9 @@ $apiUrl = $base_url . 'COMPETENCY/api/competency_criteria.php';
         confirmDeleteBtn.addEventListener('click', async () => {
             if (!currentDeleteId) return;
             try {
-                await apiRequest('delete', { id: currentDeleteId });
+                await apiRequest('delete', {
+                    id: currentDeleteId
+                });
                 deleteModal.close();
                 currentDeleteId = null;
                 await loadCompetencies();

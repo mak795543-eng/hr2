@@ -24,7 +24,7 @@ $dbPass = $dbPassEnv !== false
 
 $dbName = getenv('ESS_DB_NAME');
 if ($dbName === false || $dbName === '') {
-    $dbName = 'employee_self_service';
+    $dbName = 'hr2_employee_self_service';
 }
 
 $conn = @mysqli_connect($dbHost, $dbUser, $dbPass, $dbName);
@@ -36,7 +36,8 @@ if ($conn) {
     echo "</div>";
 }
 
-function ess_ensure_profile_tables($conn): void {
+function ess_ensure_profile_tables($conn): void
+{
     if (!$conn) {
         return;
     }
@@ -44,30 +45,30 @@ function ess_ensure_profile_tables($conn): void {
     @mysqli_query(
         $conn,
         "CREATE TABLE IF NOT EXISTS employee_profiles (\n" .
-        "  employee_id INT PRIMARY KEY,\n" .
-        "  phone VARCHAR(50) NULL,\n" .
-        "  work_location VARCHAR(150) NULL,\n" .
-        "  emergency_name VARCHAR(150) NULL,\n" .
-        "  emergency_relationship VARCHAR(100) NULL,\n" .
-        "  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,\n" .
-        "  FOREIGN KEY (employee_id) REFERENCES employees(id)\n" .
-        ")"
+            "  employee_id INT PRIMARY KEY,\n" .
+            "  phone VARCHAR(50) NULL,\n" .
+            "  work_location VARCHAR(150) NULL,\n" .
+            "  emergency_name VARCHAR(150) NULL,\n" .
+            "  emergency_relationship VARCHAR(100) NULL,\n" .
+            "  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,\n" .
+            "  FOREIGN KEY (employee_id) REFERENCES employees(id)\n" .
+            ")"
     );
 
     @mysqli_query(
         $conn,
         "CREATE TABLE IF NOT EXISTS profile_update_requests (\n" .
-        "  id INT AUTO_INCREMENT PRIMARY KEY,\n" .
-        "  employee_id INT NOT NULL,\n" .
-        "  requested_data TEXT NOT NULL,\n" .
-        "  status ENUM('Pending','Approved','Rejected') DEFAULT 'Pending',\n" .
-        "  remarks TEXT,\n" .
-        "  reviewed_by INT NULL,\n" .
-        "  reviewed_at TIMESTAMP NULL,\n" .
-        "  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,\n" .
-        "  seen_by_employee TINYINT(1) DEFAULT 0,\n" .
-        "  FOREIGN KEY (employee_id) REFERENCES employees(id)\n" .
-        ")"
+            "  id INT AUTO_INCREMENT PRIMARY KEY,\n" .
+            "  employee_id INT NOT NULL,\n" .
+            "  requested_data TEXT NOT NULL,\n" .
+            "  status ENUM('Pending','Approved','Rejected') DEFAULT 'Pending',\n" .
+            "  remarks TEXT,\n" .
+            "  reviewed_by INT NULL,\n" .
+            "  reviewed_at TIMESTAMP NULL,\n" .
+            "  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,\n" .
+            "  seen_by_employee TINYINT(1) DEFAULT 0,\n" .
+            "  FOREIGN KEY (employee_id) REFERENCES employees(id)\n" .
+            ")"
     );
 }
 
@@ -75,19 +76,23 @@ if ($conn) {
     ess_ensure_profile_tables($conn);
 }
 
-function ess_current_employee_no(): string {
+function ess_current_employee_no(): string
+{
     return (string)($_SESSION['employee_id'] ?? $_SESSION['user_id'] ?? '');
 }
 
-function ess_current_email(): string {
+function ess_current_email(): string
+{
     return (string)($_SESSION['email'] ?? '');
 }
 
-function ess_current_fullname(): string {
+function ess_current_fullname(): string
+{
     return (string)($_SESSION['employee_name'] ?? $_SESSION['fullname'] ?? $_SESSION['username'] ?? '');
 }
 
-function ess_split_name(string $full): array {
+function ess_split_name(string $full): array
+{
     $full = trim($full);
     if ($full === '') {
         return ['first' => 'Employee', 'last' => ''];
@@ -100,7 +105,8 @@ function ess_split_name(string $full): array {
     return ['first' => $parts[0], 'last' => $parts[count($parts) - 1]];
 }
 
-function ess_ensure_employee($conn): ?array {
+function ess_ensure_employee($conn): ?array
+{
     if (!$conn) {
         return null;
     }
@@ -186,10 +192,10 @@ function ess_ensure_employee($conn): ?array {
     return is_array($row) ? $row : null;
 }
 
-function ess_employee_id($conn): ?int {
+function ess_employee_id($conn): ?int
+{
     $emp = ess_ensure_employee($conn);
     if (!is_array($emp)) return null;
     $id = $emp['id'] ?? null;
     return is_numeric($id) ? (int)$id : null;
 }
-?>

@@ -6,9 +6,9 @@ define('SUPPRESS_DB_ERRORS', true);
 header('Content-Type: application/json; charset=utf-8');
 
 try {
-    require_once __DIR__ . '/../../db.php';
+    require_once __DIR__ . '/db.php';
 
-    $dbName = 'critical_gaps';
+    $dbName = 'hr2_critical_gaps';
     $conn = $connections[$dbName] ?? null;
     if (!($conn instanceof mysqli)) {
         throw new RuntimeException("Connection not found for {$dbName}");
