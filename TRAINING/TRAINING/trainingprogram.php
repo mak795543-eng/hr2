@@ -204,10 +204,158 @@ $ensureDepartmentRequestSchema = function(mysqli $conn): void {
 
 $ensureDepartmentRequestSchema($conn);
 
+$ensurePostSchema = function(mysqli $conn): void {
+    $tableHasColumn = function(mysqli $conn, string $table, string $column): bool {
+        $stmt = $conn->prepare("SELECT 1 FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = ? AND column_name = ? LIMIT 1");
+        $stmt->bind_param('ss', $table, $column);
+        $stmt->execute();
+        return (bool)$stmt->get_result()->fetch_row();
+    };
+
+    try {
+        $conn->query("CREATE TABLE IF NOT EXISTS training_posts (id INT AUTO_INCREMENT PRIMARY KEY, program_id INT NOT NULL, submission_no INT NOT NULL DEFAULT 1, posted_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, UNIQUE KEY uniq_training_post (program_id, submission_no), INDEX idx_tp_program (program_id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    } catch (Throwable $e) {
+    }
+
+    try {
+        $conn->query("CREATE TABLE IF NOT EXISTS training_post_assignments (id INT AUTO_INCREMENT PRIMARY KEY, program_id INT NOT NULL, submission_no INT NOT NULL DEFAULT 1, employee_id INT NOT NULL, assigned_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, UNIQUE KEY uniq_tpa (program_id, submission_no, employee_id), INDEX idx_tpa_program (program_id), INDEX idx_tpa_employee (employee_id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    } catch (Throwable $e) {
+    }
+
+    try {
+        if ($tableHasColumn($conn, 'training_posts', 'id')) {
+            $conn->query("ALTER TABLE training_posts MODIFY id INT NOT NULL AUTO_INCREMENT");
+        }
+    } catch (Throwable $e) {
+    }
+    try {
+        $conn->query("ALTER TABLE training_posts ADD PRIMARY KEY (id)");
+    } catch (Throwable $e) {
+    }
+
+    try {
+        if ($tableHasColumn($conn, 'training_post_assignments', 'id')) {
+            $conn->query("ALTER TABLE training_post_assignments MODIFY id INT NOT NULL AUTO_INCREMENT");
+        }
+    } catch (Throwable $e) {
+    }
+    try {
+        $conn->query("ALTER TABLE training_post_assignments ADD PRIMARY KEY (id)");
+    } catch (Throwable $e) {
+    }
+};
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'post_training') {
+    header('Content-Type: application/json; charset=utf-8');
+
+    $programId = (int)($_POST['program_id'] ?? 0);
+    if ($programId <= 0) {
+        echo json_encode(['success' => false, 'message' => 'Missing program_id']);
+        exit;
+    }
+
+    $program = null;
+    $submissionNo = 1;
+    try {
+        $stmt = $conn->prepare("SELECT id, status, submission_no, need_budget, need_items, need_facility FROM training_programs WHERE id = ? LIMIT 1");
+        $stmt->bind_param('i', $programId);
+        $stmt->execute();
+        $program = $stmt->get_result()->fetch_assoc();
+        if ($program && isset($program['submission_no'])) {
+            $submissionNo = (int)$program['submission_no'];
+            if ($submissionNo <= 0) $submissionNo = 1;
+        }
+    } catch (Throwable $e) {
+        $program = null;
+    }
+
+    if (!$program) {
+        echo json_encode(['success' => false, 'message' => 'Program not found']);
+        exit;
+    }
+
+    $oldStatus = (string)($program['status'] ?? '');
+    if ($oldStatus === 'POSTED') {
+        echo json_encode(['success' => true]);
+        exit;
+    }
+    if ($oldStatus !== 'Approved') {
+        echo json_encode(['success' => false, 'message' => 'Only Approved training programs can be posted.']);
+        exit;
+    }
+
+    $needBudget = (int)($program['need_budget'] ?? 0);
+    $needItems = (int)($program['need_items'] ?? 0);
+    $needFacility = (int)($program['need_facility'] ?? 0);
+
+    $reqOk = true;
+    try {
+        if ($needBudget === 1) {
+            $stmt = $conn->prepare("SELECT status FROM financial_requests WHERE program_id = ? AND submission_no = ? ORDER BY id DESC LIMIT 1");
+            $stmt->bind_param('ii', $programId, $submissionNo);
+            $stmt->execute();
+            $r = $stmt->get_result()->fetch_assoc();
+            $reqOk = $reqOk && ($r && (string)$r['status'] === 'Approved');
+        }
+        if ($needItems === 1) {
+            $stmt = $conn->prepare("SELECT status FROM logistics_requests WHERE program_id = ? AND submission_no = ? ORDER BY id DESC LIMIT 1");
+            $stmt->bind_param('ii', $programId, $submissionNo);
+            $stmt->execute();
+            $r = $stmt->get_result()->fetch_assoc();
+            $reqOk = $reqOk && ($r && (string)$r['status'] === 'Approved');
+        }
+        if ($needFacility === 1) {
+            $stmt = $conn->prepare("SELECT status FROM admin_requests WHERE program_id = ? AND submission_no = ? ORDER BY id DESC LIMIT 1");
+            $stmt->bind_param('ii', $programId, $submissionNo);
+            $stmt->execute();
+            $r = $stmt->get_result()->fetch_assoc();
+            $reqOk = $reqOk && ($r && (string)$r['status'] === 'Approved');
+        }
+    } catch (Throwable $e) {
+        $reqOk = false;
+    }
+
+    if (!$reqOk) {
+        echo json_encode(['success' => false, 'message' => 'All required department requests must be Approved before posting.']);
+        exit;
+    }
+
+    try {
+        $ensurePostSchema($conn);
+
+        $conn->begin_transaction();
+
+        $stmt = $conn->prepare("INSERT IGNORE INTO training_posts (program_id, submission_no) VALUES (?, ?)");
+        $stmt->bind_param('ii', $programId, $submissionNo);
+        $stmt->execute();
+
+        $stmtUpd = $conn->prepare("UPDATE training_programs SET status = 'POSTED' WHERE id = ?");
+        $stmtUpd->bind_param('i', $programId);
+        $stmtUpd->execute();
+
+        try {
+            $stmtLog = $conn->prepare("INSERT INTO training_program_status_logs (program_id, old_status, new_status, reason) VALUES (?, ?, 'POSTED', 'Posted')");
+            $stmtLog->bind_param('is', $programId, $oldStatus);
+            $stmtLog->execute();
+        } catch (Throwable $e) {
+        }
+
+        $conn->commit();
+        echo json_encode(['success' => true]);
+        exit;
+    } catch (Throwable $e) {
+        try { $conn->rollback(); } catch (Throwable $e2) {}
+        $err = $e->getMessage();
+        $msg = (is_string($err) && trim($err) !== '') ? $err : 'Failed to post training.';
+        echo json_encode(['success' => false, 'message' => $msg]);
+        exit;
+    }
+}
+
 if (isset($_GET['action']) && $_GET['action'] === 'list_programs') {
     header('Content-Type: application/json; charset=utf-8');
 
-    $result = $conn->query("SELECT * FROM training_programs ORDER BY created_at DESC");
+    $result = $conn->query("SELECT * FROM training_programs WHERE IFNULL(status, '') <> 'POSTED' ORDER BY created_at DESC");
     $programs = [];
     while ($row = $result->fetch_assoc()) {
         $programs[] = $row;
@@ -1116,7 +1264,6 @@ try {
                             <li><a onclick="filterByStatus('Under Review')">Under Review</a></li>
                             <li><a onclick="filterByStatus('Pending')">Pending</a></li>
                             <li><a onclick="filterByStatus('Approved')">Approved</a></li>
-                            <li><a onclick="filterByStatus('POSTED')">POSTED</a></li>
                             <li><a onclick="filterByStatus('Rejected')">Rejected</a></li>
                             <li><a onclick="filterByStatus('For Compliance')">For Compliance</a></li>
                             <li><a onclick="filterByStatus('ON HOLD')">ON HOLD</a></li>

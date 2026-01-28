@@ -1,5 +1,5 @@
 <?php
-session_start();
+
 require_once __DIR__ . '/db.php';
 
 $getOwnerKey = function(): string {
@@ -78,18 +78,8 @@ try {
 } catch (Throwable $e) {
     $departmentManagers = [];
 }
+require('../../partials/header.php');
 ?>
-<!DOCTYPE html>
-<html lang="en" data-theme="light">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Add Training Program</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.6.0/dist/full.css" rel="stylesheet" type="text/css" />
-    <script src="https://unpkg.com/lucide@latest"></script>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <style>
         .swal2-container { z-index: 2147483647 !important; }
         .datetime-container {
@@ -106,11 +96,6 @@ try {
 </head>
 <body class="bg-gray-50 min-h-screen" data-page="add-training" data-owner-key="<?= htmlspecialchars($ownerKey) ?>">
 <div class="flex h-screen">
-    <!-- Sidebar -->
-    <?php 
-    // Use relative path or absolute path based on your directory structure
-    include '../../USM/sidebarr.php'; 
-    ?>
 
     <!-- Content Area -->
     <div class="flex flex-col flex-1 overflow-auto">
@@ -334,24 +319,6 @@ try {
                     <textarea id="description" class="textarea textarea-bordered h-32 w-full" placeholder="Provide a brief explanation of the training program" required></textarea>
                 </div>
 
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div class="form-control">
-                        <label class="label">
-                            <span class="label-text font-semibold">Training Objectives</span>
-                        </label>
-                        <div class="bg-base-200 rounded-lg p-4 space-y-3">
-                            <button type="button" id="objectives-open-btn" class="btn btn-outline btn-sm w-full">Select Objectives</button>
-                            <div id="objectives-summary" class="text-sm text-gray-600">No objectives selected.</div>
-                        </div>
-                    </div>
-                    <div class="form-control">
-                        <label class="label">
-                            <span class="label-text font-semibold">Other Objective (Optional)</span>
-                        </label>
-                        <textarea id="training-objectives-other" class="textarea textarea-bordered h-32 w-full" placeholder="Type additional objective(s) here..."></textarea>
-                    </div>
-                </div>
-
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div class="form-control">
                         <label class="label">
@@ -412,7 +379,7 @@ try {
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div class="form-control">
                             <label class="label"><span class="label-text">Training/Seminar Title <span class="text-red-500">*</span></span></label>
-                            <input id="budget-title" type="text" class="input input-bordered w-full" required>
+                            <input id="budget-title" type="text" class="input input-bordered w-full" required readonly>
                         </div>
                         <div class="form-control">
                             <label class="label"><span class="label-text">Purpose <span class="text-red-500">*</span></span></label>
@@ -420,7 +387,7 @@ try {
                         </div>
                         <div class="form-control">
                             <label class="label"><span class="label-text">Department <span class="text-red-500">*</span></span></label>
-                            <select id="budget-department" class="select select-bordered w-full" required>
+                            <select id="budget-department" class="select select-bordered w-full" required disabled>
                                 <option value="" selected>Select Department</option>
                                 <option value="1">Front Office / Reception</option>
                                 <option value="2">Housekeeping</option>
@@ -435,7 +402,7 @@ try {
                         </div>
                         <div class="form-control">
                             <label class="label"><span class="label-text">Event Date <span class="text-red-500">*</span></span></label>
-                            <input id="budget-event-date" type="date" class="input input-bordered w-full" required>
+                            <input id="budget-event-date" type="date" class="input input-bordered w-full" required readonly>
                         </div>
                     </div>
                 </div>
@@ -493,7 +460,7 @@ try {
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div class="form-control">
                             <label class="label"><span class="label-text">Training/Seminar Title <span class="text-red-500">*</span></span></label>
-                            <input id="logistics-title" type="text" class="input input-bordered w-full" required>
+                            <input id="logistics-title" type="text" class="input input-bordered w-full" required readonly>
                         </div>
                         <div class="form-control">
                             <label class="label"><span class="label-text">Purpose <span class="text-red-500">*</span></span></label>
@@ -501,7 +468,7 @@ try {
                         </div>
                         <div class="form-control">
                             <label class="label"><span class="label-text">Department <span class="text-red-500">*</span></span></label>
-                            <select id="logistics-department" class="select select-bordered w-full" required>
+                            <select id="logistics-department" class="select select-bordered w-full" required disabled>
                                 <option value="" selected>Select Department</option>
                                 <option value="1">Front Office / Reception</option>
                                 <option value="2">Housekeeping</option>
@@ -516,7 +483,7 @@ try {
                         </div>
                         <div class="form-control">
                             <label class="label"><span class="label-text">Event Date <span class="text-red-500">*</span></span></label>
-                            <input id="logistics-event-date" type="date" class="input input-bordered w-full" required>
+                            <input id="logistics-event-date" type="date" class="input input-bordered w-full" required readonly>
                         </div>
                         <div class="form-control">
                             <label class="label"><span class="label-text">Needed By Date <span class="text-red-500">*</span></span></label>
@@ -578,7 +545,7 @@ try {
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div class="form-control">
                             <label class="label"><span class="label-text">Training/Seminar Title <span class="text-red-500">*</span></span></label>
-                            <input id="facility-title" type="text" class="input input-bordered w-full" required>
+                            <input id="facility-title" type="text" class="input input-bordered w-full" required readonly>
                         </div>
                         <div class="form-control">
                             <label class="label"><span class="label-text">Purpose <span class="text-red-500">*</span></span></label>
@@ -586,7 +553,7 @@ try {
                         </div>
                         <div class="form-control">
                             <label class="label"><span class="label-text">Department <span class="text-red-500">*</span></span></label>
-                            <select id="facility-department" class="select select-bordered w-full" required>
+                            <select id="facility-department" class="select select-bordered w-full" required disabled>
                                 <option value="" selected>Select Department</option>
                                 <option value="1">Front Office / Reception</option>
                                 <option value="2">Housekeeping</option>
@@ -601,7 +568,7 @@ try {
                         </div>
                         <div class="form-control">
                             <label class="label"><span class="label-text">Event Date <span class="text-red-500">*</span></span></label>
-                            <input id="facility-event-date" type="date" class="input input-bordered w-full" required>
+                            <input id="facility-event-date" type="date" class="input input-bordered w-full" required readonly>
                         </div>
                     </div>
                 </div>
@@ -645,110 +612,6 @@ try {
             <div class="modal-action">
                 <button type="button" id="facility-cancel-action-btn" class="btn btn-ghost">Cancel</button>
                 <button type="button" id="facility-save-btn" class="btn btn-primary">Save Location Request</button>
-            </div>
-        </div>
-        <form method="dialog" class="modal-backdrop">
-            <button>close</button>
-        </form>
-    </dialog>
-
-    <dialog id="objectives-modal" class="modal">
-        <div class="modal-box w-11/12 max-w-2xl">
-            <div class="flex items-start justify-between gap-4">
-                <div>
-                    <h3 class="font-bold text-xl mb-1">Training Objectives</h3>
-                    <p class="text-gray-600">Select the objectives for this training program</p>
-                </div>
-                <button type="button" id="objectives-close-btn" class="btn btn-ghost btn-sm">✕</button>
-            </div>
-
-            <div class="mt-4 space-y-4">
-                <div>
-                    <div class="text-sm font-semibold text-gray-700 mb-2">General</div>
-                    <div class="bg-base-200 rounded-lg p-4 space-y-2">
-                        <label class="flex items-center gap-2">
-                            <input type="checkbox" class="checkbox checkbox-sm js-training-objective" value="Improve service quality">
-                            <span class="text-sm">Improve service quality</span>
-                        </label>
-                        <label class="flex items-center gap-2">
-                            <input type="checkbox" class="checkbox checkbox-sm js-training-objective" value="Enhance safety awareness">
-                            <span class="text-sm">Enhance safety awareness</span>
-                        </label>
-                        <label class="flex items-center gap-2">
-                            <input type="checkbox" class="checkbox checkbox-sm js-training-objective" value="Standardize procedures">
-                            <span class="text-sm">Standardize procedures</span>
-                        </label>
-                        <label class="flex items-center gap-2">
-                            <input type="checkbox" class="checkbox checkbox-sm js-training-objective" value="Improve compliance">
-                            <span class="text-sm">Improve compliance</span>
-                        </label>
-                        <label class="flex items-center gap-2">
-                            <input type="checkbox" class="checkbox checkbox-sm js-training-objective" value="Increase productivity">
-                            <span class="text-sm">Increase productivity</span>
-                        </label>
-                        <label class="flex items-center gap-2">
-                            <input type="checkbox" class="checkbox checkbox-sm js-training-objective" value="Reduce guest complaints">
-                            <span class="text-sm">Reduce guest complaints</span>
-                        </label>
-                    </div>
-                </div>
-
-                <div>
-                    <div class="text-sm font-semibold text-gray-700 mb-2">Hotel</div>
-                    <div class="bg-base-200 rounded-lg p-4 space-y-2">
-                        <label class="flex items-center gap-2">
-                            <input type="checkbox" class="checkbox checkbox-sm js-training-objective" data-objective-dept="1" value="Front desk check-in/check-out excellence">
-                            <span class="text-sm">Front desk check-in/check-out excellence</span>
-                        </label>
-                        <label class="flex items-center gap-2">
-                            <input type="checkbox" class="checkbox checkbox-sm js-training-objective" data-objective-dept="1" value="Housekeeping standards and room inspection">
-                            <span class="text-sm">Housekeeping standards and room inspection</span>
-                        </label>
-                        <label class="flex items-center gap-2">
-                            <input type="checkbox" class="checkbox checkbox-sm js-training-objective" data-objective-dept="1" value="Guest relations and concierge service">
-                            <span class="text-sm">Guest relations and concierge service</span>
-                        </label>
-                        <label class="flex items-center gap-2">
-                            <input type="checkbox" class="checkbox checkbox-sm js-training-objective" data-objective-dept="1" value="Hotel safety and emergency procedures">
-                            <span class="text-sm">Hotel safety and emergency procedures</span>
-                        </label>
-                        <label class="flex items-center gap-2">
-                            <input type="checkbox" class="checkbox checkbox-sm js-training-objective" data-objective-dept="1" value="Upselling and reservation handling">
-                            <span class="text-sm">Upselling and reservation handling</span>
-                        </label>
-                    </div>
-                </div>
-
-                <div>
-                    <div class="text-sm font-semibold text-gray-700 mb-2">Restaurant</div>
-                    <div class="bg-base-200 rounded-lg p-4 space-y-2">
-                        <label class="flex items-center gap-2">
-                            <input type="checkbox" class="checkbox checkbox-sm js-training-objective" data-objective-dept="2" value="Table service standards and sequence of service">
-                            <span class="text-sm">Table service standards and sequence of service</span>
-                        </label>
-                        <label class="flex items-center gap-2">
-                            <input type="checkbox" class="checkbox checkbox-sm js-training-objective" data-objective-dept="2" value="Food handling and hygiene compliance">
-                            <span class="text-sm">Food handling and hygiene compliance</span>
-                        </label>
-                        <label class="flex items-center gap-2">
-                            <input type="checkbox" class="checkbox checkbox-sm js-training-objective" data-objective-dept="2" value="POS accuracy and cash handling">
-                            <span class="text-sm">POS accuracy and cash handling</span>
-                        </label>
-                        <label class="flex items-center gap-2">
-                            <input type="checkbox" class="checkbox checkbox-sm js-training-objective" data-objective-dept="2" value="Kitchen workflow and coordination">
-                            <span class="text-sm">Kitchen workflow and coordination</span>
-                        </label>
-                        <label class="flex items-center gap-2">
-                            <input type="checkbox" class="checkbox checkbox-sm js-training-objective" data-objective-dept="2" value="Restaurant guest complaint handling">
-                            <span class="text-sm">Restaurant guest complaint handling</span>
-                        </label>
-                    </div>
-                </div>
-            </div>
-
-            <div class="modal-action">
-                <button type="button" id="objectives-cancel-btn" class="btn btn-ghost">Cancel</button>
-                <button type="button" id="objectives-apply-btn" class="btn btn-primary">Apply</button>
             </div>
         </div>
         <form method="dialog" class="modal-backdrop">
