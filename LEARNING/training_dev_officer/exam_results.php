@@ -1,5 +1,4 @@
 ﻿<?php
-session_start();
 
 // Database connection
 require_once __DIR__ . '/../db.php';
@@ -333,22 +332,9 @@ if ($departments_result && $departments_result->num_rows > 0) {
 }
 
 $conn->close();
-
+require('../../partials/header.php');
 ?>
-
-<!DOCTYPE html>
-<html lang="en" data-theme="light">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>HR Portal - Examination Results Dashboard</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <link href="https://cdn.jsdelivr.net/npm/daisyui@4.6.0/dist/full.css" rel="stylesheet" type="text/css" />
-  <script src="https://unpkg.com/lucide@latest"></script>
-     <script src="https://unpkg.com/lucide@latest"></script>
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
   <style>
     .exam-card, .employee-card {
       transition: all 0.2s ease;
@@ -459,9 +445,7 @@ $conn->close();
                     <div class="text-2xl font-bold text-gray-800"><?php echo count($posted_examinations); ?></div>
                     <div class="text-xs text-gray-400">Available for review</div>
                   </div>
-                  <button class="btn-plain px-4 py-2 rounded-lg" onclick="window.location.href='examination_repository.php'">
-                    <i class="fas fa-arrow-left mr-2"></i>Back to Exams
-                  </button>
+                 
                 </div>
               </div>
 
@@ -978,8 +962,4 @@ $conn->close();
       <script>
     lucide.createIcons();
   </script>
-   <!-- Include JavaScript file -->
-   <script src="../../soliera.js"></script>
-  <script src="../../sidebar.js"></script>
-</body>
-</html>
+  <?php require('../../partials/footer.php') ?>

@@ -51,14 +51,6 @@ if (!function_exists('hasAccess')) {
                         <span class="ml-3 sidebar-text"> Dashboard</span>
                     </div>
                 </a>
-                <a href="<?php echo $base_url; ?>ESS/profile_management.php" class="block">
-                    <div class="flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-all hover:bg-blue-600/50 text-white group">
-                        <div class="p-1.5 rounded-lg bg-blue-800/30 group-hover:bg-blue-700/50 transition-colors">
-                            <i data-lucide="layout-dashboard" class="w-5 h-5 text-[#F7B32B] group-hover:text-white"></i>
-                        </div>
-                        <span class="ml-3 sidebar-text"> Profile</span>
-                    </div>
-                </a>
             <?php endif; ?>
 
             <!-- LEARNING MANAGEMENT SECTION (Training Development Officer) -->
@@ -328,45 +320,69 @@ if (!function_exists('hasAccess')) {
                             <div class="p-1.5 rounded-lg bg-blue-800/30 group-hover:bg-blue-700/50 transition-colors">
                                 <i data-lucide="user" class="w-5 h-5 text-[#F7B32B] group-hover:text-white"></i>
                             </div>
-                            <span class="ml-3 sidebar-text">My Account</span>
+                            <span class="ml-3 sidebar-text">Employee Self Service</span>
                         </div>
                         <i class="w-4 h-4 text-blue-200 transform transition-transform duration-200 peer-checked:rotate-90 dropdown-icon" data-lucide="chevron-down"></i>
                     </div>
                     <div class="collapse-content pl-14 pr-4 py-1 space-y-1">
-                        <a href="<?php echo $base_url; ?>TRAINING/TRAINING/employeedashboard.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
+                        <a href="<?php echo $base_url; ?>ESS/dashboard.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
                             <span class="flex items-center gap-2">
                                 <i data-lucide="layout-dashboard" class="w-4 h-4 text-[#F7B32B]"></i>
                                 Dashboard
                             </span>
                         </a>
-                        <a href="<?php echo $base_url; ?>COMPLAINT/complaint.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
+                        <a href="<?php echo $base_url; ?>ESS/profile_management.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
                             <span class="flex items-center gap-2">
                                 <i data-lucide="flag" class="w-4 h-4 text-[#F7B32B]"></i>
-                                Complaint
+                                Profie
                             </span>
                         </a>
-                        <a href="<?php echo $base_url; ?>ESS/payslip.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
+                        <a href="<?php echo $base_url; ?>ESS/social_recognition.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
+                            <span class="flex items-center gap-2">
+                                <i data-lucide="flag" class="w-4 h-4 text-[#F7B32B]"></i>
+                                My Achievements
+                            </span>
+                        </a>
+                        <a href="<?php echo $base_url; ?>ESS/paymenthistory.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
                             <span class="flex items-center gap-2">
                                 <i data-lucide="receipt" class="w-4 h-4 text-[#F7B32B]"></i>
-                                Payslip
+                                Payment History
                             </span>
                         </a>
-                        <a href="<?php echo $base_url; ?>ESS/documents.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
+                        <a href="<?php echo $base_url; ?>.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
+                            <span class="flex items-center gap-2">
+                                <i data-lucide="receipt" class="w-4 h-4 text-[#F7B32B]"></i>
+                                My Training
+                            </span>
+                        </a>
+                        <a href="<?php echo $base_url; ?>.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
+                            <span class="flex items-center gap-2">
+                                <i data-lucide="receipt" class="w-4 h-4 text-[#F7B32B]"></i>
+                                My Modules
+                            </span>
+                        </a>
+                        <a href="<?php echo $base_url; ?>ESS/mydocuments.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
                             <span class="flex items-center gap-2">
                                 <i data-lucide="folder" class="w-4 h-4 text-[#F7B32B]"></i>
-                                Documents
+                                My Documents
                             </span>
                         </a>
-                        <a href="<?php echo $base_url; ?>ESS/payroll.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
+                        <a href="<?php echo $base_url; ?>ESS/submitdocument.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
                             <span class="flex items-center gap-2">
                                 <i data-lucide="history" class="w-4 h-4 text-[#F7B32B]"></i>
-                                Payslip History
+                                Submit document
                             </span>
                         </a>
-                        <a href="<?php echo $base_url; ?>ESS/LEAVE/leave.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
+                        <a href="<?php echo $base_url; ?>ESS/leaverequest.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
                             <span class="flex items-center gap-2">
                                 <i data-lucide="calendar" class="w-4 h-4 text-[#F7B32B]"></i>
                                 Leave Request
+                            </span>
+                        </a>
+                        <a href="<?php echo $base_url; ?>ESS/complaint.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
+                            <span class="flex items-center gap-2">
+                                <i data-lucide="calendar" class="w-4 h-4 text-[#F7B32B]"></i>
+                                Complaint
                             </span>
                         </a>
                     </div>
