@@ -1050,6 +1050,10 @@ $conn->close();
                               <i class="fas fa-download mr-2"></i>
                               Download
                             </button>
+                            <button type="button" id="aiInsertBtn" class="btn btn-primary btn-sm btn-compact">
+                              <i class="fas fa-plus mr-2"></i>
+                              Insert Question
+                            </button>
                           </div>
                           <div id="aiResultContent" class="space-y-4"></div>
                         </div>
@@ -1286,8 +1290,12 @@ $conn->close();
       const aiResultContent = document.getElementById('aiResultContent');
       const aiCopyBtn = document.getElementById('aiCopyBtn');
       const aiDownloadBtn = document.getElementById('aiDownloadBtn');
+      const aiInsertBtn = document.getElementById('aiInsertBtn');
       const aiUseModuleText = document.getElementById('aiUseModuleText');
       const aiModuleText = document.getElementById('aiModuleText');
+
+      let aiLastParsedItems = [];
+      let aiLastQuestionType = 'mixed';
 
       const setSplitColumns = (twoCols) => {
         if (!splitLayout) return;
@@ -1483,6 +1491,8 @@ $conn->close();
         const items = parsed.items || [];
         if (!aiResultContent) return;
 
+        aiLastParsedItems = items;
+
         if (items.length === 0) {
           aiResultContent.innerHTML = `
             <div class="alert alert-warning">
@@ -1548,6 +1558,8 @@ $conn->close();
         const questionType = aiQuestionTypeSelect ? aiQuestionTypeSelect.value : 'mixed';
         const countRaw = aiQuestionCountInput ? parseInt(aiQuestionCountInput.value, 10) : 5;
         const questionCountNum = Number.isFinite(countRaw) ? countRaw : 5;
+
+        aiLastQuestionType = questionType;
 
         if (!lesson) {
           aiShowError('Please enter lesson content');
@@ -1624,6 +1636,145 @@ $conn->close();
           a.click();
           document.body.removeChild(a);
           window.URL.revokeObjectURL(url);
+        });
+      }
+
+      const aiNormalizeAnswer = (answerRaw) => {
+        let answerText = String(answerRaw || '').trim();
+        answerText = answerText.replace(/^answer\s*[:\-]\s*/i, '').trim();
+        answerText = answerText.replace(/^correct\s*[:\-]\s*/i, '').trim();
+        answerText = answerText.replace(/^\d{1,3}\s*[\.|\)|\-|:]\s*/i, '').trim();
+
+        const letterMatch = answerText.match(/^([A-Da-d])\b/);
+        let letter = '';
+        if (letterMatch) {
+          letter = String(letterMatch[1]).toUpperCase();
+          answerText = answerText.replace(/^[A-Da-d][\)\.|:|-]?\s*/, '').trim();
+        }
+        return { letter, text: answerText };
+      };
+
+      const aiGuessFormQuestionType = (item, fallbackAiType) => {
+        const t = String(fallbackAiType || 'mixed');
+        if (t === 'true_false') return 'truefalse';
+        if (t === 'multiple_choice') return 'multiple';
+        if (t === 'identification') return 'identification';
+        if (t === 'short_answer') return 'shortanswer';
+        if (t === 'fill_in_the_blank') return 'identification';
+
+        const qText = String(item && item.questionText ? item.questionText : '');
+        const aRaw = String(item && item.answerRaw ? item.answerRaw : '');
+        const norm = aiNormalizeAnswer(aRaw);
+        const normText = String(norm.text || '').trim().toLowerCase();
+        const hasOptions = Array.isArray(item && item.options) && item.options.length > 0;
+
+        if (hasOptions) return 'multiple';
+        if (normText === 'true' || normText === 'false' || /true\s*\/\s*false/i.test(qText) || /true\s+or\s+false/i.test(qText)) {
+          return 'truefalse';
+        }
+        if (qText.includes('____')) return 'identification';
+        return 'shortanswer';
+      };
+
+      const aiInsertIntoExam = () => {
+        if (!Array.isArray(aiLastParsedItems) || aiLastParsedItems.length === 0) {
+          showToast('No generated questions to insert. Please generate first.', 'warning');
+          return;
+        }
+
+        let inserted = 0;
+        let skipped = 0;
+
+        aiLastParsedItems.forEach((item) => {
+          if (questionCount >= targetQuestionLimit) {
+            skipped++;
+            return;
+          }
+
+          const formType = aiGuessFormQuestionType(item, aiLastQuestionType);
+          const qText = String(item && item.questionText ? item.questionText : '').trim();
+          const options = Array.isArray(item && item.options) ? item.options.map((s) => String(s || '').trim()).filter(Boolean) : [];
+          const norm = aiNormalizeAnswer(item && item.answerRaw ? item.answerRaw : '');
+          const answerText = String(norm.text || '').trim();
+
+          let correctValue = '';
+          if (formType === 'multiple') {
+            if (Number.isFinite(item && item.correctIndex) && item.correctIndex >= 0 && item.correctIndex < options.length) {
+              correctValue = String(options[item.correctIndex] || '').trim();
+            }
+            if (!correctValue && norm.letter && options.length > 0) {
+              const idx = norm.letter.charCodeAt(0) - 65;
+              if (idx >= 0 && idx < options.length) {
+                correctValue = String(options[idx] || '').trim();
+              }
+            }
+            if (!correctValue && answerText && options.length > 0) {
+              const idx2 = options.findIndex((opt) => String(opt).toLowerCase() === answerText.toLowerCase());
+              if (idx2 >= 0) {
+                correctValue = String(options[idx2] || '').trim();
+              }
+            }
+          } else if (formType === 'truefalse') {
+            const lower = answerText.toLowerCase();
+            if (lower === 'true') correctValue = 'True';
+            if (lower === 'false') correctValue = 'False';
+          } else {
+            correctValue = answerText;
+          }
+
+          const questionId = `ai_insert_${Date.now()}_${Math.floor(Math.random() * 100000)}`;
+          answerKeys[questionId] = {
+            points: 1,
+            correctAnswers: correctValue ? [correctValue] : [],
+            questionType: formType
+          };
+
+          const questionData = {
+            id: questionId,
+            number: questionCount + 1,
+            type: formType,
+            text: qText,
+            options: []
+          };
+
+          if (formType === 'multiple') {
+            questionData.options = (options.length > 0 ? options : ['']).map((opt) => ({
+              value: String(opt),
+              isOther: false
+            }));
+            if (questionData.options.length < 2) {
+              questionData.options.push({ value: '', isOther: false });
+            }
+          }
+
+          if (formType === 'truefalse') {
+            questionData.options = [{ value: 'True', isOther: false }, { value: 'False', isOther: false }];
+          }
+
+          if (formType === 'shortanswer' || formType === 'identification') {
+            questionData.answer = correctValue;
+          }
+
+          restoreQuestion(questionData);
+          inserted++;
+        });
+
+        syncAddQuestionButtonState();
+        saveFormState();
+
+        if (inserted > 0) {
+          const msg = skipped > 0
+            ? `Inserted ${inserted} question(s). ${skipped} skipped (target limit reached).`
+            : `Inserted ${inserted} question(s) into the exam.`;
+          showToast(msg, 'success');
+        } else {
+          showToast('No questions inserted (target limit reached).', 'warning');
+        }
+      };
+
+      if (aiInsertBtn) {
+        aiInsertBtn.addEventListener('click', () => {
+          aiInsertIntoExam();
         });
       }
       

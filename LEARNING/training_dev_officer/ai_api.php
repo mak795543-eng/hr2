@@ -22,8 +22,9 @@ if ($projectRoot && file_exists($projectRoot . '/vendor/autoload.php')) {
 
 $HF_API_KEY = getenv('HF_API_KEY') ?: ($_ENV['HF_API_KEY'] ?? ($_SERVER['HF_API_KEY'] ?? ''));
 
-if ($HF_API_KEY === '' && $projectRoot) {
-    $envPath = $projectRoot . DIRECTORY_SEPARATOR . '.env';
+$envPath = $projectRoot ? ($projectRoot . DIRECTORY_SEPARATOR . '.env') : '';
+
+if ($HF_API_KEY === '' && $envPath !== '') {
     if (is_file($envPath) && is_readable($envPath)) {
         $lines = file($envPath, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
         if (is_array($lines)) {
@@ -45,7 +46,16 @@ if ($HF_API_KEY === '' && $projectRoot) {
 
 if ($HF_API_KEY === '') {
     echo json_encode([
-        'error' => 'Missing HF_API_KEY. Set HF_API_KEY in the project root .env (e.g. HF_API_KEY=hf_...)'
+        'error' => 'Missing HF_API_KEY. Set HF_API_KEY in the project root .env (e.g. HF_API_KEY=hf_...)',
+        'diagnostics' => [
+            'project_root' => $projectRoot ?: null,
+            'env_path' => $envPath !== '' ? $envPath : null,
+            'env_file_exists' => $envPath !== '' ? is_file($envPath) : false,
+            'env_file_readable' => $envPath !== '' ? is_readable($envPath) : false,
+            'source_getenv_present' => (getenv('HF_API_KEY') !== false && getenv('HF_API_KEY') !== ''),
+            'source__ENV_present' => (isset($_ENV['HF_API_KEY']) && (string)$_ENV['HF_API_KEY'] !== ''),
+            'source__SERVER_present' => (isset($_SERVER['HF_API_KEY']) && (string)$_SERVER['HF_API_KEY'] !== '')
+        ]
     ]);
     exit;
 }
