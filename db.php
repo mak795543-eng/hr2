@@ -3,10 +3,10 @@
 
 $dbHost = getenv('DB_HOST') ?: "localhost";
 $dbUser = getenv('DB_USER') ?: "hr2_usm";       // or "hr2_usm" if you have that MySQL user
-$dbPassEnv = getenv('DB_PASSWORD') ?? 'hr2.solera';
+$dbPassEnv = getenv('DB_PASSWORD') ?? 'hr2.soliera';
 $dbPass = $dbPassEnv !== false
     ? $dbPassEnv
-    : (($dbUser === 'root' && ($dbHost === 'localhost' || $dbHost === 'localhost')) ? '' : 'hr2.solera');
+    : (($dbUser === 'root' && ($dbHost === 'localhost' || $dbHost === 'localhost')) ? '' : 'hr2.soliera');
 $dbPrefix = getenv('DB_PREFIX') ?: '';
 $dbName = "hr2_usm";
 
@@ -41,11 +41,7 @@ $getDbEnv = function (string $dbName, string $suffix) use ($dbPrefix) {
 // ✅ List only the databases you want to connect to
 if (!isset($targetDatabases) || !is_array($targetDatabases)) {
     $targetDatabases = [
-        "hr2_job_desc",
         "hr2_usm",
-        "hr2_learning_db",
-        "hr2_schema_training_request",
-        "hr2_critical_gaps",
     ];
 }
 
