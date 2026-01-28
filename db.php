@@ -3,7 +3,7 @@
 
 $dbHost = getenv('DB_HOST') ?: "localhost";
 $dbUser = getenv('DB_USER') ?: "hr2_usm";       // or "hr2_usm" if you have that MySQL user
-$dbPassEnv = getenv('DB_PASSWORD');
+$dbPassEnv = getenv('DB_PASSWORD') ?? 'hr2.solera';
 $dbPass = $dbPassEnv !== false
     ? $dbPassEnv
     : (($dbUser === 'root' && ($dbHost === 'localhost' || $dbHost === 'localhost')) ? '' : 'makmak01');
@@ -27,16 +27,16 @@ $getDbEnv = function (string $dbName, string $suffix) use ($dbPrefix) {
     return false;
 };
 
-$resolvePass = function (string $host, string $user, $passEnvValue) {
-    if ($passEnvValue !== false) {
-        return $passEnvValue;
-    }
-    $global = getenv('DB_PASS');
-    if ($global !== false) {
-        return $global;
-    }
-    return (($user === 'root' && ($host === 'localhost' || $host === '127.0.0.1')) ? '' : 'makmak01');
-};
+// $resolvePass = function (string $host, string $user, $passEnvValue) {
+//     if ($passEnvValue !== false) {
+//         return $passEnvValue;
+//     }
+//     $global = getenv('DB_PASS');
+//     if ($global !== false) {
+//         return $global;
+//     }
+//     return (($user === 'root' && ($host === 'localhost' || $host === '127.0.0.1')) ? '' : 'makmak01');
+// };
 
 // ✅ List only the databases you want to connect to
 if (!isset($targetDatabases) || !is_array($targetDatabases)) {
