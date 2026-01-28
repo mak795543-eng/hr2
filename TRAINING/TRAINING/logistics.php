@@ -1,5 +1,5 @@
 <?php
-session_start();
+
 require_once __DIR__ . '/db.php';
 
 $tableName = 'logistics_requests';
@@ -231,16 +231,7 @@ if (!empty($detail)) {
      $requests = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
  }
 ?>
-<!DOCTYPE html>
-<html lang="en" data-theme="light">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Logistics - Items Requests</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.6.0/dist/full.css" rel="stylesheet" type="text/css" />
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
     <script>
         (function () {
             if (!window.Swal || window.__SWAL_DAISY_PATCHED__) return;
@@ -321,13 +312,7 @@ if (!empty($detail)) {
         .card-table td[data-label="Actions"]::before { display: none; }
     </style>
 </head>
-<body class="bg-gray-50 min-h-screen">
-<div class="flex h-screen">
-    <?php if (file_exists(__DIR__ . '/../USM/sidebarr.php')) { include '../USM/sidebarr.php'; } ?>
-    <div class="flex flex-col flex-1 overflow-auto">
-        <?php if (file_exists(__DIR__ . '/../USM/navbar.php')) { include '../USM/navbar.php'; } ?>
 
-        <main class="container mx-auto px-4 py-6">
             <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-6">
                 <div>
                     <h1 class="text-2xl font-bold text-gray-800">Logistics Requests</h1>
