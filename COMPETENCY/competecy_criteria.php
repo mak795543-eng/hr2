@@ -66,6 +66,7 @@ $apiUrl = $base_url . 'COMPETENCY/api/competency_criteria.php';
                                         <tr class="bg-gray-50">
                                             <th class="font-semibold">Name</th>
                                             <th class="font-semibold">Description</th>
+                                            <th class="font-semibold text-right">Required Level (%)</th>
                                             <th class="font-semibold text-right">Actions</th>
                                         </tr>
                                     </thead>
@@ -134,6 +135,23 @@ $apiUrl = $base_url . 'COMPETENCY/api/competency_criteria.php';
                     ></textarea>
                 </div>
 
+                <div class="form-control mb-6">
+                    <label class="label">
+                        <span class="label-text font-medium">Required Level (%) <span class="text-red-500">*</span></span>
+                    </label>
+                    <input
+                        type="number"
+                        id="requiredLevel"
+                        name="required_level"
+                        class="input input-bordered w-full"
+                        placeholder="e.g., 80"
+                        min="0"
+                        max="100"
+                        step="0.1"
+                        required
+                    >
+                </div>
+
                 <div class="modal-action">
                     <button type="button" class="btn btn-ghost" onclick="competencyModal.close()">Cancel</button>
                     <button type="submit" id="saveBtn" class="btn btn-primary">Save Competency</button>
@@ -192,6 +210,7 @@ $apiUrl = $base_url . 'COMPETENCY/api/competency_criteria.php';
         const modalTitle = document.getElementById('modalTitle');
         const nameField = document.getElementById('name');
         const descField = document.getElementById('description');
+        const requiredLevelField = document.getElementById('requiredLevel');
         const nameCounter = document.getElementById('nameCounter');
         const descCounter = document.getElementById('descCounter');
         const nameError = document.getElementById('nameError');
@@ -232,6 +251,7 @@ $apiUrl = $base_url . 'COMPETENCY/api/competency_criteria.php';
                 document.getElementById('competencyId').value = competency.id;
                 nameField.value = competency.name;
                 descField.value = competency.description;
+                requiredLevelField.value = (competency.required_level ?? '');
                 nameCounter.textContent = competency.name.length;
                 descCounter.textContent = competency.description.length;
             } else {
@@ -275,14 +295,15 @@ $apiUrl = $base_url . 'COMPETENCY/api/competency_criteria.php';
             const id = idRaw ? parseInt(idRaw, 10) : null;
             const name = nameField.value.trim();
             const description = descField.value.trim();
+            const requiredLevel = requiredLevelField.value === '' ? null : parseFloat(requiredLevelField.value);
 
-            if (!name || !description) return;
+            if (!name || !description || requiredLevel === null || Number.isNaN(requiredLevel)) return;
 
             try {
                 if (id) {
-                    await apiRequest('update', { id, name, description });
+                    await apiRequest('update', { id, name, description, required_level: requiredLevel });
                 } else {
-                    await apiRequest('create', { name, description });
+                    await apiRequest('create', { name, description, required_level: requiredLevel });
                 }
 
                 competencyModal.close();
@@ -348,6 +369,7 @@ $apiUrl = $base_url . 'COMPETENCY/api/competency_criteria.php';
                                 <div class="truncate-text max-w-md">${truncateText(comp.description, 100)}</div>
                             </div>
                         </td>
+                        <td class="text-right font-medium">${(parseFloat(comp.required_level ?? 0) || 0).toFixed(1)}%</td>
                         <td>
                             <div class="flex justify-end gap-2">
                                 <button data-action="edit" data-id="${comp.id}" class="btn btn-sm btn-ghost btn-square">

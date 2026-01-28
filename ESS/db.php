@@ -36,6 +36,45 @@ if ($conn) {
     echo "</div>";
 }
 
+function ess_ensure_profile_tables($conn): void {
+    if (!$conn) {
+        return;
+    }
+
+    @mysqli_query(
+        $conn,
+        "CREATE TABLE IF NOT EXISTS employee_profiles (\n" .
+        "  employee_id INT PRIMARY KEY,\n" .
+        "  phone VARCHAR(50) NULL,\n" .
+        "  work_location VARCHAR(150) NULL,\n" .
+        "  emergency_name VARCHAR(150) NULL,\n" .
+        "  emergency_relationship VARCHAR(100) NULL,\n" .
+        "  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,\n" .
+        "  FOREIGN KEY (employee_id) REFERENCES employees(id)\n" .
+        ")"
+    );
+
+    @mysqli_query(
+        $conn,
+        "CREATE TABLE IF NOT EXISTS profile_update_requests (\n" .
+        "  id INT AUTO_INCREMENT PRIMARY KEY,\n" .
+        "  employee_id INT NOT NULL,\n" .
+        "  requested_data TEXT NOT NULL,\n" .
+        "  status ENUM('Pending','Approved','Rejected') DEFAULT 'Pending',\n" .
+        "  remarks TEXT,\n" .
+        "  reviewed_by INT NULL,\n" .
+        "  reviewed_at TIMESTAMP NULL,\n" .
+        "  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,\n" .
+        "  seen_by_employee TINYINT(1) DEFAULT 0,\n" .
+        "  FOREIGN KEY (employee_id) REFERENCES employees(id)\n" .
+        ")"
+    );
+}
+
+if ($conn) {
+    ess_ensure_profile_tables($conn);
+}
+
 function ess_current_employee_no(): string {
     return (string)($_SESSION['employee_id'] ?? $_SESSION['user_id'] ?? '');
 }
