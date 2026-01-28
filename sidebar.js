@@ -24,8 +24,12 @@ function toggleSidebar() {
         localStorage.setItem('sidebarCollapsed', !currentlyCollapsed);
 
         // Toggle text & logos
-        document.querySelectorAll('.sidebar-text').forEach(text => {
+        sidebar.querySelectorAll('.sidebar-text').forEach(text => {
             text.classList.toggle('hidden', !currentlyCollapsed);
+        });
+
+        sidebar.querySelectorAll('.section-title').forEach(title => {
+            title.parentElement?.classList.toggle('hidden', !currentlyCollapsed);
         });
 
         if (!currentlyCollapsed) {
@@ -44,7 +48,7 @@ function updateDropdownIndicators() {
     const sidebar = document.getElementById('sidebar');
     const isCollapsed = sidebar.classList.contains('w-20') && !isMobileView();
 
-    document.querySelectorAll('.dropdown-icon').forEach(icon => {
+    sidebar.querySelectorAll('.dropdown-icon').forEach(icon => {
         const isOpen = icon.closest('.collapse')?.querySelector('input[type="checkbox"]').checked;
         if (isCollapsed) {
             icon.setAttribute('data-lucide', isOpen ? 'plus' : 'minus');
@@ -68,14 +72,26 @@ function handleResize() {
         sidebar.classList.add('-translate-x-full');
         sidebarLogo.classList.remove('hidden');
         sonlyLogo.classList.add('hidden');
+
+        sidebar.querySelectorAll('.sidebar-text').forEach(text => {
+            text.classList.remove('hidden');
+        });
+
+        sidebar.querySelectorAll('.section-title').forEach(title => {
+            title.parentElement?.classList.remove('hidden');
+        });
     } else {
         const collapsedState = localStorage.getItem('sidebarCollapsed') === 'true';
         sidebar.classList.remove('-translate-x-full', 'translate-x-0');
         sidebar.classList.toggle('w-20', collapsedState);
         sidebar.classList.toggle('w-64', !collapsedState);
 
-        document.querySelectorAll('.sidebar-text').forEach(text => {
+        sidebar.querySelectorAll('.sidebar-text').forEach(text => {
             text.classList.toggle('hidden', collapsedState);
+        });
+
+        sidebar.querySelectorAll('.section-title').forEach(title => {
+            title.parentElement?.classList.toggle('hidden', collapsedState);
         });
 
         if (collapsedState) {
@@ -94,4 +110,35 @@ function handleResize() {
 document.addEventListener('DOMContentLoaded', () => {
     handleResize();
     window.addEventListener('resize', handleResize);
+
+    const sidebar = document.getElementById('sidebar');
+    if (sidebar) {
+        sidebar.addEventListener('click', (e) => {
+            if (isMobileView()) return;
+            if (!sidebar.classList.contains('w-20')) return;
+
+            const interactive = e.target.closest('a, button, .collapse-title, .collapse-content');
+            if (!interactive) return;
+
+            // Expand sidebar
+            sidebar.classList.remove('w-20');
+            sidebar.classList.add('w-64');
+            localStorage.setItem('sidebarCollapsed', 'false');
+
+            sidebar.querySelectorAll('.sidebar-text').forEach(text => {
+                text.classList.remove('hidden');
+            });
+
+            sidebar.querySelectorAll('.section-title').forEach(title => {
+                title.parentElement?.classList.remove('hidden');
+            });
+
+            const sidebarLogo = document.getElementById('sidebar-logo');
+            const sonlyLogo = document.getElementById('sonly');
+            sidebarLogo?.classList.remove('hidden');
+            sonlyLogo?.classList.add('hidden');
+
+            updateDropdownIndicators();
+        });
+    }
 });

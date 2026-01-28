@@ -185,6 +185,16 @@ function createTablesIfNotExist() {
         INDEX idx_standard_skill (skill_id),
         CONSTRAINT fk_gss_skill FOREIGN KEY (skill_id) REFERENCES skills(id) ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+    CREATE TABLE IF NOT EXISTS pre_promotion_employees (
+        id INT PRIMARY KEY AUTO_INCREMENT,
+        employee_id VARCHAR(50) NOT NULL,
+        name VARCHAR(100) NOT NULL,
+        competency_level VARCHAR(50) NOT NULL,
+        date_added TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY uniq_pre_promotion_employee (employee_id),
+        FOREIGN KEY (employee_id) REFERENCES employees(employee_id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     ";
     
     // Execute each statement separately
@@ -303,6 +313,11 @@ function ensureSchema() {
 
     try {
         $pdo->exec("ALTER TABLE succession_submissions MODIFY COLUMN status ENUM('Retrain','Reskilling','Refresher Training','Upskilling','Succession Ready') DEFAULT 'Retrain'");
+    } catch (PDOException $e) {
+    }
+
+    try {
+        $pdo->exec("CREATE TABLE IF NOT EXISTS pre_promotion_employees (id INT PRIMARY KEY AUTO_INCREMENT, employee_id VARCHAR(50) NOT NULL, name VARCHAR(100) NOT NULL, competency_level VARCHAR(50) NOT NULL, date_added TIMESTAMP DEFAULT CURRENT_TIMESTAMP, UNIQUE KEY uniq_pre_promotion_employee (employee_id), FOREIGN KEY (employee_id) REFERENCES employees(employee_id) ON DELETE CASCADE) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
     } catch (PDOException $e) {
     }
 }
@@ -431,6 +446,104 @@ function insertDefaultGeneralSkills() {
     }
 }
 
+function mapCompetencyToStatus(float $pct): string {
+    if ($pct <= 30) return 'Retrain';
+    if ($pct <= 50) return 'Reskilling';
+    if ($pct <= 75) return 'Refresher Training';
+    if ($pct <= 90) return 'Upskilling';
+    return 'Succession Ready';
+}
+
+function computeEmployeeCompetency(string $employeeId): array {
+    global $pdo;
+
+    $deptStmt = $pdo->prepare("SELECT department FROM employees WHERE employee_id = ? LIMIT 1");
+    $deptStmt->execute([$employeeId]);
+    $dept = (string)($deptStmt->fetchColumn() ?: '');
+    if ($dept === '') {
+        return ['competency' => 0.0, 'status' => 'Retrain', 'department' => ''];
+    }
+
+    $stmt = $pdo->prepare(
+        "SELECT AVG(COALESCE(es.skill_score, 0)) AS competency
+         FROM skills s
+         LEFT JOIN employee_skills es
+           ON es.employee_id = ?
+          AND es.skill_id = s.id
+         WHERE s.category = 'General Skills'
+           AND s.department = ?"
+    );
+    $stmt->execute([$employeeId, $dept]);
+    $val = $stmt->fetchColumn();
+    $competency = is_numeric($val) ? (float)$val : 0.0;
+    $competency = round($competency, 1);
+
+    return [
+        'competency' => $competency,
+        'status' => mapCompetencyToStatus($competency),
+        'department' => $dept,
+    ];
+}
+
+function employeeHasGaps(string $employeeId): bool {
+    global $pdo;
+
+    $deptStmt = $pdo->prepare("SELECT department FROM employees WHERE employee_id = ? LIMIT 1");
+    $deptStmt->execute([$employeeId]);
+    $dept = (string)($deptStmt->fetchColumn() ?: '');
+    if ($dept === '') {
+        return true;
+    }
+
+    $stmt = $pdo->prepare(
+        "SELECT COUNT(*)
+         FROM skills s
+         LEFT JOIN general_skill_standards gss
+           ON gss.skill_id = s.id
+         LEFT JOIN employee_skills es
+           ON es.employee_id = ?
+          AND es.skill_id = s.id
+         WHERE s.category = 'General Skills'
+           AND s.department = ?
+           AND (COALESCE(gss.standard_percentage, 80) - COALESCE(es.skill_score, 0)) > 0"
+    );
+    $stmt->execute([$employeeId, $dept]);
+    $cnt = (int)($stmt->fetchColumn() ?? 0);
+    return $cnt > 0;
+}
+
+function updateEmployeeCompetencyRow(string $employeeId): array {
+    global $pdo;
+
+    $r = computeEmployeeCompetency($employeeId);
+    $upd = $pdo->prepare("UPDATE employees SET competency = ?, status = ?, updated_at = CURRENT_TIMESTAMP WHERE employee_id = ?");
+    $upd->execute([(float)$r['competency'], (string)$r['status'], $employeeId]);
+    return $r;
+}
+
+function syncPrePromotionEmployee(string $employeeId): void {
+    global $pdo;
+
+    $r = computeEmployeeCompetency($employeeId);
+    $eligible = ((string)$r['status'] === 'Succession Ready') && !employeeHasGaps($employeeId);
+
+    if ($eligible) {
+        $stmt = $pdo->prepare(
+            "INSERT INTO pre_promotion_employees (employee_id, name, competency_level)
+             SELECT employee_id, full_name, ?
+             FROM employees
+             WHERE employee_id = ?
+             ON DUPLICATE KEY UPDATE
+                name = VALUES(name),
+                competency_level = VALUES(competency_level)"
+        );
+        $stmt->execute([(string)$r['status'], $employeeId]);
+        return;
+    }
+
+    $pdo->prepare("DELETE FROM pre_promotion_employees WHERE employee_id = ?")->execute([$employeeId]);
+}
+
 // Initialize database
 createTablesIfNotExist();
 
@@ -442,12 +555,13 @@ function getEmployees($filter = 'all', $search = '', $department = 'all') {
         $sql = "SELECT e.id, e.employee_id, e.full_name, e.position, e.department, e.last_assessment, e.next_review_date,
                        COALESCE(gs.competency, 0) AS competency,
                        CASE
-                           WHEN COALESCE(gs.competency, 0) <= 20 THEN 'Retrain'
-                           WHEN COALESCE(gs.competency, 0) <= 40 THEN 'Reskilling'
-                           WHEN COALESCE(gs.competency, 0) <= 60 THEN 'Refresher Training'
-                           WHEN COALESCE(gs.competency, 0) <= 80 THEN 'Upskilling'
+                           WHEN COALESCE(gs.competency, 0) <= 30 THEN 'Retrain'
+                           WHEN COALESCE(gs.competency, 0) <= 50 THEN 'Reskilling'
+                           WHEN COALESCE(gs.competency, 0) <= 75 THEN 'Refresher Training'
+                           WHEN COALESCE(gs.competency, 0) <= 90 THEN 'Upskilling'
                            ELSE 'Succession Ready'
                        END AS status
+
                 FROM employees e
                 LEFT JOIN (
                     SELECT e2.employee_id, e2.department, AVG(COALESCE(es2.skill_score, 0)) AS competency
@@ -489,10 +603,10 @@ function getEmployees($filter = 'all', $search = '', $department = 'all') {
         if ($filter !== 'all') {
             $sql .= " AND (
                 CASE
-                    WHEN COALESCE(gs.competency, 0) <= 20 THEN 'Retrain'
-                    WHEN COALESCE(gs.competency, 0) <= 40 THEN 'Reskilling'
-                    WHEN COALESCE(gs.competency, 0) <= 60 THEN 'Refresher Training'
-                    WHEN COALESCE(gs.competency, 0) <= 80 THEN 'Upskilling'
+                    WHEN COALESCE(gs.competency, 0) <= 30 THEN 'Retrain'
+                    WHEN COALESCE(gs.competency, 0) <= 50 THEN 'Reskilling'
+                    WHEN COALESCE(gs.competency, 0) <= 75 THEN 'Refresher Training'
+                    WHEN COALESCE(gs.competency, 0) <= 90 THEN 'Upskilling'
                     ELSE 'Succession Ready'
                 END
             ) = ?";
@@ -511,10 +625,10 @@ function getEmployees($filter = 'all', $search = '', $department = 'all') {
         
         $sql .= " ORDER BY 
             CASE
-                WHEN COALESCE(gs.competency, 0) <= 20 THEN 1
-                WHEN COALESCE(gs.competency, 0) <= 40 THEN 2
-                WHEN COALESCE(gs.competency, 0) <= 60 THEN 3
-                WHEN COALESCE(gs.competency, 0) <= 80 THEN 4
+                WHEN COALESCE(gs.competency, 0) <= 30 THEN 1
+                WHEN COALESCE(gs.competency, 0) <= 50 THEN 2
+                WHEN COALESCE(gs.competency, 0) <= 75 THEN 3
+                WHEN COALESCE(gs.competency, 0) <= 90 THEN 4
                 ELSE 5
             END,
             COALESCE(gs.competency, 0) DESC,
@@ -564,13 +678,13 @@ function getEmployeeDetails($employee_id) {
                 $count++;
             }
             $employee['competency'] = $count > 0 ? round($total / $count, 1) : 0;
-            if ($employee['competency'] <= 20) {
+            if ($employee['competency'] <= 30) {
                 $employee['status'] = 'Retrain';
-            } elseif ($employee['competency'] <= 40) {
+            } elseif ($employee['competency'] <= 50) {
                 $employee['status'] = 'Reskilling';
-            } elseif ($employee['competency'] <= 60) {
+            } elseif ($employee['competency'] <= 75) {
                 $employee['status'] = 'Refresher Training';
-            } elseif ($employee['competency'] <= 80) {
+            } elseif ($employee['competency'] <= 90) {
                 $employee['status'] = 'Upskilling';
             } else {
                 $employee['status'] = 'Succession Ready';
@@ -622,10 +736,10 @@ function getCompetencyStats() {
              FROM (
                 SELECT e.employee_id,
                        CASE
-                           WHEN AVG(COALESCE(es.skill_score, 0)) <= 20 THEN 'Retrain'
-                           WHEN AVG(COALESCE(es.skill_score, 0)) <= 40 THEN 'Reskilling'
-                           WHEN AVG(COALESCE(es.skill_score, 0)) <= 60 THEN 'Refresher Training'
-                           WHEN AVG(COALESCE(es.skill_score, 0)) <= 80 THEN 'Upskilling'
+                           WHEN AVG(COALESCE(es.skill_score, 0)) <= 30 THEN 'Retrain'
+                           WHEN AVG(COALESCE(es.skill_score, 0)) <= 50 THEN 'Reskilling'
+                           WHEN AVG(COALESCE(es.skill_score, 0)) <= 75 THEN 'Refresher Training'
+                           WHEN AVG(COALESCE(es.skill_score, 0)) <= 90 THEN 'Upskilling'
                            ELSE 'Succession Ready'
                        END AS status
                 FROM employees e

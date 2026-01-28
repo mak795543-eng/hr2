@@ -1,5 +1,5 @@
 <?php
-session_start();
+
 require_once __DIR__ . '/db.php';
 
 $getOwnerKey = function(): string {
@@ -37,17 +37,9 @@ try {
 } catch (Throwable $e) {
     $enrolledCount = 0;
 }
+require('../../partials/header.php');
 ?>
-<!DOCTYPE html>
-<html lang="en" data-theme="light">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Dashboard - Training Management</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <link href="https://cdn.jsdelivr.net/npm/daisyui@4.6.0/dist/full.css" rel="stylesheet" type="text/css" />
-  <script src="https://unpkg.com/lucide@latest"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
   <style>
     .fade-in { animation: fadeIn 0.3s ease-in-out; }
     @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
@@ -367,7 +359,4 @@ try {
 
     initDashboard();
   </script>
-  <script src="../../soliera.js"></script>
-  <script src="../../sidebar.js"></script>
-</body>
-</html>
+ <?php require('../../partials/footer.php') ?>

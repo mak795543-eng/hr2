@@ -1,6 +1,6 @@
 ﻿<?php
-session_start();
-require_once __DIR__ . '/../../COMPETENCY/criticalgaps/criticalgaps/config.php';
+
+require_once __DIR__ . '/../../COMPETENCY/criticalgaps/config.php';
 
 $flashOk = (string)($_GET['ok'] ?? '');
 $flashErr = (string)($_GET['err'] ?? '');
@@ -186,31 +186,21 @@ function badgeClass($status) {
             return 'badge-primary';
     }
 }
+require('../../partials/header.php');
 ?>
-<!DOCTYPE html>
-<html lang="en" data-theme="light">
-<head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Requested IDPs</title>
-     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.6.0/dist/full.css" rel="stylesheet" type="text/css" />
-    <script src="https://unpkg.com/lucide@latest"></script>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 </head>
 <body class="bg-gray-50 min-h-screen">
  <div class="flex h-screen">
     <!-- Sidebar -->
     <?php 
     // Use relative path or absolute path based on your directory structure
-    include '../../../USM/sidebarr.php'; 
+    include '../../USM/sidebarr.php'; 
     ?>
 
     <!-- Content Area -->
     <div class="flex flex-col flex-1 overflow-auto">
       <!-- Navbar -->
-      <?php include '../../../USM/navbar.php'; ?>
+      <?php include '../../USM/navbar.php'; ?>
     
             
             <main class="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto">
@@ -554,8 +544,5 @@ function badgeClass($status) {
     </script>
     </div>
   </div>
-  <script src="../../../soliera.js"></script>
-  <script src="../../../sidebar.js"></script>
-</body>
-</html>
+ <?php require('../../partials/footer.php') ?>
 

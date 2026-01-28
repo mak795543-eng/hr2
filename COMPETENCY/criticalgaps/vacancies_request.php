@@ -137,7 +137,19 @@
              if ($r) {
                  while ($row = $r->fetch_assoc()) {
                      $q = trim((string)($row['qualification'] ?? ''));
-                     if ($q !== '') $data['qualifications'][] = $q;
+                     if ($q === '') continue;
+                     $name = $q;
+                     $desc = '';
+                     if (strpos($q, '|') !== false) {
+                         $parts = explode('|', $q, 2);
+                         $name = trim((string)($parts[0] ?? ''));
+                         $desc = trim((string)($parts[1] ?? ''));
+                     }
+                     if ($name === '') continue;
+                     $data['qualifications'][] = [
+                         'name' => $name,
+                         'description' => $desc,
+                     ];
                  }
              }
              $stmt->close();
@@ -227,6 +239,77 @@
 
      $qualifications = $parseList($_POST['qualifications'] ?? '');
      $requirements = $parseList($_POST['requirements'] ?? '');
+
+     $qualItems = [];
+     if (isset($_POST['qualifications_name']) || isset($_POST['qualifications_description'])) {
+         $names = $_POST['qualifications_name'] ?? [];
+         $descs = $_POST['qualifications_description'] ?? [];
+         if (!is_array($names)) $names = [$names];
+         if (!is_array($descs)) $descs = [$descs];
+         $max = max(count($names), count($descs));
+         for ($i = 0; $i < $max; $i++) {
+             $n = trim((string)($names[$i] ?? ''));
+             $d = trim((string)($descs[$i] ?? ''));
+             if ($n === '' && $d === '') continue;
+             if ($n === '') $n = $d;
+             $qualItems[] = [
+                 'name' => $n,
+                 'description' => $d,
+             ];
+         }
+     } else {
+         foreach ($qualifications as $q) {
+             $name = $q;
+             $desc = '';
+             if (strpos($q, '|') !== false) {
+                 $parts = explode('|', $q, 2);
+                 $name = trim((string)($parts[0] ?? ''));
+                 $desc = trim((string)($parts[1] ?? ''));
+             }
+             $name = trim((string)$name);
+             if ($name === '') continue;
+             $qualItems[] = [
+                 'name' => $name,
+                 'description' => $desc,
+             ];
+         }
+     }
+
+     $reqItems = [];
+     if (isset($_POST['requirements_name']) || isset($_POST['requirements_description'])) {
+         $names = $_POST['requirements_name'] ?? [];
+         $descs = $_POST['requirements_description'] ?? [];
+         if (!is_array($names)) $names = [$names];
+         if (!is_array($descs)) $descs = [$descs];
+         $max = max(count($names), count($descs));
+         for ($i = 0; $i < $max; $i++) {
+             $n = trim((string)($names[$i] ?? ''));
+             $d = trim((string)($descs[$i] ?? ''));
+             if ($n === '' && $d === '') continue;
+             if ($n === '') $n = $d;
+             $reqItems[] = [
+                 'name' => $n,
+                 'description' => ($d === '' ? null : $d),
+             ];
+         }
+     } else {
+         foreach ($requirements as $r) {
+             $name = $r;
+             $desc = null;
+             if (strpos($r, '|') !== false) {
+                 $parts = explode('|', $r, 2);
+                 $name = trim((string)($parts[0] ?? ''));
+                 $desc = trim((string)($parts[1] ?? ''));
+                 if ($desc === '') $desc = null;
+             }
+             $name = trim((string)$name);
+             if ($name === '') continue;
+             $reqItems[] = [
+                 'name' => $name,
+                 'description' => $desc,
+             ];
+         }
+     }
 
      if ($requestId === '') {
          echo json_encode(['success' => false, 'message' => 'Missing request_id']);
@@ -497,9 +580,13 @@
              if (isset($qualCols[$idField]) && !$isAutoIncrement($qualCols, $idField)) {
                  $stmtIns = $conn->prepare("INSERT INTO qualifications (`{$idField}`, `request_id`, `qualification`) VALUES (?, ?, ?)");
                  if (!$stmtIns) throw new RuntimeException($conn->error);
-                 foreach ($qualifications as $q) {
+                 foreach ($qualItems as $q) {
                      $newId = $nextId($conn, 'qualifications', $idField);
-                     $stmtIns->bind_param('iss', $newId, $requestId, $q);
+                     $text = trim((string)($q['name'] ?? ''));
+                     $desc = trim((string)($q['description'] ?? ''));
+                     if ($text === '') continue;
+                     if ($desc !== '') $text .= ' | ' . $desc;
+                     $stmtIns->bind_param('iss', $newId, $requestId, $text);
                      $exec($stmtIns);
                      $debug['qualifications_inserts']++;
                  }
@@ -507,8 +594,12 @@
              } else {
                  $stmtIns = $conn->prepare('INSERT INTO qualifications (request_id, qualification) VALUES (?, ?)');
                  if (!$stmtIns) throw new RuntimeException($conn->error);
-                 foreach ($qualifications as $q) {
-                     $stmtIns->bind_param('ss', $requestId, $q);
+                 foreach ($qualItems as $q) {
+                     $text = trim((string)($q['name'] ?? ''));
+                     $desc = trim((string)($q['description'] ?? ''));
+                     if ($text === '') continue;
+                     if ($desc !== '') $text .= ' | ' . $desc;
+                     $stmtIns->bind_param('ss', $requestId, $text);
                      $exec($stmtIns);
                      $debug['qualifications_inserts']++;
                  }
@@ -522,8 +613,12 @@
 
              $stmtIns = $conn->prepare('INSERT INTO qualificcaion (request_id, qualification) VALUES (?, ?)');
              if (!$stmtIns) throw new RuntimeException($conn->error);
-             foreach ($qualifications as $q) {
-                 $stmtIns->bind_param('ss', $requestId, $q);
+             foreach ($qualItems as $q) {
+                 $text = trim((string)($q['name'] ?? ''));
+                 $desc = trim((string)($q['description'] ?? ''));
+                 if ($text === '') continue;
+                 if ($desc !== '') $text .= ' | ' . $desc;
+                 $stmtIns->bind_param('ss', $requestId, $text);
                  $stmtIns->execute();
                  $debug['qualifications_inserts']++;
              }
@@ -538,8 +633,12 @@
              if (!$stmtIns) throw new RuntimeException($conn->error);
              $type = 'General';
              $priority = 1;
-             foreach ($qualifications as $q) {
-                 $stmtIns->bind_param('sssi', $requestId, $q, $type, $priority);
+             foreach ($qualItems as $q) {
+                 $text = trim((string)($q['name'] ?? ''));
+                 $desc = trim((string)($q['description'] ?? ''));
+                 if ($text === '') continue;
+                 if ($desc !== '') $text .= ' | ' . $desc;
+                 $stmtIns->bind_param('sssi', $requestId, $text, $type, $priority);
                  $stmtIns->execute();
                  $debug['qualifications_inserts']++;
                  $priority++;
@@ -569,15 +668,10 @@
                  if (isset($reqCols[$idField]) && !$isAutoIncrement($reqCols, $idField)) {
                      $stmtIns = $conn->prepare("INSERT INTO requirements (`{$idField}`, request_id, name, description) VALUES (?, ?, ?, ?)");
                      if (!$stmtIns) throw new RuntimeException($conn->error);
-                     foreach ($requirements as $r) {
-                         $name = $r;
-                         $desc = null;
-                         if (strpos($r, '|') !== false) {
-                             $parts = explode('|', $r, 2);
-                             $name = trim((string)$parts[0]);
-                             $desc = trim((string)$parts[1]);
-                             if ($desc === '') $desc = null;
-                         }
+                     foreach ($reqItems as $r) {
+                         $name = trim((string)($r['name'] ?? ''));
+                         $desc = $r['description'] ?? null;
+                         if ($name === '') continue;
                          $newId = $nextId($conn, 'requirements', $idField);
                          if ($requestIdInt !== null) {
                              $stmtIns->bind_param('iiss', $newId, $requestIdInt, $name, $desc);
@@ -592,15 +686,10 @@
                      if ($hasDesc) {
                          $stmtIns = $conn->prepare('INSERT INTO requirements (request_id, name, description) VALUES (?, ?, ?)');
                          if (!$stmtIns) throw new RuntimeException($conn->error);
-                         foreach ($requirements as $r) {
-                             $name = $r;
-                             $desc = null;
-                             if (strpos($r, '|') !== false) {
-                                 $parts = explode('|', $r, 2);
-                                 $name = trim((string)$parts[0]);
-                                 $desc = trim((string)$parts[1]);
-                                 if ($desc === '') $desc = null;
-                             }
+                         foreach ($reqItems as $r) {
+                             $name = trim((string)($r['name'] ?? ''));
+                             $desc = $r['description'] ?? null;
+                             if ($name === '') continue;
                              if ($requestIdInt !== null) {
                                  $stmtIns->bind_param('iss', $requestIdInt, $name, $desc);
                              } else {
@@ -613,11 +702,13 @@
                      } else {
                          $stmtIns = $conn->prepare('INSERT INTO requirements (request_id, name) VALUES (?, ?)');
                          if (!$stmtIns) throw new RuntimeException($conn->error);
-                         foreach ($requirements as $r) {
+                         foreach ($reqItems as $r) {
+                             $name = trim((string)($r['name'] ?? ''));
+                             if ($name === '') continue;
                              if ($requestIdInt !== null) {
-                                 $stmtIns->bind_param('is', $requestIdInt, $r);
+                                 $stmtIns->bind_param('is', $requestIdInt, $name);
                              } else {
-                                 $stmtIns->bind_param('ss', $requestId, $r);
+                                 $stmtIns->bind_param('ss', $requestId, $name);
                              }
                              $exec($stmtIns);
                              $debug['requirements_inserts']++;
@@ -628,8 +719,12 @@
              } elseif ($hasRequirement) {
                  $stmtIns = $conn->prepare('INSERT INTO requirements (request_id, requirement) VALUES (?, ?)');
                  if (!$stmtIns) throw new RuntimeException($conn->error);
-                 foreach ($requirements as $r) {
-                     $stmtIns->bind_param('ss', $requestId, $r);
+                 foreach ($reqItems as $r) {
+                     $text = trim((string)($r['name'] ?? ''));
+                     $desc = trim((string)($r['description'] ?? ''));
+                     if ($text === '') continue;
+                     if ($desc !== '') $text .= ' | ' . $desc;
+                     $stmtIns->bind_param('ss', $requestId, $text);
                      $exec($stmtIns);
                      $debug['requirements_inserts']++;
                  }
@@ -645,8 +740,12 @@
              if (!$stmtIns) throw new RuntimeException($conn->error);
              $category = 'General';
              $essential = 1;
-             foreach ($requirements as $r) {
-                 $stmtIns->bind_param('sssi', $requestId, $r, $category, $essential);
+             foreach ($reqItems as $r) {
+                 $text = trim((string)($r['name'] ?? ''));
+                 $desc = trim((string)($r['description'] ?? ''));
+                 if ($text === '') continue;
+                 if ($desc !== '') $text .= ' | ' . $desc;
+                 $stmtIns->bind_param('sssi', $requestId, $text, $category, $essential);
                  $stmtIns->execute();
                  $debug['requirements_inserts']++;
              }
@@ -860,16 +959,18 @@
 
                             <div>
                                 <label class="label">
-                                    <span class="label-text">Qualifications (one per line)</span>
+                                    <span class="label-text">Qualifications</span>
                                 </label>
-                                <textarea name="qualifications" id="qualificationsInput" class="textarea textarea-bordered w-full" rows="4"></textarea>
+                                <div class="space-y-2" id="qualificationsList"></div>
+                                <button type="button" class="btn btn-sm btn-outline w-full" id="addQualificationRowBtn">Add Qualification</button>
                             </div>
 
                             <div>
                                 <label class="label">
-                                    <span class="label-text">Requirements (one per line)</span>
+                                    <span class="label-text">Requirements</span>
                                 </label>
-                                <textarea name="requirements" id="requirementsInput" class="textarea textarea-bordered w-full" rows="4"></textarea>
+                                <div class="space-y-2" id="requirementsList"></div>
+                                <button type="button" class="btn btn-sm btn-outline w-full" id="addRequirementRowBtn">Add Requirement</button>
                             </div>
 
                             <div class="flex justify-end gap-3 pt-2">
@@ -919,6 +1020,66 @@
                             const t = safeText(type).toLowerCase().replace(/_/g, '-');
                             if (!t) return '';
                             return t;
+                        }
+
+                        function createArrayRow({
+                            container,
+                            nameField,
+                            descField,
+                            nameValue,
+                            descValue
+                        }) {
+                            const row = document.createElement('div');
+                            row.className = 'grid grid-cols-1 md:grid-cols-12 gap-2 items-start';
+
+                            const nameWrap = document.createElement('div');
+                            nameWrap.className = 'md:col-span-5';
+                            const nameInput = document.createElement('input');
+                            nameInput.type = 'text';
+                            nameInput.name = nameField;
+                            nameInput.className = 'input input-bordered w-full';
+                            nameInput.placeholder = 'Name';
+                            nameInput.value = safeText(nameValue);
+                            nameWrap.appendChild(nameInput);
+
+                            const descWrap = document.createElement('div');
+                            descWrap.className = 'md:col-span-6';
+                            const descInput = document.createElement('input');
+                            descInput.type = 'text';
+                            descInput.name = descField;
+                            descInput.className = 'input input-bordered w-full';
+                            descInput.placeholder = 'Description (optional)';
+                            descInput.value = safeText(descValue);
+                            descWrap.appendChild(descInput);
+
+                            const btnWrap = document.createElement('div');
+                            btnWrap.className = 'md:col-span-1 flex';
+                            const removeBtn = document.createElement('button');
+                            removeBtn.type = 'button';
+                            removeBtn.className = 'btn btn-ghost btn-square';
+                            removeBtn.title = 'Remove';
+                            removeBtn.innerHTML = '<i data-lucide="trash-2" class="w-4 h-4"></i>';
+                            removeBtn.addEventListener('click', () => {
+                                row.remove();
+                                if (typeof lucide !== 'undefined') {
+                                    lucide.createIcons();
+                                }
+                            });
+                            btnWrap.appendChild(removeBtn);
+
+                            row.appendChild(nameWrap);
+                            row.appendChild(descWrap);
+                            row.appendChild(btnWrap);
+                            container.appendChild(row);
+
+                            if (typeof lucide !== 'undefined') {
+                                lucide.createIcons();
+                            }
+                        }
+
+                        function resetArrayList(container) {
+                            if (!container) return;
+                            container.innerHTML = '';
                         }
 
                         // Render vacancies table
@@ -1190,11 +1351,16 @@
                             if (!el) return;
                             const quals = Array.isArray(d.qualifications) ? d.qualifications : [];
                             const reqs = Array.isArray(d.requirements) ? d.requirements : [];
-                            const reqLines = reqs.map(r => {
-                                const name = safeText(r.name);
-                                const desc = safeText(r.description);
+                            const qualList = quals.map(q => {
+                                const name = safeText(q && q.name);
+                                const desc = safeText(q && q.description);
                                 return desc ? `${name} | ${desc}` : name;
-                            });
+                            }).filter(Boolean);
+                            const reqLines = reqs.map(r => {
+                                const name = safeText(r && r.name);
+                                const desc = safeText(r && r.description);
+                                return desc ? `${name} | ${desc}` : name;
+                            }).filter(Boolean);
                             el.innerHTML = `
                                 <h4 class="font-semibold mb-3">Saved Job Details</h4>
                                 <div class="grid grid-cols-1 gap-4">
@@ -1204,7 +1370,7 @@
                                     </div>
                                     <div>
                                         <div class="text-xs font-semibold text-gray-500">Qualifications</div>
-                                        <div class="mt-1 whitespace-pre-wrap">${quals.length ? safeText(quals.join('\n')) : '<span class="text-gray-400">No saved qualifications</span>'}</div>
+                                        <div class="mt-1 whitespace-pre-wrap">${qualList.length ? safeText(qualList.join('\n')) : '<span class="text-gray-400">No saved qualifications</span>'}</div>
                                     </div>
                                     <div>
                                         <div class="text-xs font-semibold text-gray-500">Requirements</div>
@@ -1242,25 +1408,99 @@
                         document.getElementById('jobDetailsRequestIdDisplay').value = requestId;
                         document.getElementById('jobDetailsJobTitleDisplay').value = safeText(vacancy.title);
                         document.getElementById('jobDescriptionInput').value = '';
-                        document.getElementById('qualificationsInput').value = '';
-                        document.getElementById('requirementsInput').value = '';
+                        const qualsList = document.getElementById('qualificationsList');
+                        const reqsList = document.getElementById('requirementsList');
+                        resetArrayList(qualsList);
+                        resetArrayList(reqsList);
+                        createArrayRow({
+                            container: qualsList,
+                            nameField: 'qualifications_name[]',
+                            descField: 'qualifications_description[]',
+                            nameValue: '',
+                            descValue: ''
+                        });
+                        createArrayRow({
+                            container: reqsList,
+                            nameField: 'requirements_name[]',
+                            descField: 'requirements_description[]',
+                            nameValue: '',
+                            descValue: ''
+                        });
 
                         document.getElementById('jobDetailsModal').showModal();
 
                         fetchJobDetails(requestId).then(d => {
                             document.getElementById('jobDescriptionInput').value = safeText(d.description);
                             const quals = Array.isArray(d.qualifications) ? d.qualifications : [];
-                            document.getElementById('qualificationsInput').value = quals.join('\n');
                             const reqs = Array.isArray(d.requirements) ? d.requirements : [];
-                            const reqLines = reqs.map(r => {
-                                const name = safeText(r.name);
-                                const desc = safeText(r.description);
-                                return desc ? `${name} | ${desc}` : name;
-                            });
-                            document.getElementById('requirementsInput').value = reqLines.join('\n');
+
+                            resetArrayList(qualsList);
+                            resetArrayList(reqsList);
+
+                            if (quals.length) {
+                                quals.forEach(q => {
+                                    createArrayRow({
+                                        container: qualsList,
+                                        nameField: 'qualifications_name[]',
+                                        descField: 'qualifications_description[]',
+                                        nameValue: q && q.name,
+                                        descValue: q && q.description
+                                    });
+                                });
+                            } else {
+                                createArrayRow({
+                                    container: qualsList,
+                                    nameField: 'qualifications_name[]',
+                                    descField: 'qualifications_description[]',
+                                    nameValue: '',
+                                    descValue: ''
+                                });
+                            }
+
+                            if (reqs.length) {
+                                reqs.forEach(r => {
+                                    createArrayRow({
+                                        container: reqsList,
+                                        nameField: 'requirements_name[]',
+                                        descField: 'requirements_description[]',
+                                        nameValue: r && r.name,
+                                        descValue: r && r.description
+                                    });
+                                });
+                            } else {
+                                createArrayRow({
+                                    container: reqsList,
+                                    nameField: 'requirements_name[]',
+                                    descField: 'requirements_description[]',
+                                    nameValue: '',
+                                    descValue: ''
+                                });
+                            }
                         }).catch(() => {
                         });
                     };
+
+                    document.getElementById('addQualificationRowBtn').addEventListener('click', () => {
+                        const container = document.getElementById('qualificationsList');
+                        createArrayRow({
+                            container,
+                            nameField: 'qualifications_name[]',
+                            descField: 'qualifications_description[]',
+                            nameValue: '',
+                            descValue: ''
+                        });
+                    });
+
+                    document.getElementById('addRequirementRowBtn').addEventListener('click', () => {
+                        const container = document.getElementById('requirementsList');
+                        createArrayRow({
+                            container,
+                            nameField: 'requirements_name[]',
+                            descField: 'requirements_description[]',
+                            nameValue: '',
+                            descValue: ''
+                        });
+                    });
 
                     async function fetchVacancies() {
                         loadingState.classList.remove('hidden');
