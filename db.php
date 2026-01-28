@@ -6,7 +6,7 @@ $dbUser = getenv('DB_USER') ?: "hr2_usm";       // or "hr2_usm" if you have that
 $dbPassEnv = getenv('DB_PASSWORD') ?? 'hr2.solera';
 $dbPass = $dbPassEnv !== false
     ? $dbPassEnv
-    : (($dbUser === 'root' && ($dbHost === 'localhost' || $dbHost === 'localhost')) ? '' : 'makmak01');
+    : (($dbUser === 'root' && ($dbHost === 'localhost' || $dbHost === 'localhost')) ? '' : 'hr2.solera');
 $dbPrefix = getenv('DB_PREFIX') ?: '';
 $dbName = "hr2_usm";
 
@@ -82,4 +82,3 @@ if (!empty($errors) && !defined('SUPPRESS_DB_ERRORS')) {
     }
     echo "</ul>";
 }
-?>
