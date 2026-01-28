@@ -339,12 +339,6 @@ if (!function_exists('hasAccess')) {
                                 Dashboard
                             </span>
                         </a>
-                        <a href="<?php echo $base_url; ?>USM/profile.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
-                            <span class="flex items-center gap-2">
-                                <i data-lucide="user" class="w-4 h-4 text-[#F7B32B]"></i>
-                                Profile
-                            </span>
-                        </a>
                         <a href="<?php echo $base_url; ?>COMPLAINT/complaint.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
                             <span class="flex items-center gap-2">
                                 <i data-lucide="flag" class="w-4 h-4 text-[#F7B32B]"></i>
@@ -363,7 +357,7 @@ if (!function_exists('hasAccess')) {
                                 Documents
                             </span>
                         </a>
-                        <a href="<?php echo $base_url; ?>ESS/historypayslip.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
+                        <a href="<?php echo $base_url; ?>ESS/payroll.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
                             <span class="flex items-center gap-2">
                                 <i data-lucide="history" class="w-4 h-4 text-[#F7B32B]"></i>
                                 Payslip History

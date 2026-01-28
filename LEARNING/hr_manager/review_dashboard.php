@@ -1,5 +1,5 @@
 ﻿<?php
-session_start();
+
 
 // Database connection
 require_once __DIR__ . '/../db.php';
@@ -103,22 +103,9 @@ if ($exam_departments_result && $exam_departments_result->num_rows > 0) {
         $exam_departments[] = $row['department'];
     }
 }
-
+require('../../partials/header.php');
 $conn->close();
 ?>
-<!DOCTYPE html>
-<html lang="en" data-theme="light">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Review Learning Module & Examination Review</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <link href="https://cdn.jsdelivr.net/npm/daisyui@4.6.0/dist/full.css" rel="stylesheet" type="text/css" />
-  <script src="https://unpkg.com/lucide@latest"></script>
-       <script src="https://unpkg.com/lucide@latest"></script>
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-  <!-- SweetAlert2 CSS -->
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
   <style>
     /* Simplified SweetAlert2 Styling */
     .swal2-container {
@@ -2269,10 +2256,5 @@ $conn->close();
     });
 
 </script>
-      <script>
-    lucide.createIcons();
-  </script>
-   <script src="../../soliera.js"></script>
-  <script src="../../sidebar.js"></script>
-</body>
-</html>
+   
+ <?php require('../../partials/footer.php') ?>
