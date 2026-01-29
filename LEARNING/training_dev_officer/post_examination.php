@@ -4,7 +4,7 @@ header('Content-Type: application/json');
 
 require_once __DIR__ . '/../db.php';
 
-$conn = usm_db_connect('learning_db');
+$conn = usm_db_connect('hr2_learning_db');
 
 if ($conn->connect_error) {
     http_response_code(500);
