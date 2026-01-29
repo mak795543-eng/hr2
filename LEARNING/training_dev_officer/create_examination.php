@@ -12,6 +12,27 @@ if ($conn->connect_error) {
     die("Connection failed: " . $conn->connect_error);
 }
 
+function columnExists(mysqli $conn, string $table, string $column): bool {
+    $dbResult = $conn->query('SELECT DATABASE() AS db');
+    $dbRow = $dbResult ? $dbResult->fetch_assoc() : null;
+    $dbName = $dbRow['db'] ?? '';
+    if ($dbName === '') {
+        return false;
+    }
+
+    $sql = "SELECT 1
+            FROM information_schema.COLUMNS
+            WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ?
+            LIMIT 1";
+    $stmt = $conn->prepare($sql);
+    $stmt->bind_param('sss', $dbName, $table, $column);
+    $stmt->execute();
+    $res = $stmt->get_result();
+    $exists = $res && $res->num_rows > 0;
+    $stmt->close();
+    return $exists;
+}
+
 // Get module/exam ID from URL parameter
 $edit_exam_id = isset($_GET['exam_id']) ? (int) $_GET['exam_id'] : 0;
 $module_id = isset($_GET['module_id']) ? $_GET['module_id'] : null;
@@ -35,7 +56,9 @@ if ($edit_exam_id > 0) {
         $exam_title = htmlspecialchars($edit_exam_data['title'] ?? '');
         $exam_description = htmlspecialchars($edit_exam_data['description'] ?? '');
 
-        $qStmt = $conn->prepare('SELECT * FROM examination_questions WHERE examination_id = ? ORDER BY question_number');
+        $questionsExamIdCol = columnExists($conn, 'examination_questions', 'exam_id') ? 'exam_id' : 'examination_id';
+
+        $qStmt = $conn->prepare('SELECT * FROM examination_questions WHERE ' . $questionsExamIdCol . ' = ? ORDER BY question_number');
         $qStmt->bind_param('i', $edit_exam_id);
         $qStmt->execute();
         $qRes = $qStmt->get_result();

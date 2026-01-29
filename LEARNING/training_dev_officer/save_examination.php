@@ -116,6 +116,11 @@ try {
     $examQuestionsHasId = columnExists($conn, 'examination_questions', 'id');
     $examQuestionsIdAutoIncrement = $examQuestionsHasId ? isAutoIncrement($conn, 'examination_questions', 'id') : true;
 
+    $questionsExamIdCol = columnExists($conn, 'examination_questions', 'exam_id') ? 'exam_id' : 'examination_id';
+    if ($questionsExamIdCol !== 'exam_id' && $questionsExamIdCol !== 'examination_id') {
+        throw new Exception('Invalid examination_questions FK column');
+    }
+
     $isDraftAction = ($examData['status'] ?? '') === 'draft' || $action === 'save_draft';
     $isUpdateFromDraftToSubmit = $action === 'create_exam' && $draftId > 0;
     $isEditAction = $action === 'update_exam' && $editExamId > 0;
@@ -192,13 +197,12 @@ try {
         $stmt->close();
     } else {
         $step = 'insert_examination';
-
-        if ($examsIdAutoIncrement) {
+ if ($examsIdAutoIncrement) {
             $stmt = $conn->prepare("INSERT INTO examinations
                                     (title, description, module_id, module_title, department, roles,
                                      status, total_points, passing_score, duration, created_by )
                                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ? )");
-
+ 
             $stmt->bind_param(
                 "ssisssssidi",
                 $examData['title'],
@@ -212,9 +216,6 @@ try {
                 $examData['passing_score'],
                 $examData['duration'],
                 $examData['created_by'],
-               
-
-
             );
 
             if (!$stmt->execute()) {
@@ -257,7 +258,7 @@ try {
     }
 
     if ($shouldUpdateExistingDraft || $isEditAction) {
-        $deleteStmt = $conn->prepare('DELETE FROM examination_questions WHERE examination_id = ?');
+        $deleteStmt = $conn->prepare('DELETE FROM examination_questions WHERE ' . $questionsExamIdCol . ' = ?');
         $deleteStmt->bind_param('i', $examId);
         $deleteStmt->execute();
         $deleteStmt->close();
@@ -273,10 +274,8 @@ try {
 
         if ($examQuestionsHasId && !$examQuestionsIdAutoIncrement) {
             $generatedQuestionId = getNextId($conn, 'examination_questions', 'id');
-            $stmt = $conn->prepare("INSERT INTO examination_questions 
-                                    (id, examination_id, question_number, question_type, question_text, 
-                                     points, answer_key, options, expected_answer) 
-                                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+            $stmt = $conn->prepare('INSERT INTO examination_questions (id, ' . $questionsExamIdCol . ', question_number, question_type, question_text, points, answer_key, options, expected_answer)
+                                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
 
             $stmt->bind_param("iiississs",
                 $generatedQuestionId,
@@ -290,10 +289,8 @@ try {
                 $expectedAnswer
             );
         } else {
-            $stmt = $conn->prepare("INSERT INTO examination_questions 
-                                    (examination_id, question_number, question_type, question_text, 
-                                     points, answer_key, options, expected_answer) 
-                                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+            $stmt = $conn->prepare('INSERT INTO examination_questions (' . $questionsExamIdCol . ', question_number, question_type, question_text, points, answer_key, options, expected_answer)
+                                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
 
             $stmt->bind_param("iississs",
                 $examId,
@@ -340,7 +337,7 @@ try {
                                                   (exam_id, question_number, question_type, question_text, points, answer_key, options, expected_answer)
                                                   SELECT ?, question_number, question_type, question_text, points, answer_key, options, expected_answer
                                                   FROM examination_questions
-                                                  WHERE examination_id = ?");
+                                                  WHERE " . $questionsExamIdCol . " = ?");
             $copyQuestionsStmt->bind_param('ii', $repoId, $examId);
             $copyQuestionsStmt->execute();
             $copyQuestionsStmt->close();
