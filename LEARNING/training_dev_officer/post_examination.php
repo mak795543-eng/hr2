@@ -41,6 +41,42 @@ function columnExists(mysqli $conn, string $table, string $column): bool {
     return $exists;
 }
 
+function isAutoIncrement(mysqli $conn, string $table, string $column): bool {
+    $dbResult = $conn->query('SELECT DATABASE() AS db');
+    $dbRow = $dbResult ? $dbResult->fetch_assoc() : null;
+    $dbName = $dbRow['db'] ?? '';
+    if ($dbName === '') {
+        return false;
+    }
+
+    $sql = "SELECT EXTRA
+            FROM information_schema.COLUMNS
+            WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ?
+            LIMIT 1";
+    $stmt = $conn->prepare($sql);
+    $stmt->bind_param('sss', $dbName, $table, $column);
+    $stmt->execute();
+    $res = $stmt->get_result();
+    $extra = $res && $res->num_rows > 0 ? $res->fetch_assoc()['EXTRA'] : '';
+    $stmt->close();
+    return strpos($extra, 'auto_increment') !== false;
+}
+
+function getNextId(mysqli $conn, string $table, string $column): int {
+    $dbResult = $conn->query('SELECT DATABASE() AS db');
+    $dbRow = $dbResult ? $dbResult->fetch_assoc() : null;
+    $dbName = $dbRow['db'] ?? '';
+    if ($dbName === '') {
+        return 0;
+    }
+
+    $sql = "SELECT MAX($column) + 1 AS next_id
+            FROM $table";
+    $res = $conn->query($sql);
+    $nextId = $res && $res->num_rows > 0 ? (int) $res->fetch_assoc()['next_id'] : 1;
+    return $nextId;
+}
+
 function ensureRepositoryExam(mysqli $conn, int $originalExamId): int {
     $repoId = 0;
 
@@ -65,7 +101,14 @@ function ensureRepositoryExam(mysqli $conn, int $originalExamId): int {
     $examHasPassingScore = columnExists($conn, 'examinations', 'passing_score');
     $examHasDuration = columnExists($conn, 'examinations', 'duration');
 
+    $repoIdAutoIncrement = isAutoIncrement($conn, 'exam_repository', 'id');
+    $generatedRepoId = 0;
+    if (!$repoIdAutoIncrement) {
+        $generatedRepoId = getNextId($conn, 'exam_repository', 'id');
+    }
+
     $insertCols = [
+        'exam_id',
         'original_exam_id',
         'title',
         'description',
@@ -76,6 +119,7 @@ function ensureRepositoryExam(mysqli $conn, int $originalExamId): int {
         'status'
     ];
     $selectCols = [
+        '0',
         'id',
         'title',
         'description',
@@ -85,6 +129,11 @@ function ensureRepositoryExam(mysqli $conn, int $originalExamId): int {
         'created_at',
         "'approved'"
     ];
+
+    if (!$repoIdAutoIncrement) {
+        array_splice($insertCols, 1, 0, ['id']);
+        array_splice($selectCols, 1, 0, [(string)$generatedRepoId]);
+    }
 
     if ($repoHasTotalPoints && $examHasTotalPoints) {
         $insertCols[] = 'total_points';
@@ -109,12 +158,38 @@ function ensureRepositoryExam(mysqli $conn, int $originalExamId): int {
 
     $copyStmt = $conn->prepare($copySql);
     $copyStmt->bind_param('i', $originalExamId);
-    if (!$copyStmt->execute()) {
-        $copyStmt->close();
-        throw new Exception('Failed to copy exam into repository');
+    try {
+        if (!$copyStmt->execute()) {
+            throw new Exception('Failed to copy exam into repository');
+        }
+    } catch (Throwable $copyErr) {
+        $msg = strtolower((string)$copyErr->getMessage());
+        if (str_contains($msg, "field 'id'") && str_contains($msg, 'default value') && $repoIdAutoIncrement) {
+            $copyStmt->close();
+            $repoIdAutoIncrement = false;
+            if ($generatedRepoId <= 0) {
+                $generatedRepoId = getNextId($conn, 'exam_repository', 'id');
+            }
+            array_splice($insertCols, 1, 0, ['id']);
+            array_splice($selectCols, 1, 0, [(string)$generatedRepoId]);
+
+            $copySql = "
+                INSERT INTO exam_repository
+                  (" . implode(', ', $insertCols) . ")
+                SELECT " . implode(', ', $selectCols) . "
+                FROM examinations
+                WHERE id = ?
+            ";
+            $copyStmt = $conn->prepare($copySql);
+            $copyStmt->bind_param('i', $originalExamId);
+            $copyStmt->execute();
+        } else {
+            $copyStmt->close();
+            throw $copyErr;
+        }
     }
 
-    $repoId = (int) $copyStmt->insert_id;
+    $repoId = $repoIdAutoIncrement ? (int) $copyStmt->insert_id : (int) $generatedRepoId;
     $copyStmt->close();
 
     if ($repoId <= 0) {

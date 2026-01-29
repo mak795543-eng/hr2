@@ -197,10 +197,10 @@ try {
             $stmt = $conn->prepare("INSERT INTO examinations
                                     (title, description, module_id, module_title, department, roles,
                                      status, total_points, passing_score, duration, created_by )
-                                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ? )");
+                                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
 
             $stmt->bind_param(
-                "ssisssssidi",
+                "ssissssidii",
                 $examData['title'],
                 $examData['description'],
                 $examData['module_id'],
@@ -229,7 +229,7 @@ try {
                                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())");
 
             $stmt->bind_param(
-                "ississsssidii",
+                "ississssidii",
                 $generatedExamId,
                 $examData['title'],
                 $examData['description'],
@@ -314,6 +314,11 @@ try {
     if (!$isDraftAction && ($examData['status'] ?? '') === 'pending') {
         $step = 'copy_to_repository';
         $repoId = 0;
+        $repoIdAutoIncrement = isAutoIncrement($conn, 'exam_repository', 'id');
+        $generatedRepoId = 0;
+        if (!$repoIdAutoIncrement) {
+            $generatedRepoId = getNextId($conn, 'exam_repository', 'id');
+        }
 
         $repoHasTotalPoints = columnExists($conn, 'exam_repository', 'total_points');
         $repoHasPassingScore = columnExists($conn, 'exam_repository', 'passing_score');
@@ -366,6 +371,11 @@ try {
                 "'pending'"
             ];
 
+            if (!$repoIdAutoIncrement) {
+                array_splice($insertCols, 1, 0, ['id']);
+                array_splice($selectCols, 1, 0, [(string)$generatedRepoId]);
+            }
+
             if ($repoHasTotalPoints) {
                 $insertCols[] = 'total_points';
                 $selectCols[] = 'total_points';
@@ -386,8 +396,34 @@ try {
 
             $copyStmt = $conn->prepare($copySql);
             $copyStmt->bind_param('i', $examId);
-            $copyStmt->execute();
-            $repoId = (int) $copyStmt->insert_id;
+            try {
+                $copyStmt->execute();
+            } catch (Throwable $copyErr) {
+                $msg = strtolower((string)$copyErr->getMessage());
+                if (str_contains($msg, "field 'id'") && str_contains($msg, 'default value') && $repoIdAutoIncrement) {
+                    $copyStmt->close();
+                    $repoIdAutoIncrement = false;
+                    if ($generatedRepoId <= 0) {
+                        $generatedRepoId = getNextId($conn, 'exam_repository', 'id');
+                    }
+
+                    array_splice($insertCols, 1, 0, ['id']);
+                    array_splice($selectCols, 1, 0, [(string)$generatedRepoId]);
+
+                    $copySql = "INSERT INTO exam_repository (" . implode(', ', $insertCols) . ")
+                                SELECT " . implode(', ', $selectCols) . "
+                                FROM examinations
+                                WHERE id = ?";
+
+                    $copyStmt = $conn->prepare($copySql);
+                    $copyStmt->bind_param('i', $examId);
+                    $copyStmt->execute();
+                } else {
+                    throw $copyErr;
+                }
+            }
+
+            $repoId = $repoIdAutoIncrement ? (int) $copyStmt->insert_id : (int) $generatedRepoId;
             $copyStmt->close();
         }
 
