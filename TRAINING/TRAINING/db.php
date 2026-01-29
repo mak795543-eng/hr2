@@ -7,7 +7,7 @@ $DB_USER = getenv('TRAINING_DB_USER') ?: (getenv('DB_USER') ?: 'hr2_schema_train
 $DB_PASS_ENV = getenv('TRAINING_DB_PASS');
 $DB_PASS_GLOBAL = getenv('DB_PASS');
 $PASS = 'hr2.soliera';
-$DB_NAME = getenv('TRAINING_DB_NAME') ?: ($dbPrefix !== '' ? ($dbPrefix . 'schema_training_request') : 'schema_training_request');
+$DB_NAME = getenv('TRAINING_DB_NAME') ?: ($dbPrefix !== '' ? ($dbPrefix . 'hr2_schema_training_request') : 'hr2_schema_training_request');
 
-$conn = new mysqli($DB_HOST, $DB_USER, $DB_PASS, $DB_NAME);
+$conn = new mysqli($DB_HOST, $DB_USER, $PASS, $DB_NAME);
 $conn->set_charset('utf8mb4');
