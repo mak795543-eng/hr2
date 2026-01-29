@@ -1,9 +1,26 @@
 <?php
+ob_start();
+
+$__phpErrors = [];
+set_error_handler(static function ($severity, $message, $file, $line) use (&$__phpErrors) {
+    $__phpErrors[] = [
+        'severity' => $severity,
+        'message' => $message,
+        'file' => $file,
+        'line' => $line,
+    ];
+    return true;
+});
+
+ini_set('display_errors', '0');
+
 session_start();
 
 define('SUPPRESS_DB_ERRORS', true);
 
-header('Content-Type: application/json; charset=utf-8');
+if (!headers_sent()) {
+    header('Content-Type: application/json; charset=utf-8');
+}
 
 try {
     require_once __DIR__ . '/db.php';
@@ -203,6 +220,32 @@ try {
     http_response_code(400);
     echo json_encode(['success' => false, 'message' => 'Invalid action']);
 } catch (Throwable $e) {
+    $buffer = ob_get_clean();
+    restore_error_handler();
+
+    $details = [];
+    if (isset($__phpErrors) && is_array($__phpErrors) && !empty($__phpErrors)) {
+        $details['php_errors'] = $__phpErrors;
+    }
+    if (is_string($buffer) && trim($buffer) !== '') {
+        $details['output'] = $buffer;
+    }
+
     http_response_code(500);
-    echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+    echo json_encode(
+        ['success' => false, 'message' => $e->getMessage(), 'details' => $details],
+        JSON_PARTIAL_OUTPUT_ON_ERROR
+    );
+    exit;
+}
+
+$buffer = ob_get_clean();
+restore_error_handler();
+if (is_string($buffer) && trim($buffer) !== '') {
+    http_response_code(500);
+    echo json_encode(
+        ['success' => false, 'message' => 'Unexpected output from server', 'details' => ['output' => $buffer, 'php_errors' => $__phpErrors]],
+        JSON_PARTIAL_OUTPUT_ON_ERROR
+    );
+    exit;
 }
