@@ -170,26 +170,26 @@ if (!function_exists('hasAccess')) {
                         <i class="w-4 h-4 text-blue-200 transform transition-transform duration-200 peer-checked:rotate-90 dropdown-icon" data-lucide="chevron-down"></i>
                     </div>
                     <div class="collapse-content pl-14 pr-4 py-1 space-y-1">
-                        <a href="COMPETENCY/criticalgaps/vacancies_request.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
+                        <a href="/../COMPETENCY/criticalgaps/vacancies_request.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
                             <span class="flex items-center gap-2">
                                 <i data-lucide="alert-triangle" class="w-4 h-4 text-[#F7B32B]"></i> VACANCY REQUEST </span>
                         </a>
 
-                        <a href="COMPETENCY/criticalgaps/criticalgaps.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
+                        <a href="/../COMPETENCY/criticalgaps/criticalgaps.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
                             <span class="flex items-center gap-2">
                                 <i data-lucide="alert-triangle" class="w-4 h-4 text-[#F7B32B]"></i>
                                 Critical Gaps
                             </span>
                         </a>
 
-                        <a href="COMPETENCY/criticalgaps/gap_analysis.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
+                        <a href="/../COMPETENCY/criticalgaps/gap_analysis.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
                             <span class="flex items-center gap-2">
                                 <i data-lucide="target" class="w-4 h-4 text-[#F7B32B]"></i>
                                 Gap Analysis
                             </span>
                         </a>
 
-                        <a href="COMPETENCY/competecy_criteria.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
+                        <a href="/../COMPETENCY/competecy_criteria.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
                             <span class="flex items-center gap-2">
                                 <i data-lucide="list-checks" class="w-4 h-4 text-[#F7B32B]"></i>
                                 Competency Criteria
