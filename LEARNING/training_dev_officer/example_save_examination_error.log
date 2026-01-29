@@ -1,0 +1,29 @@
+[2026-01-29 12:34:56] Exception: Error (copy_to_repository): exam_repository.id is not AUTO_INCREMENT. Automatic fix failed. See server logs for CREATE TABLE output.
+Trace:
+#0 ...
+
+SHOW CREATE TABLE exam_repository:
+CREATE TABLE `exam_repository` (
+  `id` int(11) NOT NULL,
+  `original_exam_id` int(11) DEFAULT NULL,
+  `title` varchar(255) DEFAULT NULL,
+  `description` text,
+  `module_id` int(11) DEFAULT NULL,
+  `department` varchar(255) DEFAULT NULL,
+  `roles` varchar(255) DEFAULT NULL,
+  `created_at` datetime DEFAULT NULL,
+  `status` varchar(50) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Diagnostic: the `id` column is NOT NULL but does not have AUTO_INCREMENT. When the code performs
+-- "INSERT INTO exam_repository (...) SELECT ... FROM examinations WHERE id = ?", MySQL attempts to
+-- insert a new row without providing a value for `id`. Because `id` has no default and is NOT NULL,
+-- MySQL raises the error: "Field 'id' doesn't have a default value".
+
+-- Recommended fixes:
+-- 1) Make `id` auto-increment and primary key:
+--    ALTER TABLE exam_repository MODIFY id INT NOT NULL AUTO_INCREMENT PRIMARY KEY;
+-- 2) Or, adjust schema so `id` has a default or supply `id` explicitly in INSERT (not recommended).
+
+-- The code has attempted an automatic ALTER TABLE; it failed (check DB user privileges).
+-- Check MySQL user permissions and run the recommended ALTER TABLE manually if needed.

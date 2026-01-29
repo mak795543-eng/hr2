@@ -8,7 +8,8 @@ mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 // Database connection
 require_once __DIR__ . '/../db.php';
 
-function columnExists(mysqli $conn, string $table, string $column): bool {
+function columnExists(mysqli $conn, string $table, string $column): bool
+{
     $dbResult = $conn->query('SELECT DATABASE() AS db');
     $dbRow = $dbResult ? $dbResult->fetch_assoc() : null;
     $dbName = $dbRow['db'] ?? '';
@@ -30,15 +31,14 @@ function columnExists(mysqli $conn, string $table, string $column): bool {
     return $exists;
 }
 
-function isAutoIncrement(mysqli $conn, string $table, string $column = 'id'): bool {
+function columnIsAutoIncrement(mysqli $conn, string $table, string $column): bool
+{
     $dbResult = $conn->query('SELECT DATABASE() AS db');
     $dbRow = $dbResult ? $dbResult->fetch_assoc() : null;
     $dbName = $dbRow['db'] ?? '';
-    if ($dbName === '') {
-        return false;
-    }
+    if ($dbName === '') return false;
 
-    $sql = "SELECT EXTRA
+    $sql = "SELECT EXTRA, COLUMN_DEFAULT
             FROM information_schema.COLUMNS
             WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ?
             LIMIT 1";
@@ -48,20 +48,23 @@ function isAutoIncrement(mysqli $conn, string $table, string $column = 'id'): bo
     $res = $stmt->get_result();
     $row = $res ? $res->fetch_assoc() : null;
     $stmt->close();
-
-    $extra = (string)($row['EXTRA'] ?? '');
+    if (!$row) return false;
+    $extra = $row['EXTRA'] ?? '';
     return stripos($extra, 'auto_increment') !== false;
 }
 
-function getNextId(mysqli $conn, string $table, string $column = 'id'): int {
-    if (!preg_match('/^[A-Za-z0-9_]+$/', $table) || !preg_match('/^[A-Za-z0-9_]+$/', $column)) {
-        throw new Exception('Invalid table/column name');
+function attemptFixAutoIncrement(mysqli $conn, string $table, string $column): bool
+{
+    // Try to make the id column AUTO_INCREMENT PRIMARY KEY if possible
+    try {
+        $sql = "ALTER TABLE `" . $conn->real_escape_string($table) . "` MODIFY `" . $conn->real_escape_string($column) . "` INT NOT NULL AUTO_INCREMENT PRIMARY KEY";
+        $conn->query($sql);
+        error_log("Attempted to set AUTO_INCREMENT on {$table}.{$column}: {$sql}");
+        return true;
+    } catch (Throwable $e) {
+        error_log("Failed to set AUTO_INCREMENT on {$table}.{$column}: " . $e->getMessage());
+        return false;
     }
-
-    $sql = "SELECT COALESCE(MAX(`$column`), 0) + 1 AS next_id FROM `$table` FOR UPDATE";
-    $res = $conn->query($sql);
-    $row = $res ? $res->fetch_assoc() : null;
-    return (int)($row['next_id'] ?? 0);
 }
 
 // Create connection
@@ -396,34 +399,23 @@ try {
 
             $copyStmt = $conn->prepare($copySql);
             $copyStmt->bind_param('i', $examId);
-            try {
-                $copyStmt->execute();
-            } catch (Throwable $copyErr) {
-                $msg = strtolower((string)$copyErr->getMessage());
-                if (str_contains($msg, "field 'id'") && str_contains($msg, 'default value') && $repoIdAutoIncrement) {
-                    $copyStmt->close();
-                    $repoIdAutoIncrement = false;
-                    if ($generatedRepoId <= 0) {
-                        $generatedRepoId = getNextId($conn, 'exam_repository', 'id');
-                    }
-
-                    array_splice($insertCols, 1, 0, ['id']);
-                    array_splice($selectCols, 1, 0, [(string)$generatedRepoId]);
-
-                    $copySql = "INSERT INTO exam_repository (" . implode(', ', $insertCols) . ")
-                                SELECT " . implode(', ', $selectCols) . "
-                                FROM examinations
-                                WHERE id = ?";
-
-                    $copyStmt = $conn->prepare($copySql);
-                    $copyStmt->bind_param('i', $examId);
-                    $copyStmt->execute();
-                } else {
-                    throw $copyErr;
+            // Before executing the copy into `exam_repository`, ensure the `id` column can be auto-generated.
+            if (!columnIsAutoIncrement($conn, 'exam_repository', 'id')) {
+                error_log("Diagnostic: exam_repository.id is not AUTO_INCREMENT. Attempting to fix...");
+                $attempted = attemptFixAutoIncrement($conn, 'exam_repository', 'id');
+                // Re-check
+                if (!$attempted || !columnIsAutoIncrement($conn, 'exam_repository', 'id')) {
+                    // Dump schema for debugging
+                    $show = $conn->query("SHOW CREATE TABLE `exam_repository`");
+                    $row = $show ? $show->fetch_assoc() : null;
+                    $createSql = $row['Create Table'] ?? 'N/A';
+                    error_log("Error (copy_to_repository): exam_repository.id not AUTO_INCREMENT and automatic fix failed. Table definition:\n" . $createSql);
+                    throw new Exception("Error (copy_to_repository): exam_repository.id is not AUTO_INCREMENT. Automatic fix failed. See server logs for CREATE TABLE output.");
                 }
             }
 
-            $repoId = $repoIdAutoIncrement ? (int) $copyStmt->insert_id : (int) $generatedRepoId;
+            $copyStmt->execute();
+            $repoId = (int) $copyStmt->insert_id;
             $copyStmt->close();
         }
 
@@ -459,7 +451,6 @@ try {
             'message' => 'Examination created successfully'
         ]);
     }
-
 } catch (Throwable $e) {
     // Rollback transaction on error
     if ($conn && $conn->errno === 0) {
@@ -471,10 +462,38 @@ try {
     } catch (Throwable $rollbackErr) {
         // ignore rollback errors
     }
-    
-    $stepSafe = isset($step) ? (string)$step : 'unknown';
-    error_log("Error creating examination ({$stepSafe}): " . $e->getMessage());
-    
+
+    error_log("Error creating examination: " . $e->getMessage());
+
+    // Also write a detailed diagnostic log file to assist debugging
+    try {
+        $logPath = __DIR__ . '/save_examination_error.log';
+        $time = date('Y-m-d H:i:s');
+        $details = "[{$time}] Exception: " . $e->getMessage() . "\n";
+        $details .= "Trace:\n" . $e->getTraceAsString() . "\n\n";
+
+        $tables = ['examinations', 'examination_questions', 'exam_repository', 'exam_repository_questions'];
+        foreach ($tables as $t) {
+            try {
+                $res = $conn->query("SHOW CREATE TABLE `" . $conn->real_escape_string($t) . "`");
+                if ($res) {
+                    $row = $res->fetch_assoc();
+                    $ct = $row['Create Table'] ?? json_encode($row);
+                    $details .= "SHOW CREATE TABLE {$t}:\n" . $ct . "\n\n";
+                } else {
+                    $details .= "SHOW CREATE TABLE {$t}: FAILED or table does not exist\n\n";
+                }
+            } catch (Throwable $te) {
+                $details .= "SHOW CREATE TABLE {$t} ERROR: " . $te->getMessage() . "\n\n";
+            }
+        }
+
+        file_put_contents($logPath, $details, FILE_APPEND | LOCK_EX);
+        error_log("Detailed diagnostic written to: " . $logPath);
+    } catch (Throwable $logErr) {
+        error_log("Failed to write diagnostic log: " . $logErr->getMessage());
+    }
+
     echo json_encode([
         'success' => false,
         'message' => 'Error (' . $stepSafe . '): ' . $e->getMessage()
@@ -482,4 +501,3 @@ try {
 } finally {
     $conn->close();
 }
-?>
