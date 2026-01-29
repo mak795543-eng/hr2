@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 function usm_db_connect(string $dbName = 'hr2_learning_db'): mysqli
 {
-    static $pool = [];
+    // static $pool = [];
 
-    if (isset($pool[$dbName]) && $pool[$dbName] instanceof mysqli) {
-        return $pool[$dbName];
-    }
+    // if (isset($pool[$dbName]) && $pool[$dbName] instanceof mysqli) {
+    //     return $pool[$dbName];
+    // }
 
     $dbPrefix = getenv('DB_PREFIX') ?: '';
     $host = getenv('LEARNING_DB_HOST') ?: (getenv('DB_HOST') ?: 'localhost');
