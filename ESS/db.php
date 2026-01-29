@@ -10,7 +10,7 @@ if ($dbHost === false || $dbHost === '') {
 
 $dbUser = getenv('ESS_DB_USER');
 if ($dbUser === false || $dbUser === '') {
-    $dbUser = getenv('DB_USER') ?: 'root';
+    $dbUser = getenv('DB_USER') ?: 'hr2_employee_self_service';
 }
 
 $dbPassEnv = getenv('ESS_DB_PASS');
