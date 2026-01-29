@@ -218,19 +218,19 @@ if (!function_exists('hasAccess')) {
                         <i class="w-4 h-4 text-blue-200 transform transition-transform duration-200 peer-checked:rotate-90 dropdown-icon" data-lucide="chevron-down"></i>
                     </div>
                     <div class="collapse-content pl-14 pr-4 py-1 space-y-1">
-                        <a href="SUCCESSION/HR_director/succession_dashboard.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
+                        <a href="/../SUCCESSION/HR_director/succession_dashboard.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
                             <span class="flex items-center gap-2">
                                 <i data-lucide="users" class="w-4 h-4 text-[#F7B32B]"></i>
                                 Succession Plans
                             </span>
                         </a>
-                        <a href="SUCCESSION/HR_director/requested_idps_repository.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
+                        <a href="/../SUCCESSION/HR_director/requested_idps_repository.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
                             <span class="flex items-center gap-2">
                                 <i data-lucide="users" class="w-4 h-4 text-[#F7B32B]"></i>
                                 IDP Requests
                             </span>
                         </a>
-                        <a href="SUCCESSION/HR_director/individual_development_plans.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
+                        <a href="/../SUCCESSION/HR_director/individual_development_plans.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
                             <span class="flex items-center gap-2">
                                 <i data-lucide="users" class="w-4 h-4 text-[#F7B32B]"></i>
                                 IDP Repository
