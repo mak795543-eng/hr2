@@ -2,12 +2,12 @@
 session_start();
 require_once __DIR__ . '/../db.php';
 
-$conn = usm_db_connect('critical_gaps');
+$conn = usm_db_connect('hr2_critical_gaps');
 if ($conn->connect_error) {
     die('Connection failed: ' . $conn->connect_error);
 }
 
-$learningConn = usm_db_connect('learning_db');
+$learningConn = usm_db_connect('hr2_learning_db');
 if ($learningConn->connect_error) {
     die('Connection failed: ' . $learningConn->connect_error);
 }
