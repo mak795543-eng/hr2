@@ -211,10 +211,7 @@ try {
                 $examData['total_points'],
                 $examData['passing_score'],
                 $examData['duration'],
-                $examData['created_by'],
-               
-
-
+                $examData['created_by']
             );
 
             if (!$stmt->execute()) {
@@ -315,6 +312,7 @@ try {
     }
 
     if (!$isDraftAction && ($examData['status'] ?? '') === 'pending') {
+        $step = 'copy_to_repository';
         $repoId = 0;
 
         $repoHasTotalPoints = columnExists($conn, 'exam_repository', 'total_points');
@@ -346,6 +344,7 @@ try {
             $copyQuestionsStmt->close();
         } else {
             $insertCols = [
+                'exam_id',
                 'original_exam_id',
                 'title',
                 'description',
@@ -356,6 +355,7 @@ try {
                 'status'
             ];
             $selectCols = [
+                '0',
                 'id',
                 'title',
                 'description',
