@@ -45,66 +45,6 @@ CREATE TABLE IF NOT EXISTS training_program_status_logs (
   CONSTRAINT fk_tpl_program FOREIGN KEY (program_id) REFERENCES training_programs(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-CREATE TABLE IF NOT EXISTS financial_requests (
-  id INT AUTO_INCREMENT PRIMARY KEY,
-  program_id INT NOT NULL,
-  submission_no INT NOT NULL DEFAULT 1,
-  status ENUM('Pending','Approved','Rejected','Completed','ON HOLD') NOT NULL DEFAULT 'Pending',
-  budget_amount DECIMAL(12,2) NULL,
-  details_json TEXT NULL,
-  rejection_reason TEXT NULL,
-  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  INDEX idx_financial_status (status),
-  INDEX idx_financial_program (program_id),
-  CONSTRAINT fk_financial_requests_program FOREIGN KEY (program_id) REFERENCES training_programs(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
-CREATE TABLE IF NOT EXISTS logistics_requests (
-  id INT AUTO_INCREMENT PRIMARY KEY,
-  program_id INT NOT NULL,
-  submission_no INT NOT NULL DEFAULT 1,
-  status ENUM('Pending','Approved','Rejected','Completed','ON HOLD') NOT NULL DEFAULT 'Pending',
-  items_requested TEXT NULL,
-  details_json TEXT NULL,
-  rejection_reason TEXT NULL,
-  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  INDEX idx_logistics_status (status),
-  INDEX idx_logistics_program (program_id),
-  CONSTRAINT fk_logistics_requests_program FOREIGN KEY (program_id) REFERENCES training_programs(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
-CREATE TABLE IF NOT EXISTS admin_requests (
-  id INT AUTO_INCREMENT PRIMARY KEY,
-  program_id INT NOT NULL,
-  submission_no INT NOT NULL DEFAULT 1,
-  status ENUM('Pending','Approved','Rejected','Completed','ON HOLD') NOT NULL DEFAULT 'Pending',
-  facility_details TEXT NULL,
-  details_json TEXT NULL,
-  rejection_reason TEXT NULL,
-  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  INDEX idx_admin_status (status),
-  INDEX idx_admin_program (program_id),
-  CONSTRAINT fk_admin_requests_program FOREIGN KEY (program_id) REFERENCES training_programs(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
-CREATE TABLE IF NOT EXISTS department_request_status_logs (
-  id INT AUTO_INCREMENT PRIMARY KEY,
-  request_type ENUM('financial','logistics','admin') NOT NULL,
-  request_id INT NOT NULL,
-  program_id INT NOT NULL,
-  submission_no INT NOT NULL DEFAULT 1,
-  old_status VARCHAR(50) NULL,
-  new_status VARCHAR(50) NOT NULL,
-  reason TEXT NULL,
-  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  INDEX idx_drl_program (program_id),
-  INDEX idx_drl_type (request_type),
-  INDEX idx_drl_created (created_at)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
 
 CREATE TABLE IF NOT EXISTS training_program_drafts (
   id VARCHAR(64) PRIMARY KEY,
