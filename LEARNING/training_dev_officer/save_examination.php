@@ -321,7 +321,7 @@ try {
         $repoHasPassingScore = columnExists($conn, 'exam_repository', 'passing_score');
         $repoHasDuration = columnExists($conn, 'exam_repository', 'duration');
 
-        $existsStmt = $conn->prepare('SELECT id FROM exam_repository WHERE exam_id = ? LIMIT 1');
+        $existsStmt = $conn->prepare('SELECT id FROM exam_repository WHERE original_exam_id = ? LIMIT 1');
         $existsStmt->bind_param('i', $examId);
         $existsStmt->execute();
         $existsRes = $existsStmt->get_result();
@@ -346,7 +346,7 @@ try {
             $copyQuestionsStmt->close();
         } else {
             $insertCols = [
-                'exam_id',
+                'original_exam_id',
                 'title',
                 'description',
                 'module_id',
