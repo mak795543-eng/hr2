@@ -1,0 +1,89 @@
+[2026-01-29 17:01:42] Exception: Call to undefined function isAutoIncrement()
+Trace:
+#0 {main}
+
+SHOW CREATE TABLE examinations:
+CREATE TABLE `examinations` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `title` varchar(255) NOT NULL,
+  `description` text DEFAULT NULL,
+  `department` varchar(100) NOT NULL,
+  `question_count` int(11) DEFAULT 0,
+  `duration` int(11) NOT NULL COMMENT 'Duration in minutes',
+  `passing_score` decimal(5,2) NOT NULL COMMENT 'Passing percentage',
+  `status` enum('draft','pending','approved','rejected','hold','compliance','for-compliance','posted','cancelled') NOT NULL,
+  `remarks` text DEFAULT NULL,
+  `created_by` int(11) NOT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `posted_at` timestamp NULL DEFAULT NULL,
+  `roles` varchar(255) DEFAULT 'All Roles',
+  `module_id` int(11) DEFAULT NULL,
+  `module_title` varchar(255) DEFAULT NULL,
+  `answer_keys` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`answer_keys`)),
+  `total_points` int(11) DEFAULT 0,
+  `reviewed_at` datetime DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_examinations_status` (`status`),
+  KEY `idx_examinations_department` (`department`),
+  KEY `idx_examinations_created_by` (`created_by`)
+) ENGINE=InnoDB AUTO_INCREMENT=79 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
+
+SHOW CREATE TABLE examination_questions:
+CREATE TABLE `examination_questions` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `examination_id` int(11) NOT NULL,
+  `question_number` int(11) NOT NULL,
+  `question_type` enum('multiple','truefalse','shortanswer','identification') NOT NULL,
+  `question_text` text NOT NULL,
+  `options` text DEFAULT NULL,
+  `expected_answer` text DEFAULT NULL,
+  `answer_key` text DEFAULT NULL,
+  `points` int(11) DEFAULT 1,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `examination_id` (`examination_id`),
+  CONSTRAINT `examination_questions_ibfk_1` FOREIGN KEY (`examination_id`) REFERENCES `examinations` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB AUTO_INCREMENT=84 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
+
+SHOW CREATE TABLE exam_repository:
+CREATE TABLE `exam_repository` (
+  `exam_id` int(11) NOT NULL,
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `original_exam_id` int(11) DEFAULT NULL,
+  `title` varchar(255) NOT NULL,
+  `description` text DEFAULT NULL,
+  `department` varchar(100) DEFAULT NULL,
+  `roles` varchar(100) DEFAULT NULL,
+  `duration` int(11) DEFAULT NULL,
+  `passing_score` int(11) DEFAULT 70,
+  `module_id` int(11) DEFAULT NULL,
+  `module_title` varchar(255) DEFAULT NULL,
+  `status` enum('pending','approved','rejected','hold','compliance','posted','cancelled') NOT NULL,
+  `remarks` text DEFAULT NULL,
+  `created_by` int(11) DEFAULT NULL,
+  `approved_by` int(11) DEFAULT NULL,
+  `posted_by` int(11) DEFAULT NULL,
+  `posted_at` datetime DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `module_id` (`module_id`),
+  KEY `original_exam_id` (`original_exam_id`)
+) ENGINE=InnoDB AUTO_INCREMENT=15 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
+
+SHOW CREATE TABLE exam_repository_questions:
+CREATE TABLE `exam_repository_questions` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `exam_id` int(11) NOT NULL,
+  `question_number` int(11) NOT NULL,
+  `question_type` enum('multiple','truefalse','shortanswer','identification') NOT NULL,
+  `question_text` text NOT NULL,
+  `points` int(11) DEFAULT 1,
+  `answer_key` text DEFAULT NULL,
+  `options` text DEFAULT NULL,
+  `expected_answer` text DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_exam_id` (`exam_id`)
+) ENGINE=InnoDB AUTO_INCREMENT=71 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
+
