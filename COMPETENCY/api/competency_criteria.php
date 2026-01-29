@@ -11,7 +11,26 @@ try {
     $dbName = 'hr2_critical_gaps';
     $conn = $connections[$dbName] ?? null;
     if (!($conn instanceof mysqli)) {
-        throw new RuntimeException("Connection not found for {$dbName}");
+        $fallbackError = '';
+        $fallbackHost = isset($dbHost) ? (string)$dbHost : 'localhost';
+        $fallbackConn = @mysqli_connect($fallbackHost, 'root', '', $dbName);
+        if ($fallbackConn instanceof mysqli) {
+            $conn = $fallbackConn;
+        } else {
+            $fallbackError = mysqli_connect_error();
+        }
+
+        if (!($conn instanceof mysqli)) {
+            $details = [];
+            if (isset($errors) && is_array($errors) && !empty($errors)) {
+                $details[] = strip_tags(implode(' | ', $errors));
+            }
+            if ($fallbackError !== '') {
+                $details[] = $fallbackError;
+            }
+            $suffix = !empty($details) ? (': ' . implode(' | ', $details)) : '';
+            throw new RuntimeException("Failed to connect to {$dbName}{$suffix}");
+        }
     }
 
     $conn->set_charset('utf8mb4');

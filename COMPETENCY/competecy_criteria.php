@@ -11,8 +11,8 @@ if (!isset($_SESSION['employee_id'])) {
     header('Location: /hr2/index.php');
     exit;
 }
-$base_url = getenv('APP_BASE_PATH') ?: '/hr2/';
-$apiUrl = $base_url . 'COMPETENCY/api/competency_criteria.php';
+$base_url = rtrim((getenv('APP_BASE_PATH') ?: '/hr2/'), '/');
+$apiUrl = $base_url . '/COMPETENCY/api/competency_criteria.php';
 // dd('test');
 ?>
 <!DOCTYPE html>
