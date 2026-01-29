@@ -1070,7 +1070,7 @@ $conn->close();
                     <p class="text-sm text-gray-500">Date Added: <?php echo date('Y-m-d', strtotime($module['created_at'])); ?></p>
                     <p class="text-sm text-gray-500">Topic: <?php echo htmlspecialchars($module['topic']); ?></p>
                     <div class="card-actions justify-end mt-4">
-                      <button class="btn-sm-border" onclick="viewModule(<?php echo $module['id']; ?>)">View</button>
+                      <button class="btn-sm-border" onclick="viewModule(<?php echo (int)$module['id']; ?>, this)">View</button>
                     </div>
                   </div>
                 </div>
@@ -2691,14 +2691,26 @@ $conn->close();
     }
 
     // Module Action Functions
-    function viewModule(moduleId) {
+    function viewModule(moduleId, buttonEl) {
       console.log('View module clicked:', moduleId);
 
       // Set current module ID
       currentModuleId = moduleId;
 
       // Get the module card to check its status
-      const moduleCard = document.querySelector(`.module-card[data-id="${moduleId}"]`);
+      let moduleCard = document.querySelector(`.module-card[data-id="${moduleId}"]`);
+      if (!moduleCard && buttonEl) {
+        const maybeCard = buttonEl.closest ? buttonEl.closest('.module-card') : null;
+        if (maybeCard) {
+          moduleCard = maybeCard;
+          const dsId = moduleCard.getAttribute('data-id');
+          if (dsId !== null && dsId !== '') {
+            currentModuleId = dsId;
+            moduleId = dsId;
+          }
+        }
+      }
+
       if (!moduleCard) {
         Swal.fire({
           title: 'Module Not Found',
