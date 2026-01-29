@@ -2,6 +2,19 @@
 
 require_once __DIR__ . '/db.php';
 
+global $TRAINING_DB_NAME, $REQUESTS_DB_NAME;
+$trainingDb = (string)($TRAINING_DB_NAME ?? '');
+$requestsDb = (string)($REQUESTS_DB_NAME ?? '');
+if ($trainingDb === '') {
+    $trainingDb = (string)($conn->query('SELECT DATABASE()')->fetch_row()[0] ?? '');
+}
+if ($requestsDb === '') {
+    $requestsDb = $trainingDb;
+}
+
+$trainingProgramsTable = "`{$trainingDb}`.`training_programs`";
+$requestLogsTable = "`{$requestsDb}`.`department_request_status_logs`";
+
 $programId = isset($_GET['program_id']) ? (int)$_GET['program_id'] : 0;
 $type = isset($_GET['type']) ? trim((string)$_GET['type']) : '';
 $allowedTypes = ['financial', 'logistics', 'admin'];
@@ -10,16 +23,17 @@ if (!in_array($type, $allowedTypes, true)) $type = '';
 $logs = [];
 try {
     try {
-        $conn->query("CREATE TABLE IF NOT EXISTS department_request_status_logs (id INT AUTO_INCREMENT PRIMARY KEY, request_type ENUM('financial','logistics','admin') NOT NULL, request_id INT NOT NULL, program_id INT NOT NULL, submission_no INT NOT NULL DEFAULT 1, old_status VARCHAR(50) NULL, new_status VARCHAR(50) NOT NULL, reason TEXT NULL, created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, INDEX idx_drl_program (program_id), INDEX idx_drl_type (request_type), INDEX idx_drl_created (created_at)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+        $conn->query("CREATE TABLE IF NOT EXISTS {$requestLogsTable} (id INT AUTO_INCREMENT PRIMARY KEY, request_type ENUM('financial','logistics','admin') NOT NULL, request_id INT NOT NULL, program_id INT NOT NULL, submission_no INT NOT NULL DEFAULT 1, old_status VARCHAR(50) NULL, new_status VARCHAR(50) NOT NULL, reason TEXT NULL, created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, INDEX idx_drl_program (program_id), INDEX idx_drl_type (request_type), INDEX idx_drl_created (created_at)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
     } catch (Throwable $e) {
     }
 
     try {
-        $stmtCol = $conn->prepare("SELECT 1 FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'department_request_status_logs' AND column_name = 'submission_no' LIMIT 1");
+        $stmtCol = $conn->prepare("SELECT 1 FROM information_schema.columns WHERE table_schema = ? AND table_name = 'department_request_status_logs' AND column_name = 'submission_no' LIMIT 1");
+        $stmtCol->bind_param('s', $requestsDb);
         $stmtCol->execute();
         $hasSub = (bool)$stmtCol->get_result()->fetch_row();
         if (!$hasSub) {
-            $conn->query("ALTER TABLE department_request_status_logs ADD COLUMN submission_no INT NOT NULL DEFAULT 1");
+            $conn->query("ALTER TABLE {$requestLogsTable} ADD COLUMN submission_no INT NOT NULL DEFAULT 1");
         }
     } catch (Throwable $e) {
     }
@@ -27,7 +41,7 @@ try {
     $submissionNo = 0;
     if ($programId > 0) {
         try {
-            $stmtSub = $conn->prepare("SELECT submission_no FROM training_programs WHERE id = ?");
+            $stmtSub = $conn->prepare("SELECT submission_no FROM {$trainingProgramsTable} WHERE id = ?");
             $stmtSub->bind_param('i', $programId);
             $stmtSub->execute();
             $rowSub = $stmtSub->get_result()->fetch_assoc();
@@ -41,8 +55,8 @@ try {
     $sql = "SELECT l.id, l.request_type, l.request_id, l.program_id, l.old_status, l.new_status, l.reason, l.created_at,
                    l.submission_no,
                    p.training_title
-            FROM department_request_status_logs l
-            LEFT JOIN training_programs p ON p.id = l.program_id
+            FROM {$requestLogsTable} l
+            LEFT JOIN {$trainingProgramsTable} p ON p.id = l.program_id
             WHERE 1=1";
 
     if ($programId > 0) {

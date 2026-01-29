@@ -89,24 +89,38 @@ $needBudget = (int)($program['need_budget'] ?? 0);
 $needItems = (int)($program['need_items'] ?? 0);
 $needFacility = (int)($program['need_facility'] ?? 0);
 
+global $TRAINING_DB_NAME, $REQUESTS_DB_NAME;
+$trainingDb = (string)($TRAINING_DB_NAME ?? '');
+$requestsDb = (string)($REQUESTS_DB_NAME ?? '');
+if ($trainingDb === '') {
+    $trainingDb = (string)($conn->query('SELECT DATABASE()')->fetch_row()[0] ?? '');
+}
+if ($requestsDb === '') {
+    $requestsDb = $trainingDb;
+}
+
+$financialTable = "`{$requestsDb}`.`financial_requests`";
+$logisticsTable = "`{$requestsDb}`.`logistics_requests`";
+$adminTable = "`{$requestsDb}`.`admin_requests`";
+
 $reqOk = true;
 try {
     if ($needBudget === 1) {
-        $stmt = $conn->prepare("SELECT status FROM financial_requests WHERE program_id = ? AND submission_no = ? ORDER BY id DESC LIMIT 1");
+        $stmt = $conn->prepare("SELECT status FROM {$financialTable} WHERE program_id = ? AND submission_no = ? ORDER BY id DESC LIMIT 1");
         $stmt->bind_param('ii', $programId, $submissionNo);
         $stmt->execute();
         $r = $stmt->get_result()->fetch_assoc();
         $reqOk = $reqOk && ($r && (string)$r['status'] === 'Approved');
     }
     if ($needItems === 1) {
-        $stmt = $conn->prepare("SELECT status FROM logistics_requests WHERE program_id = ? AND submission_no = ? ORDER BY id DESC LIMIT 1");
+        $stmt = $conn->prepare("SELECT status FROM {$logisticsTable} WHERE program_id = ? AND submission_no = ? ORDER BY id DESC LIMIT 1");
         $stmt->bind_param('ii', $programId, $submissionNo);
         $stmt->execute();
         $r = $stmt->get_result()->fetch_assoc();
         $reqOk = $reqOk && ($r && (string)$r['status'] === 'Approved');
     }
     if ($needFacility === 1) {
-        $stmt = $conn->prepare("SELECT status FROM admin_requests WHERE program_id = ? AND submission_no = ? ORDER BY id DESC LIMIT 1");
+        $stmt = $conn->prepare("SELECT status FROM {$adminTable} WHERE program_id = ? AND submission_no = ? ORDER BY id DESC LIMIT 1");
         $stmt->bind_param('ii', $programId, $submissionNo);
         $stmt->execute();
         $r = $stmt->get_result()->fetch_assoc();
