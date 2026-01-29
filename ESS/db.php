@@ -18,10 +18,10 @@ if ($dbPassEnv === false) {
     $dbPassEnv = getenv('DB_PASS');
 }
 
-$dbPass = $dbPassEnv !== false
-    ? $dbPassEnv
-    : (($dbUser === 'root' && ($dbHost === 'localhost' || $dbHost === '127.0.0.1')) ? '' : 'makmak01');
-
+// $dbPass = $dbPassEnv !== false
+//     ? $dbPassEnv
+//     : (($dbUser === 'root' && ($dbHost === 'localhost' || $dbHost === '127.0.0.1')) ? '' : 'makmak01');
+$dbPass = 'hr2.soliera';
 $dbName = getenv('ESS_DB_NAME');
 if ($dbName === false || $dbName === '') {
     $dbName = 'hr2_employee_self_service';
