@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-function usm_db_connect(string $dbName = 'learning_db'): mysqli
+function usm_db_connect(string $dbName = 'hr2_learning_db'): mysqli
 {
     static $pool = [];
 
