@@ -8,6 +8,7 @@ if (!isset($_SESSION['role'])) {
 
 $employeeId = $_SESSION['employee_id'] ?? null;
 $displayName = trim((string)($_SESSION['employee_name'] ?? ($_SESSION['username'] ?? '')));
+$roleDisplay = trim((string)($_SESSION['role'] ?? ''));
 
 require_once __DIR__ . '/db.php';
 
@@ -110,7 +111,7 @@ if ($conn && $employeeId) {
               Welcome, <?php echo htmlspecialchars($displayName !== '' ? $displayName : $employeeId); ?>!
             </h1>
             <p class="text-gray-600">
-              Welcome to the HR Training and Development System
+              Welcome &quot;<?php echo htmlspecialchars($roleDisplay !== '' ? $roleDisplay : ''); ?>&quot; to the HR Training and Development System
             </p>
           </div>
 

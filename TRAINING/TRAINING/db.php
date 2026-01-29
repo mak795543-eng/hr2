@@ -18,12 +18,12 @@ $DB_NAME = getenv('TRAINING_DB_NAME') ?: ($dbPrefix !== '' ? ($dbPrefix . 'hr2_s
 
 $TRAINING_DB_NAME = $DB_NAME;
 $REQUESTS_DB_NAME = getenv('TRAINING_REQUESTS_DB_NAME') ?: ($dbPrefix !== '' ? ($dbPrefix . 'hr2_training_requests') : 'hr2_training_requests');
-// if (!preg_match('/^[A-Za-z0-9_]+$/', $TRAINING_DB_NAME)) {
-//     $TRAINING_DB_NAME = $DB_NAME;
-// }
-// if (!preg_match('/^[A-Za-z0-9_]+$/', $REQUESTS_DB_NAME)) {
-//     $REQUESTS_DB_NAME = $TRAINING_DB_NAME;
-// }
+if (!preg_match('/^[A-Za-z0-9_]+$/', $TRAINING_DB_NAME)) {
+    $TRAINING_DB_NAME = $DB_NAME;
+}
+if (!preg_match('/^[A-Za-z0-9_]+$/', $REQUESTS_DB_NAME)) {
+    $REQUESTS_DB_NAME = $TRAINING_DB_NAME;
+}
 
 $conn = new mysqli($DB_HOST, $DB_USER, $PASS, $DB_NAME);
 $conn->set_charset('utf8mb4');
