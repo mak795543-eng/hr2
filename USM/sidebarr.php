@@ -83,7 +83,7 @@ if (!function_exists('hasAccess')) {
                                 Posted Learning Modules
                             </span>
                         </a>
-                        <a href="hr2/../LEARNING/training_dev_officer/examination_repository.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
+                        <a href="/../LEARNING/training_dev_officer/examination_repository.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
                             <span class="flex items-center gap-2">
                                 <i data-lucide="file-text" class="w-4 h-4 text-[#F7B32B]"></i>
                                 Examination Repository
