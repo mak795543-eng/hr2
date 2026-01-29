@@ -48,6 +48,7 @@ $getDbEnv = function (string $dbName, string $suffix) use ($dbPrefix) {
 if (!isset($targetDatabases) || !is_array($targetDatabases)) {
     $targetDatabases = [
         "hr2_usm",
+        "hr2_usm",
     ];
 }
 

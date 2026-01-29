@@ -96,16 +96,53 @@ $ensureDepartmentRequestSchema = function(mysqli $conn): void {
         return (bool)$stmt->get_result()->fetch_row();
     };
 
+    $tableHasColumnInDb = function(mysqli $conn, string $db, string $table, string $column): bool {
+        $stmt = $conn->prepare("SELECT 1 FROM information_schema.columns WHERE table_schema = ? AND table_name = ? AND column_name = ? LIMIT 1");
+        $stmt->bind_param('sss', $db, $table, $column);
+        $stmt->execute();
+        return (bool)$stmt->get_result()->fetch_row();
+    };
+
+    global $TRAINING_DB_NAME, $REQUESTS_DB_NAME;
+
+    $trainingDb = (string)($TRAINING_DB_NAME ?? '');
+    $requestsDb = (string)($REQUESTS_DB_NAME ?? '');
+    if ($trainingDb === '') {
+        $trainingDb = (string)($conn->query('SELECT DATABASE()')->fetch_row()[0] ?? '');
+    }
+    if ($requestsDb === '') {
+        $requestsDb = $trainingDb;
+    }
+
+    $financialTable = "`{$requestsDb}`.`financial_requests`";
+    $logisticsTable = "`{$requestsDb}`.`logistics_requests`";
+    $adminTable = "`{$requestsDb}`.`admin_requests`";
+    $requestLogsTable = "`{$requestsDb}`.`department_request_status_logs`";
+    $trainingProgramsTable = "`{$trainingDb}`.`training_programs`";
+
     try {
-        $conn->query("ALTER TABLE financial_requests MODIFY status ENUM('Pending','Approved','Rejected','Completed','ON HOLD') NOT NULL DEFAULT 'Pending'");
+        $conn->query("CREATE TABLE IF NOT EXISTS {$financialTable} (id INT AUTO_INCREMENT PRIMARY KEY, program_id INT NOT NULL, submission_no INT NOT NULL DEFAULT 1, status ENUM('Pending','Approved','Rejected','Completed','ON HOLD') NOT NULL DEFAULT 'Pending', budget_amount DECIMAL(12,2) NULL, details_json TEXT NULL, rejection_reason TEXT NULL, created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, INDEX idx_financial_status (status), INDEX idx_financial_program (program_id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
     } catch (Throwable $e) {
     }
     try {
-        $conn->query("ALTER TABLE logistics_requests MODIFY status ENUM('Pending','Approved','Rejected','Completed','ON HOLD') NOT NULL DEFAULT 'Pending'");
+        $conn->query("CREATE TABLE IF NOT EXISTS {$logisticsTable} (id INT AUTO_INCREMENT PRIMARY KEY, program_id INT NOT NULL, submission_no INT NOT NULL DEFAULT 1, status ENUM('Pending','Approved','Rejected','Completed','ON HOLD') NOT NULL DEFAULT 'Pending', items_requested TEXT NULL, details_json TEXT NULL, rejection_reason TEXT NULL, created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, INDEX idx_logistics_status (status), INDEX idx_logistics_program (program_id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
     } catch (Throwable $e) {
     }
     try {
-        $conn->query("ALTER TABLE admin_requests MODIFY status ENUM('Pending','Approved','Rejected','Completed','ON HOLD') NOT NULL DEFAULT 'Pending'");
+        $conn->query("CREATE TABLE IF NOT EXISTS {$adminTable} (id INT AUTO_INCREMENT PRIMARY KEY, program_id INT NOT NULL, submission_no INT NOT NULL DEFAULT 1, status ENUM('Pending','Approved','Rejected','Completed','ON HOLD') NOT NULL DEFAULT 'Pending', facility_details TEXT NULL, details_json TEXT NULL, rejection_reason TEXT NULL, created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, INDEX idx_admin_status (status), INDEX idx_admin_program (program_id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    } catch (Throwable $e) {
+    }
+
+    try {
+        $conn->query("ALTER TABLE {$financialTable} MODIFY status ENUM('Pending','Approved','Rejected','Completed','ON HOLD') NOT NULL DEFAULT 'Pending'");
+    } catch (Throwable $e) {
+    }
+    try {
+        $conn->query("ALTER TABLE {$logisticsTable} MODIFY status ENUM('Pending','Approved','Rejected','Completed','ON HOLD') NOT NULL DEFAULT 'Pending'");
+    } catch (Throwable $e) {
+    }
+    try {
+        $conn->query("ALTER TABLE {$adminTable} MODIFY status ENUM('Pending','Approved','Rejected','Completed','ON HOLD') NOT NULL DEFAULT 'Pending'");
     } catch (Throwable $e) {
     }
 
@@ -144,59 +181,59 @@ $ensureDepartmentRequestSchema = function(mysqli $conn): void {
     }
 
     try {
-        if (!$tableHasColumn($conn, 'financial_requests', 'submission_no')) {
-            $conn->query("ALTER TABLE financial_requests ADD COLUMN submission_no INT NOT NULL DEFAULT 1");
+        if (!$tableHasColumnInDb($conn, $requestsDb, 'financial_requests', 'submission_no')) {
+            $conn->query("ALTER TABLE {$financialTable} ADD COLUMN submission_no INT NOT NULL DEFAULT 1");
         }
-        if (!$tableHasColumn($conn, 'financial_requests', 'budget_amount')) {
-            $conn->query("ALTER TABLE financial_requests ADD COLUMN budget_amount DECIMAL(12,2) NULL");
+        if (!$tableHasColumnInDb($conn, $requestsDb, 'financial_requests', 'budget_amount')) {
+            $conn->query("ALTER TABLE {$financialTable} ADD COLUMN budget_amount DECIMAL(12,2) NULL");
         }
-        if (!$tableHasColumn($conn, 'financial_requests', 'details_json')) {
-            $conn->query("ALTER TABLE financial_requests ADD COLUMN details_json TEXT NULL");
+        if (!$tableHasColumnInDb($conn, $requestsDb, 'financial_requests', 'details_json')) {
+            $conn->query("ALTER TABLE {$financialTable} ADD COLUMN details_json TEXT NULL");
         }
-        if (!$tableHasColumn($conn, 'financial_requests', 'rejection_reason')) {
-            $conn->query("ALTER TABLE financial_requests ADD COLUMN rejection_reason TEXT NULL");
-        }
-    } catch (Throwable $e) {
-    }
-    try {
-        if (!$tableHasColumn($conn, 'logistics_requests', 'submission_no')) {
-            $conn->query("ALTER TABLE logistics_requests ADD COLUMN submission_no INT NOT NULL DEFAULT 1");
-        }
-        if (!$tableHasColumn($conn, 'logistics_requests', 'items_requested')) {
-            $conn->query("ALTER TABLE logistics_requests ADD COLUMN items_requested TEXT NULL");
-        }
-        if (!$tableHasColumn($conn, 'logistics_requests', 'details_json')) {
-            $conn->query("ALTER TABLE logistics_requests ADD COLUMN details_json TEXT NULL");
-        }
-        if (!$tableHasColumn($conn, 'logistics_requests', 'rejection_reason')) {
-            $conn->query("ALTER TABLE logistics_requests ADD COLUMN rejection_reason TEXT NULL");
+        if (!$tableHasColumnInDb($conn, $requestsDb, 'financial_requests', 'rejection_reason')) {
+            $conn->query("ALTER TABLE {$financialTable} ADD COLUMN rejection_reason TEXT NULL");
         }
     } catch (Throwable $e) {
     }
     try {
-        if (!$tableHasColumn($conn, 'admin_requests', 'submission_no')) {
-            $conn->query("ALTER TABLE admin_requests ADD COLUMN submission_no INT NOT NULL DEFAULT 1");
+        if (!$tableHasColumnInDb($conn, $requestsDb, 'logistics_requests', 'submission_no')) {
+            $conn->query("ALTER TABLE {$logisticsTable} ADD COLUMN submission_no INT NOT NULL DEFAULT 1");
         }
-        if (!$tableHasColumn($conn, 'admin_requests', 'facility_details')) {
-            $conn->query("ALTER TABLE admin_requests ADD COLUMN facility_details TEXT NULL");
+        if (!$tableHasColumnInDb($conn, $requestsDb, 'logistics_requests', 'items_requested')) {
+            $conn->query("ALTER TABLE {$logisticsTable} ADD COLUMN items_requested TEXT NULL");
         }
-        if (!$tableHasColumn($conn, 'admin_requests', 'details_json')) {
-            $conn->query("ALTER TABLE admin_requests ADD COLUMN details_json TEXT NULL");
+        if (!$tableHasColumnInDb($conn, $requestsDb, 'logistics_requests', 'details_json')) {
+            $conn->query("ALTER TABLE {$logisticsTable} ADD COLUMN details_json TEXT NULL");
         }
-        if (!$tableHasColumn($conn, 'admin_requests', 'rejection_reason')) {
-            $conn->query("ALTER TABLE admin_requests ADD COLUMN rejection_reason TEXT NULL");
+        if (!$tableHasColumnInDb($conn, $requestsDb, 'logistics_requests', 'rejection_reason')) {
+            $conn->query("ALTER TABLE {$logisticsTable} ADD COLUMN rejection_reason TEXT NULL");
         }
     } catch (Throwable $e) {
     }
-
     try {
-        $conn->query("CREATE TABLE IF NOT EXISTS department_request_status_logs (id INT AUTO_INCREMENT PRIMARY KEY, request_type ENUM('financial','logistics','admin') NOT NULL, request_id INT NOT NULL, program_id INT NOT NULL, submission_no INT NOT NULL DEFAULT 1, old_status VARCHAR(50) NULL, new_status VARCHAR(50) NOT NULL, reason TEXT NULL, created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, INDEX idx_drl_program (program_id), INDEX idx_drl_type (request_type), INDEX idx_drl_created (created_at)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+        if (!$tableHasColumnInDb($conn, $requestsDb, 'admin_requests', 'submission_no')) {
+            $conn->query("ALTER TABLE {$adminTable} ADD COLUMN submission_no INT NOT NULL DEFAULT 1");
+        }
+        if (!$tableHasColumnInDb($conn, $requestsDb, 'admin_requests', 'facility_details')) {
+            $conn->query("ALTER TABLE {$adminTable} ADD COLUMN facility_details TEXT NULL");
+        }
+        if (!$tableHasColumnInDb($conn, $requestsDb, 'admin_requests', 'details_json')) {
+            $conn->query("ALTER TABLE {$adminTable} ADD COLUMN details_json TEXT NULL");
+        }
+        if (!$tableHasColumnInDb($conn, $requestsDb, 'admin_requests', 'rejection_reason')) {
+            $conn->query("ALTER TABLE {$adminTable} ADD COLUMN rejection_reason TEXT NULL");
+        }
     } catch (Throwable $e) {
     }
 
     try {
-        if (!$tableHasColumn($conn, 'department_request_status_logs', 'submission_no')) {
-            $conn->query("ALTER TABLE department_request_status_logs ADD COLUMN submission_no INT NOT NULL DEFAULT 1");
+        $conn->query("CREATE TABLE IF NOT EXISTS {$requestLogsTable} (id INT AUTO_INCREMENT PRIMARY KEY, request_type ENUM('financial','logistics','admin') NOT NULL, request_id INT NOT NULL, program_id INT NOT NULL, submission_no INT NOT NULL DEFAULT 1, old_status VARCHAR(50) NULL, new_status VARCHAR(50) NOT NULL, reason TEXT NULL, created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, INDEX idx_drl_program (program_id), INDEX idx_drl_type (request_type), INDEX idx_drl_created (created_at)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    } catch (Throwable $e) {
+    }
+
+    try {
+        if (!$tableHasColumnInDb($conn, $requestsDb, 'department_request_status_logs', 'submission_no')) {
+            $conn->query("ALTER TABLE {$requestLogsTable} ADD COLUMN submission_no INT NOT NULL DEFAULT 1");
         }
     } catch (Throwable $e) {
     }
@@ -288,24 +325,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     $needItems = (int)($program['need_items'] ?? 0);
     $needFacility = (int)($program['need_facility'] ?? 0);
 
+    global $TRAINING_DB_NAME, $REQUESTS_DB_NAME;
+    $trainingDb = (string)($TRAINING_DB_NAME ?? '');
+    $requestsDb = (string)($REQUESTS_DB_NAME ?? '');
+    if ($trainingDb === '') {
+        $trainingDb = (string)($conn->query('SELECT DATABASE()')->fetch_row()[0] ?? '');
+    }
+    if ($requestsDb === '') {
+        $requestsDb = $trainingDb;
+    }
+
+    $financialTable = "`{$requestsDb}`.`financial_requests`";
+    $logisticsTable = "`{$requestsDb}`.`logistics_requests`";
+    $adminTable = "`{$requestsDb}`.`admin_requests`";
+
     $reqOk = true;
     try {
         if ($needBudget === 1) {
-            $stmt = $conn->prepare("SELECT status FROM financial_requests WHERE program_id = ? AND submission_no = ? ORDER BY id DESC LIMIT 1");
+            $stmt = $conn->prepare("SELECT status FROM {$financialTable} WHERE program_id = ? AND submission_no = ? ORDER BY id DESC LIMIT 1");
             $stmt->bind_param('ii', $programId, $submissionNo);
             $stmt->execute();
             $r = $stmt->get_result()->fetch_assoc();
             $reqOk = $reqOk && ($r && (string)$r['status'] === 'Approved');
         }
         if ($needItems === 1) {
-            $stmt = $conn->prepare("SELECT status FROM logistics_requests WHERE program_id = ? AND submission_no = ? ORDER BY id DESC LIMIT 1");
+            $stmt = $conn->prepare("SELECT status FROM {$logisticsTable} WHERE program_id = ? AND submission_no = ? ORDER BY id DESC LIMIT 1");
             $stmt->bind_param('ii', $programId, $submissionNo);
             $stmt->execute();
             $r = $stmt->get_result()->fetch_assoc();
             $reqOk = $reqOk && ($r && (string)$r['status'] === 'Approved');
         }
         if ($needFacility === 1) {
-            $stmt = $conn->prepare("SELECT status FROM admin_requests WHERE program_id = ? AND submission_no = ? ORDER BY id DESC LIMIT 1");
+            $stmt = $conn->prepare("SELECT status FROM {$adminTable} WHERE program_id = ? AND submission_no = ? ORDER BY id DESC LIMIT 1");
             $stmt->bind_param('ii', $programId, $submissionNo);
             $stmt->execute();
             $r = $stmt->get_result()->fetch_assoc();
@@ -411,6 +462,16 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_program_requests') {
         $submissionNo = 1;
     }
 
+    global $TRAINING_DB_NAME, $REQUESTS_DB_NAME;
+    $trainingDb = (string)($TRAINING_DB_NAME ?? '');
+    $requestsDb = (string)($REQUESTS_DB_NAME ?? '');
+    if ($trainingDb === '') {
+        $trainingDb = (string)($conn->query('SELECT DATABASE()')->fetch_row()[0] ?? '');
+    }
+    if ($requestsDb === '') {
+        $requestsDb = $trainingDb;
+    }
+
     $getOne = function(mysqli $conn, string $table, int $programId, int $submissionNo): ?array {
         $sql = "SELECT id, status, rejection_reason FROM {$table} WHERE program_id = ? AND submission_no = ? ORDER BY id DESC LIMIT 1";
         $stmt = $conn->prepare($sql);
@@ -425,17 +486,17 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_program_requests') {
     $admin = null;
 
     try {
-        $financial = $getOne($conn, 'financial_requests', $programId, $submissionNo);
+        $financial = $getOne($conn, "`{$requestsDb}`.`financial_requests`", $programId, $submissionNo);
     } catch (Throwable $e) {
         $financial = null;
     }
     try {
-        $logistics = $getOne($conn, 'logistics_requests', $programId, $submissionNo);
+        $logistics = $getOne($conn, "`{$requestsDb}`.`logistics_requests`", $programId, $submissionNo);
     } catch (Throwable $e) {
         $logistics = null;
     }
     try {
-        $admin = $getOne($conn, 'admin_requests', $programId, $submissionNo);
+        $admin = $getOne($conn, "`{$requestsDb}`.`admin_requests`", $programId, $submissionNo);
     } catch (Throwable $e) {
         $admin = null;
     }
@@ -456,19 +517,19 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_program_requests') {
         }
 
         try {
-            $stmtReqHold = $conn->prepare("UPDATE financial_requests SET status = 'ON HOLD' WHERE program_id = ? AND submission_no = ? AND status = 'Pending'");
+            $stmtReqHold = $conn->prepare("UPDATE `{$requestsDb}`.`financial_requests` SET status = 'ON HOLD' WHERE program_id = ? AND submission_no = ? AND status = 'Pending'");
             $stmtReqHold->bind_param('ii', $programId, $submissionNo);
             $stmtReqHold->execute();
         } catch (Throwable $e) {
         }
         try {
-            $stmtReqHold = $conn->prepare("UPDATE logistics_requests SET status = 'ON HOLD' WHERE program_id = ? AND submission_no = ? AND status = 'Pending'");
+            $stmtReqHold = $conn->prepare("UPDATE `{$requestsDb}`.`logistics_requests` SET status = 'ON HOLD' WHERE program_id = ? AND submission_no = ? AND status = 'Pending'");
             $stmtReqHold->bind_param('ii', $programId, $submissionNo);
             $stmtReqHold->execute();
         } catch (Throwable $e) {
         }
         try {
-            $stmtReqHold = $conn->prepare("UPDATE admin_requests SET status = 'ON HOLD' WHERE program_id = ? AND submission_no = ? AND status = 'Pending'");
+            $stmtReqHold = $conn->prepare("UPDATE `{$requestsDb}`.`admin_requests` SET status = 'ON HOLD' WHERE program_id = ? AND submission_no = ? AND status = 'Pending'");
             $stmtReqHold->bind_param('ii', $programId, $submissionNo);
             $stmtReqHold->execute();
         } catch (Throwable $e) {
@@ -896,6 +957,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     try {
         $conn->begin_transaction();
 
+        global $TRAINING_DB_NAME, $REQUESTS_DB_NAME;
+        $trainingDb = (string)($TRAINING_DB_NAME ?? '');
+        $requestsDb = (string)($REQUESTS_DB_NAME ?? '');
+        if ($trainingDb === '') {
+            $trainingDb = (string)($conn->query('SELECT DATABASE()')->fetch_row()[0] ?? '');
+        }
+        if ($requestsDb === '') {
+            $requestsDb = $trainingDb;
+        }
+
         try {
             $stmt = $conn->prepare("DELETE FROM training_post_assignments WHERE program_id = ?");
             $stmt->bind_param('i', $programId);
@@ -909,19 +980,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         } catch (Throwable $e) {
         }
         try {
-            $stmt = $conn->prepare("DELETE FROM financial_requests WHERE program_id = ?");
+            $stmt = $conn->prepare("DELETE FROM `{$requestsDb}`.`financial_requests` WHERE program_id = ?");
             $stmt->bind_param('i', $programId);
             $stmt->execute();
         } catch (Throwable $e) {
         }
         try {
-            $stmt = $conn->prepare("DELETE FROM logistics_requests WHERE program_id = ?");
+            $stmt = $conn->prepare("DELETE FROM `{$requestsDb}`.`logistics_requests` WHERE program_id = ?");
             $stmt->bind_param('i', $programId);
             $stmt->execute();
         } catch (Throwable $e) {
         }
         try {
-            $stmt = $conn->prepare("DELETE FROM admin_requests WHERE program_id = ?");
+            $stmt = $conn->prepare("DELETE FROM `{$requestsDb}`.`admin_requests` WHERE program_id = ?");
             $stmt->bind_param('i', $programId);
             $stmt->execute();
         } catch (Throwable $e) {
@@ -972,6 +1043,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
         $ensureReviewSchema($conn);
 
+        global $TRAINING_DB_NAME, $REQUESTS_DB_NAME;
+        $trainingDb = (string)($TRAINING_DB_NAME ?? '');
+        $requestsDb = (string)($REQUESTS_DB_NAME ?? '');
+        if ($trainingDb === '') {
+            $trainingDb = (string)($conn->query('SELECT DATABASE()')->fetch_row()[0] ?? '');
+        }
+        if ($requestsDb === '') {
+            $requestsDb = $trainingDb;
+        }
+
         $stmt = $conn->prepare("SELECT status, submission_no, need_budget, need_items, need_facility, financial_budget_amount, financial_details_json, logistics_items_requested, logistics_details_json, admin_facility_details, admin_details_json FROM training_programs WHERE id = ?");
         $stmt->bind_param('i', $programId);
         $stmt->execute();
@@ -999,19 +1080,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
         if ($status === 'ON HOLD') {
             try {
-                $stmtReqHold = $conn->prepare("UPDATE financial_requests SET status = 'ON HOLD' WHERE program_id = ? AND submission_no = ? AND status = 'Pending'");
+                $stmtReqHold = $conn->prepare("UPDATE `{$requestsDb}`.`financial_requests` SET status = 'ON HOLD' WHERE program_id = ? AND submission_no = ? AND status = 'Pending'");
                 $stmtReqHold->bind_param('ii', $programId, $submissionNo);
                 $stmtReqHold->execute();
             } catch (Throwable $e) {
             }
             try {
-                $stmtReqHold = $conn->prepare("UPDATE logistics_requests SET status = 'ON HOLD' WHERE program_id = ? AND submission_no = ? AND status = 'Pending'");
+                $stmtReqHold = $conn->prepare("UPDATE `{$requestsDb}`.`logistics_requests` SET status = 'ON HOLD' WHERE program_id = ? AND submission_no = ? AND status = 'Pending'");
                 $stmtReqHold->bind_param('ii', $programId, $submissionNo);
                 $stmtReqHold->execute();
             } catch (Throwable $e) {
             }
             try {
-                $stmtReqHold = $conn->prepare("UPDATE admin_requests SET status = 'ON HOLD' WHERE program_id = ? AND submission_no = ? AND status = 'Pending'");
+                $stmtReqHold = $conn->prepare("UPDATE `{$requestsDb}`.`admin_requests` SET status = 'ON HOLD' WHERE program_id = ? AND submission_no = ? AND status = 'Pending'");
                 $stmtReqHold->bind_param('ii', $programId, $submissionNo);
                 $stmtReqHold->execute();
             } catch (Throwable $e) {
@@ -1024,12 +1105,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             $needFacility = (int)($row['need_facility'] ?? 0);
 
             if ($needBudget === 1) {
-                $stmtChk = $conn->prepare("SELECT id FROM financial_requests WHERE program_id = ? AND submission_no = ? LIMIT 1");
+                $stmtChk = $conn->prepare("SELECT id FROM `{$requestsDb}`.`financial_requests` WHERE program_id = ? AND submission_no = ? LIMIT 1");
                 $stmtChk->bind_param('ii', $programId, $submissionNo);
                 $stmtChk->execute();
                 $exists = (bool)$stmtChk->get_result()->fetch_row();
                 if (!$exists) {
-                    $stmtIns = $conn->prepare("INSERT INTO financial_requests (program_id, submission_no, status, budget_amount, details_json) VALUES (?, ?, 'Pending', NULLIF(?, ''), NULLIF(?, ''))");
+                    $stmtIns = $conn->prepare("INSERT INTO `{$requestsDb}`.`financial_requests` (program_id, submission_no, status, budget_amount, details_json) VALUES (?, ?, 'Pending', NULLIF(?, ''), NULLIF(?, ''))");
                     $ba = (string)($row['financial_budget_amount'] ?? '');
                     $fj = (string)($row['financial_details_json'] ?? '');
                     $stmtIns->bind_param('iiss', $programId, $submissionNo, $ba, $fj);
@@ -1038,12 +1119,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             }
 
             if ($needItems === 1) {
-                $stmtChk = $conn->prepare("SELECT id FROM logistics_requests WHERE program_id = ? AND submission_no = ? LIMIT 1");
+                $stmtChk = $conn->prepare("SELECT id FROM `{$requestsDb}`.`logistics_requests` WHERE program_id = ? AND submission_no = ? LIMIT 1");
                 $stmtChk->bind_param('ii', $programId, $submissionNo);
                 $stmtChk->execute();
                 $exists = (bool)$stmtChk->get_result()->fetch_row();
                 if (!$exists) {
-                    $stmtIns = $conn->prepare("INSERT INTO logistics_requests (program_id, submission_no, status, items_requested, details_json) VALUES (?, ?, 'Pending', NULLIF(?, ''), NULLIF(?, ''))");
+                    $stmtIns = $conn->prepare("INSERT INTO `{$requestsDb}`.`logistics_requests` (program_id, submission_no, status, items_requested, details_json) VALUES (?, ?, 'Pending', NULLIF(?, ''), NULLIF(?, ''))");
                     $ir = (string)($row['logistics_items_requested'] ?? '');
                     $lj = (string)($row['logistics_details_json'] ?? '');
                     $stmtIns->bind_param('iiss', $programId, $submissionNo, $ir, $lj);
@@ -1052,12 +1133,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             }
 
             if ($needFacility === 1) {
-                $stmtChk = $conn->prepare("SELECT id FROM admin_requests WHERE program_id = ? AND submission_no = ? LIMIT 1");
+                $stmtChk = $conn->prepare("SELECT id FROM `{$requestsDb}`.`admin_requests` WHERE program_id = ? AND submission_no = ? LIMIT 1");
                 $stmtChk->bind_param('ii', $programId, $submissionNo);
                 $stmtChk->execute();
                 $exists = (bool)$stmtChk->get_result()->fetch_row();
                 if (!$exists) {
-                    $stmtIns = $conn->prepare("INSERT INTO admin_requests (program_id, submission_no, status, facility_details, details_json) VALUES (?, ?, 'Pending', NULLIF(?, ''), NULLIF(?, ''))");
+                    $stmtIns = $conn->prepare("INSERT INTO `{$requestsDb}`.`admin_requests` (program_id, submission_no, status, facility_details, details_json) VALUES (?, ?, 'Pending', NULLIF(?, ''), NULLIF(?, ''))");
                     $fd = (string)($row['admin_facility_details'] ?? '');
                     $aj = (string)($row['admin_details_json'] ?? '');
                     $stmtIns->bind_param('iiss', $programId, $submissionNo, $fd, $aj);
