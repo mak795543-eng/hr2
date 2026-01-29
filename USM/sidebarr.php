@@ -304,7 +304,7 @@ if (!function_exists('hasAccess')) {
                         <i class="w-4 h-4 text-blue-200 transform transition-transform duration-200 peer-checked:rotate-90 dropdown-icon" data-lucide="chevron-down"></i>
                     </div>
                     <div class="collapse-content pl-14 pr-4 py-1 space-y-1">
-                        <a href="LEARNING/applicant/applicant_assessment.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
+                        <a href="/../LEARNING/applicant/applicant_assessment.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
                             <span class="flex items-center gap-2">
                                 <i data-lucide="file-text" class="w-4 h-4 text-[#F7B32B]"></i>
                                 Applicant Assessment
@@ -332,25 +332,25 @@ if (!function_exists('hasAccess')) {
                         <i class="w-4 h-4 text-blue-200 transform transition-transform duration-200 peer-checked:rotate-90 dropdown-icon" data-lucide="chevron-down"></i>
                     </div>
                     <div class="collapse-content pl-14 pr-4 py-1 space-y-1">
-                        <a href="ESS/dashboard.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
+                        <a href="/../ESS/dashboard.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
                             <span class="flex items-center gap-2">
                                 <i data-lucide="layout-dashboard" class="w-4 h-4 text-[#F7B32B]"></i>
                                 Dashboard
                             </span>
                         </a>
-                        <a href="ESS/profile_management.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
+                        <a href="/../ESS/profile_management.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
                             <span class="flex items-center gap-2">
                                 <i data-lucide="flag" class="w-4 h-4 text-[#F7B32B]"></i>
                                 Profie
                             </span>
                         </a>
-                        <a href="ESS/social_recognition.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
+                        <a href="/../ESS/social_recognition.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
                             <span class="flex items-center gap-2">
                                 <i data-lucide="flag" class="w-4 h-4 text-[#F7B32B]"></i>
                                 My Achievements
                             </span>
                         </a>
-                        <a href="ESS/paymenthistory.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
+                        <a href="/../ESS/paymenthistory.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
                             <span class="flex items-center gap-2">
                                 <i data-lucide="receipt" class="w-4 h-4 text-[#F7B32B]"></i>
                                 Payment History
@@ -368,25 +368,25 @@ if (!function_exists('hasAccess')) {
                                 My Modules
                             </span>
                         </a>
-                        <a href="ESS/mydocuments.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
+                        <a href="/../ESS/mydocuments.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
                             <span class="flex items-center gap-2">
                                 <i data-lucide="folder" class="w-4 h-4 text-[#F7B32B]"></i>
                                 My Documents
                             </span>
                         </a>
-                        <a href="ESS/submitdocument.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
+                        <a href="/../ESS/submitdocument.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
                             <span class="flex items-center gap-2">
                                 <i data-lucide="history" class="w-4 h-4 text-[#F7B32B]"></i>
                                 Submit document
                             </span>
                         </a>
-                        <a href="ESS/leaverequest.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
+                        <a href="/../ESS/leaverequest.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
                             <span class="flex items-center gap-2">
                                 <i data-lucide="calendar" class="w-4 h-4 text-[#F7B32B]"></i>
                                 Leave Request
                             </span>
                         </a>
-                        <a href="ESS/complaint.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
+                        <a href="/../ESS/complaint.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
                             <span class="flex items-center gap-2">
                                 <i data-lucide="calendar" class="w-4 h-4 text-[#F7B32B]"></i>
                                 Complaint
