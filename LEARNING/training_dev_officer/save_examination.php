@@ -8,7 +8,8 @@ mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 // Database connection
 require_once __DIR__ . '/../db.php';
 
-function columnExists(mysqli $conn, string $table, string $column): bool {
+function columnExists(mysqli $conn, string $table, string $column): bool
+{
     $dbResult = $conn->query('SELECT DATABASE() AS db');
     $dbRow = $dbResult ? $dbResult->fetch_assoc() : null;
     $dbName = $dbRow['db'] ?? '';
@@ -29,7 +30,8 @@ function columnExists(mysqli $conn, string $table, string $column): bool {
     return $exists;
 }
 
-function columnIsAutoIncrement(mysqli $conn, string $table, string $column): bool {
+function columnIsAutoIncrement(mysqli $conn, string $table, string $column): bool
+{
     $dbResult = $conn->query('SELECT DATABASE() AS db');
     $dbRow = $dbResult ? $dbResult->fetch_assoc() : null;
     $dbName = $dbRow['db'] ?? '';
@@ -50,7 +52,8 @@ function columnIsAutoIncrement(mysqli $conn, string $table, string $column): boo
     return stripos($extra, 'auto_increment') !== false;
 }
 
-function attemptFixAutoIncrement(mysqli $conn, string $table, string $column): bool {
+function attemptFixAutoIncrement(mysqli $conn, string $table, string $column): bool
+{
     // Try to make the id column AUTO_INCREMENT PRIMARY KEY if possible
     try {
         $sql = "ALTER TABLE `" . $conn->real_escape_string($table) . "` MODIFY `" . $conn->real_escape_string($column) . "` INT NOT NULL AUTO_INCREMENT PRIMARY KEY";
@@ -229,7 +232,8 @@ try {
         $options = is_array($optionsRaw) ? json_encode($optionsRaw) : (string) $optionsRaw;
         $expectedAnswer = isset($question['expected_answer']) ? $question['expected_answer'] : '';
 
-        $stmt->bind_param("iississs",
+        $stmt->bind_param(
+            "iississs",
             $examId,
             $question['question_number'],
             $question['question_type'],
@@ -400,7 +404,6 @@ try {
             'message' => 'Examination created successfully'
         ]);
     }
-
 } catch (Throwable $e) {
     // Rollback transaction on error
     if ($conn && $conn->errno === 0) {
@@ -412,9 +415,9 @@ try {
     } catch (Throwable $rollbackErr) {
         // ignore rollback errors
     }
-    
+
     error_log("Error creating examination: " . $e->getMessage());
-    
+
     // Also write a detailed diagnostic log file to assist debugging
     try {
         $logPath = __DIR__ . '/save_examination_error.log';
@@ -451,4 +454,3 @@ try {
 } finally {
     $conn->close();
 }
-?>
