@@ -1,5 +1,38 @@
 <?php
 
+function isAutoIncrement(mysqli $conn, string $table, string $column = 'id'): bool {
+    $dbResult = $conn->query('SELECT DATABASE() AS db');
+    $dbRow = $dbResult ? $dbResult->fetch_assoc() : null;
+    $dbName = $dbRow['db'] ?? '';
+    if ($dbName === '') {
+        return false;
+    }
+
+    $sql = "SELECT EXTRA
+            FROM information_schema.COLUMNS
+            WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ?
+            LIMIT 1";
+    $stmt = $conn->prepare($sql);
+    $stmt->bind_param('sss', $dbName, $table, $column);
+    $stmt->execute();
+    $res = $stmt->get_result();
+    $row = $res ? $res->fetch_assoc() : null;
+    $stmt->close();
+
+    $extra = (string)($row['EXTRA'] ?? '');
+    return stripos($extra, 'auto_increment') !== false;
+}
+
+function getNextId(mysqli $conn, string $table, string $column = 'id'): int {
+    if (!preg_match('/^[A-Za-z0-9_]+$/', $table) || !preg_match('/^[A-Za-z0-9_]+$/', $column)) {
+        throw new Exception('Invalid table/column name');
+    }
+
+    $sql = "SELECT COALESCE(MAX(`$column`), 0) + 1 AS next_id FROM `$table` FOR UPDATE";
+    $res = $conn->query($sql);
+    $row = $res ? $res->fetch_assoc() : null;
+    return (int)($row['next_id'] ?? 0);
+}
 
 header('Content-Type: application/json');
 
@@ -110,7 +143,14 @@ try {
                 $updateRepoStmt->execute();
                 $updateRepoStmt->close();
             } else {
+                $repoIdAutoIncrement = isAutoIncrement($conn, 'exam_repository', 'id');
+                $generatedRepoId = 0;
+                if (!$repoIdAutoIncrement) {
+                    $generatedRepoId = getNextId($conn, 'exam_repository', 'id');
+                }
+
                 $insertCols = [
+                    'exam_id',
                     'original_exam_id',
                     'title',
                     'description',
@@ -121,6 +161,7 @@ try {
                     'status'
                 ];
                 $selectCols = [
+                    '0',
                     'id',
                     'title',
                     'description',
@@ -130,6 +171,11 @@ try {
                     'created_at',
                     "'approved'"
                 ];
+
+                if (!$repoIdAutoIncrement) {
+                    array_splice($insertCols, 1, 0, ['id']);
+                    array_splice($selectCols, 1, 0, [(string)$generatedRepoId]);
+                }
 
                 if ($repoHasTotalPoints) {
                     $insertCols[] = 'total_points';
@@ -154,8 +200,33 @@ try {
 
                 $copyStmt = $conn->prepare($copySql);
                 $copyStmt->bind_param("i", $examId);
-                $copyStmt->execute();
-                $repoId = (int) $copyStmt->insert_id;
+                try {
+                    $copyStmt->execute();
+                } catch (Throwable $copyErr) {
+                    $msg = strtolower((string)$copyErr->getMessage());
+                    if (str_contains($msg, "field 'id'") && str_contains($msg, 'default value') && $repoIdAutoIncrement) {
+                        $copyStmt->close();
+                        $repoIdAutoIncrement = false;
+                        if ($generatedRepoId <= 0) {
+                            $generatedRepoId = getNextId($conn, 'exam_repository', 'id');
+                        }
+                        array_splice($insertCols, 1, 0, ['id']);
+                        array_splice($selectCols, 1, 0, [(string)$generatedRepoId]);
+                        $copySql = "
+                            INSERT INTO exam_repository
+                              (" . implode(', ', $insertCols) . ")
+                            SELECT " . implode(', ', $selectCols) . "
+                            FROM examinations
+                            WHERE id = ?
+                        ";
+                        $copyStmt = $conn->prepare($copySql);
+                        $copyStmt->bind_param("i", $examId);
+                        $copyStmt->execute();
+                    } else {
+                        throw $copyErr;
+                    }
+                }
+                $repoId = $repoIdAutoIncrement ? (int) $copyStmt->insert_id : (int) $generatedRepoId;
                 $copyStmt->close();
             }
 
