@@ -29,6 +29,40 @@ function columnExists(mysqli $conn, string $table, string $column): bool {
     return $exists;
 }
 
+function columnIsAutoIncrement(mysqli $conn, string $table, string $column): bool {
+    $dbResult = $conn->query('SELECT DATABASE() AS db');
+    $dbRow = $dbResult ? $dbResult->fetch_assoc() : null;
+    $dbName = $dbRow['db'] ?? '';
+    if ($dbName === '') return false;
+
+    $sql = "SELECT EXTRA, COLUMN_DEFAULT
+            FROM information_schema.COLUMNS
+            WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ?
+            LIMIT 1";
+    $stmt = $conn->prepare($sql);
+    $stmt->bind_param('sss', $dbName, $table, $column);
+    $stmt->execute();
+    $res = $stmt->get_result();
+    $row = $res ? $res->fetch_assoc() : null;
+    $stmt->close();
+    if (!$row) return false;
+    $extra = $row['EXTRA'] ?? '';
+    return stripos($extra, 'auto_increment') !== false;
+}
+
+function attemptFixAutoIncrement(mysqli $conn, string $table, string $column): bool {
+    // Try to make the id column AUTO_INCREMENT PRIMARY KEY if possible
+    try {
+        $sql = "ALTER TABLE `" . $conn->real_escape_string($table) . "` MODIFY `" . $conn->real_escape_string($column) . "` INT NOT NULL AUTO_INCREMENT PRIMARY KEY";
+        $conn->query($sql);
+        error_log("Attempted to set AUTO_INCREMENT on {$table}.{$column}: {$sql}");
+        return true;
+    } catch (Throwable $e) {
+        error_log("Failed to set AUTO_INCREMENT on {$table}.{$column}: " . $e->getMessage());
+        return false;
+    }
+}
+
 // Create connection
 $conn = usm_db_connect('hr2_learning_db');
 
@@ -313,6 +347,21 @@ try {
 
             $copyStmt = $conn->prepare($copySql);
             $copyStmt->bind_param('i', $examId);
+            // Before executing the copy into `exam_repository`, ensure the `id` column can be auto-generated.
+            if (!columnIsAutoIncrement($conn, 'exam_repository', 'id')) {
+                error_log("Diagnostic: exam_repository.id is not AUTO_INCREMENT. Attempting to fix...");
+                $attempted = attemptFixAutoIncrement($conn, 'exam_repository', 'id');
+                // Re-check
+                if (!$attempted || !columnIsAutoIncrement($conn, 'exam_repository', 'id')) {
+                    // Dump schema for debugging
+                    $show = $conn->query("SHOW CREATE TABLE `exam_repository`");
+                    $row = $show ? $show->fetch_assoc() : null;
+                    $createSql = $row['Create Table'] ?? 'N/A';
+                    error_log("Error (copy_to_repository): exam_repository.id not AUTO_INCREMENT and automatic fix failed. Table definition:\n" . $createSql);
+                    throw new Exception("Error (copy_to_repository): exam_repository.id is not AUTO_INCREMENT. Automatic fix failed. See server logs for CREATE TABLE output.");
+                }
+            }
+
             $copyStmt->execute();
             $repoId = (int) $copyStmt->insert_id;
             $copyStmt->close();
@@ -366,6 +415,35 @@ try {
     
     error_log("Error creating examination: " . $e->getMessage());
     
+    // Also write a detailed diagnostic log file to assist debugging
+    try {
+        $logPath = __DIR__ . '/save_examination_error.log';
+        $time = date('Y-m-d H:i:s');
+        $details = "[{$time}] Exception: " . $e->getMessage() . "\n";
+        $details .= "Trace:\n" . $e->getTraceAsString() . "\n\n";
+
+        $tables = ['examinations', 'examination_questions', 'exam_repository', 'exam_repository_questions'];
+        foreach ($tables as $t) {
+            try {
+                $res = $conn->query("SHOW CREATE TABLE `" . $conn->real_escape_string($t) . "`");
+                if ($res) {
+                    $row = $res->fetch_assoc();
+                    $ct = $row['Create Table'] ?? json_encode($row);
+                    $details .= "SHOW CREATE TABLE {$t}:\n" . $ct . "\n\n";
+                } else {
+                    $details .= "SHOW CREATE TABLE {$t}: FAILED or table does not exist\n\n";
+                }
+            } catch (Throwable $te) {
+                $details .= "SHOW CREATE TABLE {$t} ERROR: " . $te->getMessage() . "\n\n";
+            }
+        }
+
+        file_put_contents($logPath, $details, FILE_APPEND | LOCK_EX);
+        error_log("Detailed diagnostic written to: " . $logPath);
+    } catch (Throwable $logErr) {
+        error_log("Failed to write diagnostic log: " . $logErr->getMessage());
+    }
+
     echo json_encode([
         'success' => false,
         'message' => 'Error: ' . $e->getMessage()
