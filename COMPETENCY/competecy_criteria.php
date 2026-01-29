@@ -279,13 +279,15 @@ $apiUrl = $base_url . '/COMPETENCY/api/competency_criteria.php';
                 credentials: 'same-origin'
             });
 
+            const rawText = await res.text();
             let data = null;
             try {
-                data = await res.json();
+                data = rawText ? JSON.parse(rawText) : null;
             } catch (e) {
+                const snippet = (rawText || '').trim().slice(0, 500);
                 data = {
                     success: false,
-                    message: 'Invalid server response'
+                    message: 'Invalid server response' + (snippet ? (': ' + snippet) : '')
                 };
             }
 
