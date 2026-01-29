@@ -63,10 +63,12 @@ if ($result && $result->num_rows > 0) {
     $skipped = 0;
     
     while($exam = $result->fetch_assoc()) {
+        $originalExamId = (int)($exam['id'] ?? 0);
+
         // Check if exam already exists in repository
         $check_sql = "SELECT id FROM exam_repository WHERE original_exam_id = ?";
         $check_stmt = $conn->prepare($check_sql);
-        $check_stmt->bind_param("i", $exam['id']);
+        $check_stmt->bind_param("i", $originalExamId);
         $check_stmt->execute();
         $check_result = $check_stmt->get_result();
         $exists = $check_result->num_rows > 0;
@@ -78,7 +80,18 @@ if ($result && $result->num_rows > 0) {
             $repoIdAutoIncrement = isAutoIncrement($conn, 'exam_repository', 'id');
             $generatedRepoId = $repoIdAutoIncrement ? 0 : getNextId($conn, 'exam_repository', 'id');
 
-            $moduleId = isset($exam['module_id']) ? (int)$exam['module_id'] : null;
+            $moduleId = isset($exam['module_id']) ? (int)$exam['module_id'] : 0;
+
+            $zero = 0;
+            $title = (string)($exam['title'] ?? '');
+            $description = (string)($exam['description'] ?? '');
+            $department = (string)($exam['department'] ?? 'general');
+            $roles = (string)($exam['roles'] ?? 'all-employees');
+            $duration = (int)($exam['duration'] ?? 60);
+            $passingScore = (int)($exam['passing_score'] ?? 70);
+            $createdBy = (int)($exam['created_by'] ?? 1);
+            $approvedBy = (int)($exam['approved_by'] ?? 1);
+            $createdAt = (string)($exam['created_at'] ?? '');
 
             // Insert into repository
             $insertCols = [
@@ -106,38 +119,38 @@ if ($result && $result->num_rows > 0) {
             $stmt = $conn->prepare($insert_sql);
             if ($repoIdAutoIncrement) {
                 $stmt->bind_param(
-                    "iisssssidisiiis",
-                    $zero = 0,
-                    $exam['id'],
-                    $exam['title'],
-                    $exam['description'] ?? '',
-                    $exam['department'] ?? 'general',
-                    $exam['roles'] ?? 'all-employees',
-                    $exam['duration'] ?? 60,
-                    $exam['passing_score'] ?? 70,
+                    "iissssiiisiis",
+                    $zero,
+                    $originalExamId,
+                    $title,
+                    $description,
+                    $department,
+                    $roles,
+                    $duration,
+                    $passingScore,
                     $moduleId,
                     $examStatus,
-                    $exam['created_by'] ?? 1,
-                    $exam['approved_by'] ?? 1,
-                    $exam['created_at']
+                    $createdBy,
+                    $approvedBy,
+                    $createdAt
                 );
             } else {
                 $stmt->bind_param(
-                    "iiisssssidisiiis",
-                    $zero = 0,
+                    "iiissssiiisiis",
+                    $zero,
                     $generatedRepoId,
-                    $exam['id'],
-                    $exam['title'],
-                    $exam['description'] ?? '',
-                    $exam['department'] ?? 'general',
-                    $exam['roles'] ?? 'all-employees',
-                    $exam['duration'] ?? 60,
-                    $exam['passing_score'] ?? 70,
+                    $originalExamId,
+                    $title,
+                    $description,
+                    $department,
+                    $roles,
+                    $duration,
+                    $passingScore,
                     $moduleId,
                     $examStatus,
-                    $exam['created_by'] ?? 1,
-                    $exam['approved_by'] ?? 1,
-                    $exam['created_at']
+                    $createdBy,
+                    $approvedBy,
+                    $createdAt
                 );
             }
             

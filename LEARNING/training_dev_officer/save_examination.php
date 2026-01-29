@@ -53,6 +53,23 @@ function columnIsAutoIncrement(mysqli $conn, string $table, string $column): boo
     return stripos($extra, 'auto_increment') !== false;
 }
 
+function isAutoIncrement(mysqli $conn, string $table, string $column = 'id'): bool
+{
+    return columnIsAutoIncrement($conn, $table, $column);
+}
+
+function getNextId(mysqli $conn, string $table, string $column = 'id'): int
+{
+    if (!preg_match('/^[A-Za-z0-9_]+$/', $table) || !preg_match('/^[A-Za-z0-9_]+$/', $column)) {
+        throw new Exception('Invalid table/column name');
+    }
+
+    $sql = "SELECT COALESCE(MAX(`$column`), 0) + 1 AS next_id FROM `$table` FOR UPDATE";
+    $res = $conn->query($sql);
+    $row = $res ? $res->fetch_assoc() : null;
+    return (int)($row['next_id'] ?? 0);
+}
+
 function attemptFixAutoIncrement(mysqli $conn, string $table, string $column): bool
 {
     // Try to make the id column AUTO_INCREMENT PRIMARY KEY if possible
@@ -124,6 +141,18 @@ try {
     $isEditAction = $action === 'update_exam' && $editExamId > 0;
     $shouldUpdateExistingDraft = $draftId > 0 && ($isDraftAction || $isUpdateFromDraftToSubmit);
 
+    $title = (string)($examData['title'] ?? '');
+    $description = (string)($examData['description'] ?? '');
+    $moduleId = (int)($examData['module_id'] ?? 0);
+    $moduleTitle = (string)($examData['module_title'] ?? '');
+    $department = (string)($examData['department'] ?? '');
+    $roles = (string)($examData['roles'] ?? '');
+    $status = (string)($examData['status'] ?? 'pending');
+    $totalPoints = (int)($examData['total_points'] ?? 0);
+    $passingScore = (int)($examData['passing_score'] ?? 0);
+    $duration = (int)($examData['duration'] ?? 0);
+    $createdBy = (int)($examData['created_by'] ?? 0);
+
     if ($isEditAction) {
         $newStatus = ($examData['status'] ?? 'pending');
 
@@ -133,18 +162,18 @@ try {
                                 WHERE id = ? AND status IN ('pending', 'cancelled')");
 
         $stmt->bind_param(
-            "ssisssssidiii",
-            $examData['title'],
-            $examData['description'],
-            $examData['module_id'],
-            $examData['module_title'],
-            $examData['department'],
-            $examData['roles'],
+            "ssissssiiiii",
+            $title,
+            $description,
+            $moduleId,
+            $moduleTitle,
+            $department,
+            $roles,
             $newStatus,
-            $examData['total_points'],
-            $examData['passing_score'],
-            $examData['duration'],
-            $examData['created_by'],
+            $totalPoints,
+            $passingScore,
+            $duration,
+            $createdBy,
             $editExamId
         );
 
@@ -168,18 +197,18 @@ try {
                                 WHERE id = ? AND status = 'draft'");
 
         $stmt->bind_param(
-            "ssisssssidiii",
-            $examData['title'],
-            $examData['description'],
-            $examData['module_id'],
-            $examData['module_title'],
-            $examData['department'],
-            $examData['roles'],
+            "ssissssiiiii",
+            $title,
+            $description,
+            $moduleId,
+            $moduleTitle,
+            $department,
+            $roles,
             $newStatus,
-            $examData['total_points'],
-            $examData['passing_score'],
-            $examData['duration'],
-            $examData['created_by'],
+            $totalPoints,
+            $passingScore,
+            $duration,
+            $createdBy,
             $draftId
         );
 
@@ -203,18 +232,18 @@ try {
                                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
 
             $stmt->bind_param(
-                "ssissssidii",
-                $examData['title'],
-                $examData['description'],
-                $examData['module_id'],
-                $examData['module_title'],
-                $examData['department'],
-                $examData['roles'],
-                $examData['status'],
-                $examData['total_points'],
-                $examData['passing_score'],
-                $examData['duration'],
-                $examData['created_by']
+                "ssissssiiii",
+                $title,
+                $description,
+                $moduleId,
+                $moduleTitle,
+                $department,
+                $roles,
+                $status,
+                $totalPoints,
+                $passingScore,
+                $duration,
+                $createdBy
             );
 
             if (!$stmt->execute()) {
@@ -232,19 +261,19 @@ try {
                                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())");
 
             $stmt->bind_param(
-                "ississssidii",
+                "ississssiiii",
                 $generatedExamId,
-                $examData['title'],
-                $examData['description'],
-                $examData['module_id'],
-                $examData['module_title'],
-                $examData['department'],
-                $examData['roles'],
-                $examData['status'],
-                $examData['total_points'],
-                $examData['passing_score'],
-                $examData['duration'],
-                $examData['created_by']
+                $title,
+                $description,
+                $moduleId,
+                $moduleTitle,
+                $department,
+                $roles,
+                $status,
+                $totalPoints,
+                $passingScore,
+                $duration,
+                $createdBy
             );
 
             if (!$stmt->execute()) {
@@ -267,6 +296,12 @@ try {
     foreach ($examData['questions'] as $question) {
         $step = 'insert_questions';
 
+        $questionNumber = (int)($question['question_number'] ?? 0);
+        $questionType = (string)($question['question_type'] ?? '');
+        $questionText = (string)($question['question_text'] ?? '');
+        $points = (int)($question['points'] ?? 0);
+        $answerKey = (string)($question['answer_key'] ?? '');
+
         $optionsRaw = $question['options'] ?? '';
         $options = is_array($optionsRaw) ? json_encode($optionsRaw) : (string) $optionsRaw;
         $expectedAnswer = isset($question['expected_answer']) ? $question['expected_answer'] : '';
@@ -281,11 +316,11 @@ try {
             $stmt->bind_param("iiississs",
                 $generatedQuestionId,
                 $examId,
-                $question['question_number'],
-                $question['question_type'],
-                $question['question_text'],
-                $question['points'],
-                $question['answer_key'],
+                $questionNumber,
+                $questionType,
+                $questionText,
+                $points,
+                $answerKey,
                 $options,
                 $expectedAnswer
             );
@@ -297,11 +332,11 @@ try {
 
             $stmt->bind_param("iississs",
                 $examId,
-                $question['question_number'],
-                $question['question_type'],
-                $question['question_text'],
-                $question['points'],
-                $question['answer_key'],
+                $questionNumber,
+                $questionType,
+                $questionText,
+                $points,
+                $answerKey,
                 $options,
                 $expectedAnswer
             );
@@ -429,7 +464,7 @@ try {
                 "status = 'pending'"
             ]) . ' WHERE id = ?';
             $updateRepoStmt = $conn->prepare($updateRepoSql);
-            $updateRepoStmt->bind_param('ssissi', $examData['title'], $examData['description'], $examData['module_id'], $examData['department'], $examData['roles'], $repoId);
+            $updateRepoStmt->bind_param('ssissi', $title, $description, $moduleId, $department, $roles, $repoId);
             $updateRepoStmt->execute();
             $updateRepoStmt->close();
         }
@@ -452,6 +487,7 @@ try {
         ]);
     }
 } catch (Throwable $e) {
+    $stepSafe = isset($step) ? (string)$step : 'unknown';
     // Rollback transaction on error
     if ($conn && $conn->errno === 0) {
         // no-op
