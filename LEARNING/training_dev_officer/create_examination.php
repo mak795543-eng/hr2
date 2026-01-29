@@ -3053,6 +3053,7 @@ $conn->close();
               method: 'POST',
               body: formData
           })
+
           .then(response => {
               console.log('Response status:', response.status, response.statusText);
               

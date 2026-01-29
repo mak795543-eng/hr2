@@ -12,6 +12,7 @@ function columnExists(mysqli $conn, string $table, string $column): bool {
     $dbResult = $conn->query('SELECT DATABASE() AS db');
     $dbRow = $dbResult ? $dbResult->fetch_assoc() : null;
     $dbName = $dbRow['db'] ?? '';
+
     if ($dbName === '') {
         return false;
     }
@@ -27,6 +28,40 @@ function columnExists(mysqli $conn, string $table, string $column): bool {
     $exists = $res && $res->num_rows > 0;
     $stmt->close();
     return $exists;
+}
+
+function isAutoIncrement(mysqli $conn, string $table, string $column = 'id'): bool {
+    $dbResult = $conn->query('SELECT DATABASE() AS db');
+    $dbRow = $dbResult ? $dbResult->fetch_assoc() : null;
+    $dbName = $dbRow['db'] ?? '';
+    if ($dbName === '') {
+        return false;
+    }
+
+    $sql = "SELECT EXTRA
+            FROM information_schema.COLUMNS
+            WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ?
+            LIMIT 1";
+    $stmt = $conn->prepare($sql);
+    $stmt->bind_param('sss', $dbName, $table, $column);
+    $stmt->execute();
+    $res = $stmt->get_result();
+    $row = $res ? $res->fetch_assoc() : null;
+    $stmt->close();
+
+    $extra = (string)($row['EXTRA'] ?? '');
+    return stripos($extra, 'auto_increment') !== false;
+}
+
+function getNextId(mysqli $conn, string $table, string $column = 'id'): int {
+    if (!preg_match('/^[A-Za-z0-9_]+$/', $table) || !preg_match('/^[A-Za-z0-9_]+$/', $column)) {
+        throw new Exception('Invalid table/column name');
+    }
+
+    $sql = "SELECT COALESCE(MAX(`$column`), 0) + 1 AS next_id FROM `$table` FOR UPDATE";
+    $res = $conn->query($sql);
+    $row = $res ? $res->fetch_assoc() : null;
+    return (int)($row['next_id'] ?? 0);
 }
 
 // Create connection
@@ -73,7 +108,13 @@ foreach ($requiredKeys as $key) {
 }
 
 try {
+    $step = 'init';
     $conn->begin_transaction();
+
+    $step = 'schema_check';
+    $examsIdAutoIncrement = isAutoIncrement($conn, 'examinations', 'id');
+    $examQuestionsHasId = columnExists($conn, 'examination_questions', 'id');
+    $examQuestionsIdAutoIncrement = $examQuestionsHasId ? isAutoIncrement($conn, 'examination_questions', 'id') : true;
 
     $isDraftAction = ($examData['status'] ?? '') === 'draft' || $action === 'save_draft';
     $isUpdateFromDraftToSubmit = $action === 'create_exam' && $draftId > 0;
@@ -89,7 +130,7 @@ try {
                                 WHERE id = ? AND status IN ('pending', 'cancelled')");
 
         $stmt->bind_param(
-            "ssissssiiisi",
+            "ssisssssidiii",
             $examData['title'],
             $examData['description'],
             $examData['module_id'],
@@ -115,6 +156,7 @@ try {
         $examId = $editExamId;
         $stmt->close();
     } elseif ($shouldUpdateExistingDraft) {
+        $step = 'update_draft';
         $newStatus = $isDraftAction ? 'draft' : ($examData['status'] ?? 'pending');
 
         $stmt = $conn->prepare("UPDATE examinations
@@ -123,7 +165,7 @@ try {
                                 WHERE id = ? AND status = 'draft'");
 
         $stmt->bind_param(
-            "ssissssiiisi",
+            "ssisssssidiii",
             $examData['title'],
             $examData['description'],
             $examData['module_id'],
@@ -149,32 +191,69 @@ try {
         $examId = $draftId;
         $stmt->close();
     } else {
-        $stmt = $conn->prepare("INSERT INTO examinations
-                                (title, description, module_id, module_title, department, roles,
-                                 status, total_points, passing_score, duration, created_by, created_at)
-                                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())");
+        $step = 'insert_examination';
 
-        $stmt->bind_param(
-            "ssissssiiis",
-            $examData['title'],
-            $examData['description'],
-            $examData['module_id'],
-            $examData['module_title'],
-            $examData['department'],
-            $examData['roles'],
-            $examData['status'],
-            $examData['total_points'],
-            $examData['passing_score'],
-            $examData['duration'],
-            $examData['created_by']
-        );
+        if ($examsIdAutoIncrement) {
+            $stmt = $conn->prepare("INSERT INTO examinations
+                                    (title, description, module_id, module_title, department, roles,
+                                     status, total_points, passing_score, duration, created_by )
+                                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ? )");
 
-        if (!$stmt->execute()) {
-            throw new Exception("Failed to insert examination: " . $stmt->error);
+            $stmt->bind_param(
+                "ssisssssidi",
+                $examData['title'],
+                $examData['description'],
+                $examData['module_id'],
+                $examData['module_title'],
+                $examData['department'],
+                $examData['roles'],
+                $examData['status'],
+                $examData['total_points'],
+                $examData['passing_score'],
+                $examData['duration'],
+                $examData['created_by'],
+               
+
+
+            );
+
+            if (!$stmt->execute()) {
+                throw new Exception("Failed to insert examination: " . $stmt->error);
+            }
+
+            $examId = $stmt->insert_id;
+            $stmt->close();
+        } else {
+            $generatedExamId = getNextId($conn, 'examinations', 'id');
+
+            $stmt = $conn->prepare("INSERT INTO examinations
+                                    (id, title, description, module_id, module_title, department, roles,
+                                     status, total_points, passing_score, duration, created_by, created_at)
+                                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())");
+
+            $stmt->bind_param(
+                "ississsssidii",
+                $generatedExamId,
+                $examData['title'],
+                $examData['description'],
+                $examData['module_id'],
+                $examData['module_title'],
+                $examData['department'],
+                $examData['roles'],
+                $examData['status'],
+                $examData['total_points'],
+                $examData['passing_score'],
+                $examData['duration'],
+                $examData['created_by']
+            );
+
+            if (!$stmt->execute()) {
+                throw new Exception("Failed to insert examination: " . $stmt->error);
+            }
+
+            $examId = $generatedExamId;
+            $stmt->close();
         }
-
-        $examId = $stmt->insert_id;
-        $stmt->close();
     }
 
     if ($shouldUpdateExistingDraft || $isEditAction) {
@@ -186,25 +265,47 @@ try {
 
     // Insert questions
     foreach ($examData['questions'] as $question) {
-        $stmt = $conn->prepare("INSERT INTO examination_questions 
-                                (examination_id, question_number, question_type, question_text, 
-                                 points, answer_key, options, expected_answer) 
-                                VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+        $step = 'insert_questions';
 
         $optionsRaw = $question['options'] ?? '';
         $options = is_array($optionsRaw) ? json_encode($optionsRaw) : (string) $optionsRaw;
         $expectedAnswer = isset($question['expected_answer']) ? $question['expected_answer'] : '';
 
-        $stmt->bind_param("iississs",
-            $examId,
-            $question['question_number'],
-            $question['question_type'],
-            $question['question_text'],
-            $question['points'],
-            $question['answer_key'],
-            $options,
-            $expectedAnswer
-        );
+        if ($examQuestionsHasId && !$examQuestionsIdAutoIncrement) {
+            $generatedQuestionId = getNextId($conn, 'examination_questions', 'id');
+            $stmt = $conn->prepare("INSERT INTO examination_questions 
+                                    (id, examination_id, question_number, question_type, question_text, 
+                                     points, answer_key, options, expected_answer) 
+                                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+
+            $stmt->bind_param("iiississs",
+                $generatedQuestionId,
+                $examId,
+                $question['question_number'],
+                $question['question_type'],
+                $question['question_text'],
+                $question['points'],
+                $question['answer_key'],
+                $options,
+                $expectedAnswer
+            );
+        } else {
+            $stmt = $conn->prepare("INSERT INTO examination_questions 
+                                    (examination_id, question_number, question_type, question_text, 
+                                     points, answer_key, options, expected_answer) 
+                                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+
+            $stmt->bind_param("iississs",
+                $examId,
+                $question['question_number'],
+                $question['question_type'],
+                $question['question_text'],
+                $question['points'],
+                $question['answer_key'],
+                $options,
+                $expectedAnswer
+            );
+        }
 
         if (!$stmt->execute()) {
             throw new Exception("Failed to insert question: " . $stmt->error);
@@ -230,47 +331,19 @@ try {
         $existsStmt->close();
 
         if ($repoId > 0) {
-            $setParts = [
-                "title = ?",
-                "description = ?",
-                "module_id = ?",
-                "department = ?",
-                "roles = ?",
-                "status = 'pending'"
-            ];
-            $bindTypes = 'ssiss';
-            $bindValues = [
-                $examData['title'],
-                $examData['description'],
-                $examData['module_id'],
-                $examData['department'],
-                $examData['roles']
-            ];
+            $deleteRepoQuestionsStmt = $conn->prepare('DELETE FROM exam_repository_questions WHERE exam_id = ?');
+            $deleteRepoQuestionsStmt->bind_param('i', $repoId);
+            $deleteRepoQuestionsStmt->execute();
+            $deleteRepoQuestionsStmt->close();
 
-            if ($repoHasTotalPoints) {
-                $setParts[] = "total_points = ?";
-                $bindTypes .= 'i';
-                $bindValues[] = $examData['total_points'];
-            }
-            if ($repoHasPassingScore) {
-                $setParts[] = "passing_score = ?";
-                $bindTypes .= 'i';
-                $bindValues[] = $examData['passing_score'];
-            }
-            if ($repoHasDuration) {
-                $setParts[] = "duration = ?";
-                $bindTypes .= 'i';
-                $bindValues[] = $examData['duration'];
-            }
-
-            $bindTypes .= 'i';
-            $bindValues[] = $repoId;
-
-            $updateRepoSql = 'UPDATE exam_repository SET ' . implode(', ', $setParts) . ' WHERE id = ?';
-            $updateRepoStmt = $conn->prepare($updateRepoSql);
-            $updateRepoStmt->bind_param($bindTypes, ...$bindValues);
-            $updateRepoStmt->execute();
-            $updateRepoStmt->close();
+            $copyQuestionsStmt = $conn->prepare("INSERT INTO exam_repository_questions
+                                                  (exam_id, question_number, question_type, question_text, points, answer_key, options, expected_answer)
+                                                  SELECT ?, question_number, question_type, question_text, points, answer_key, options, expected_answer
+                                                  FROM examination_questions
+                                                  WHERE examination_id = ?");
+            $copyQuestionsStmt->bind_param('ii', $repoId, $examId);
+            $copyQuestionsStmt->execute();
+            $copyQuestionsStmt->close();
         } else {
             $insertCols = [
                 'original_exam_id',
@@ -319,19 +392,18 @@ try {
         }
 
         if ($repoId > 0) {
-            $deleteRepoQuestionsStmt = $conn->prepare('DELETE FROM exam_repository_questions WHERE exam_id = ?');
-            $deleteRepoQuestionsStmt->bind_param('i', $repoId);
-            $deleteRepoQuestionsStmt->execute();
-            $deleteRepoQuestionsStmt->close();
-
-            $copyQuestionsStmt = $conn->prepare("INSERT INTO exam_repository_questions
-                                                  (exam_id, question_number, question_type, question_text, points, answer_key, options, expected_answer)
-                                                  SELECT ?, question_number, question_type, question_text, points, answer_key, options, expected_answer
-                                                  FROM examination_questions
-                                                  WHERE examination_id = ?");
-            $copyQuestionsStmt->bind_param('ii', $repoId, $examId);
-            $copyQuestionsStmt->execute();
-            $copyQuestionsStmt->close();
+            $updateRepoSql = 'UPDATE exam_repository SET ' . implode(', ', [
+                "title = ?",
+                "description = ?",
+                "module_id = ?",
+                "department = ?",
+                "roles = ?",
+                "status = 'pending'"
+            ]) . ' WHERE id = ?';
+            $updateRepoStmt = $conn->prepare($updateRepoSql);
+            $updateRepoStmt->bind_param('ssissi', $examData['title'], $examData['description'], $examData['module_id'], $examData['department'], $examData['roles'], $repoId);
+            $updateRepoStmt->execute();
+            $updateRepoStmt->close();
         }
     }
 
@@ -364,11 +436,12 @@ try {
         // ignore rollback errors
     }
     
-    error_log("Error creating examination: " . $e->getMessage());
+    $stepSafe = isset($step) ? (string)$step : 'unknown';
+    error_log("Error creating examination ({$stepSafe}): " . $e->getMessage());
     
     echo json_encode([
         'success' => false,
-        'message' => 'Error: ' . $e->getMessage()
+        'message' => 'Error (' . $stepSafe . '): ' . $e->getMessage()
     ]);
 } finally {
     $conn->close();
