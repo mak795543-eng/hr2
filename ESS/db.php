@@ -21,13 +21,13 @@ if ($dbPassEnv === false) {
 // $dbPass = $dbPassEnv !== false
 //     ? $dbPassEnv
 //     : (($dbUser === 'root' && ($dbHost === 'localhost' || $dbHost === '127.0.0.1')) ? '' : 'makmak01');
-$dbPass = 'hr2.soliera';
+$Pass = 'hr2.soliera';
 $dbName = getenv('ESS_DB_NAME');
 if ($dbName === false || $dbName === '') {
     $dbName = 'hr2_employee_self_service';
 }
 
-$conn = @mysqli_connect($dbHost, $dbUser, $dbPass, $dbName);
+$conn = @mysqli_connect($dbHost, $dbUser, $Pass, $dbName);
 if ($conn) {
     @mysqli_set_charset($conn, 'utf8mb4');
 } elseif (!defined('SUPPRESS_DB_ERRORS')) {
