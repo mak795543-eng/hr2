@@ -23,7 +23,7 @@ if (!function_exists('hasAccess')) {
         return $is_supervisor || in_array($module, $allowed_modules);
     }
 }
-// $base = '/hr2';
+$base = '/hr2/';
 ?>
 
 <div class="bg-[#001f54] pt-5 pb-4 flex flex-col fixed md:relative h-full w-64 transition-all duration-300 ease-in-out shadow-xl transform -translate-x-full md:transform-none md:translate-x-0" id="sidebar">
@@ -72,31 +72,31 @@ if (!function_exists('hasAccess')) {
                         <i class="w-4 h-4 text-blue-200 transform transition-transform duration-200 peer-checked:rotate-90 dropdown-icon" data-lucide="chevron-down"></i>
                     </div>
                     <div class="collapse-content pl-14 pr-4 py-1 space-y-1">
-                        <a href="../LEARNING/training_dev_officer/learning_module_repository.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
+                        <a href="/../LEARNING/training_dev_officer/learning_module_repository.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
                             <span class="flex items-center gap-2">
                                 <i data-lucide="library" class="w-4 h-4 text-[#F7B32B]"></i>
                                 Learning Module Repository
                             </span>
                         </a>
-                        <a href="../LEARNING/training_dev_officer/posted_modules.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
+                        <a href="/../LEARNING/training_dev_officer/posted_modules.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
                             <span class="flex items-center gap-2">
                                 <i data-lucide="upload" class="w-4 h-4 text-[#F7B32B]"></i>
                                 Posted Learning Modules
                             </span>
                         </a>
-                        <a href="../LEARNING/training_dev_officer/examination_repository.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
+                        <a href="/../LEARNING/training_dev_officer/examination_repository.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
                             <span class="flex items-center gap-2">
                                 <i data-lucide="file-text" class="w-4 h-4 text-[#F7B32B]"></i>
                                 Examination Repository
                             </span>
                         </a>
-                        <a href="../LEARNING/training_dev_officer/posted_examinations.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
+                        <a href="/../LEARNING/training_dev_officer/posted_examinations.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
                             <span class="flex items-center gap-2">
                                 <i data-lucide="clipboard-check" class="w-4 h-4 text-[#F7B32B]"></i>
                                 Posted Examinations
                             </span>
                         </a>
-                        <a href="../LEARNING/training_dev_officer/exam_results.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
+                        <a href="/../LEARNING/training_dev_officer/exam_results.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
                             <span class="flex items-center gap-2">
                                 <i data-lucide="bar-chart" class="w-4 h-4 text-[#F7B32B]"></i>
                                 Examination Results
