@@ -30,7 +30,7 @@ function columnExists(mysqli $conn, string $table, string $column): bool {
 }
 
 // Create connection
-$conn = usm_db_connect('learning_db');
+$conn = usm_db_connect('hr2_learning_db');
 
 // Check connection
 if ($conn->connect_error) {
