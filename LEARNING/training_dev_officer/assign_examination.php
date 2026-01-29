@@ -5,7 +5,7 @@ session_start();
 require_once __DIR__ . '/../db.php';
 
 // Create connection
-$conn = usm_db_connect('learning_db');
+$conn = usm_db_connect('hr2_learning_db');
 
 // Check connection
 if ($conn->connect_error) {
