@@ -43,6 +43,21 @@ if ($conn && is_int($employeeId)) {
     }
 
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['request_edit_access'])) {
+        $allowedReasons = [
+            'Correction of Data Entry Error',
+            'Updated Personal Details',
+            'Legal Change of Information',
+            'change of surname',
+        ];
+
+        $reasonChoice = trim((string)($_POST['reason_choice'] ?? ''));
+        $reasonText = trim((string)($_POST['reason_text'] ?? ''));
+
+        $proofDir = __DIR__ . DIRECTORY_SEPARATOR . 'uploads' . DIRECTORY_SEPARATOR . 'profile_request_proofs';
+        if (!is_dir($proofDir)) {
+            @mkdir($proofDir, 0775, true);
+        }
+
         $stmt = mysqli_prepare($conn, 'SELECT id FROM profile_update_requests WHERE employee_id = ? AND status = \'Pending\' ORDER BY created_at DESC LIMIT 1');
         if ($stmt) {
             mysqli_stmt_bind_param($stmt, 'i', $employeeId);
@@ -56,26 +71,77 @@ if ($conn && is_int($employeeId)) {
             }
         }
 
-        $payload = json_encode([
-            'type' => 'edit_access',
-            'requested_at' => date('c'),
-        ], JSON_UNESCAPED_SLASHES);
-        if (!is_string($payload) || $payload === '') {
-            $payload = '{"type":"edit_access"}';
-        }
-
-        $stmt = mysqli_prepare($conn, 'INSERT INTO profile_update_requests (employee_id, requested_data, status) VALUES (?, ?, \'Pending\')');
-        if (!$stmt) {
-            $error_message = 'Failed to submit request. Please try again.';
+        if (!in_array($reasonChoice, $allowedReasons, true)) {
+            $error_message = 'Please select a valid reason.';
+        } elseif ($reasonText === '') {
+            $error_message = 'Please provide your reason details.';
+        } elseif (!isset($_FILES['proof_file']) || !is_array($_FILES['proof_file'])) {
+            $error_message = 'Please upload proof/basis file.';
         } else {
-            mysqli_stmt_bind_param($stmt, 'is', $employeeId, $payload);
-            $ok = mysqli_stmt_execute($stmt);
-            mysqli_stmt_close($stmt);
-            if (!$ok) {
-                $error_message = 'Failed to submit request. Please try again.';
+            $upErr = (int)($_FILES['proof_file']['error'] ?? UPLOAD_ERR_NO_FILE);
+            if ($upErr !== UPLOAD_ERR_OK) {
+                $uploadErrorMessages = [
+                    UPLOAD_ERR_INI_SIZE => 'The uploaded file exceeds the server limit (upload_max_filesize).',
+                    UPLOAD_ERR_FORM_SIZE => 'The uploaded file exceeds the form limit (MAX_FILE_SIZE).',
+                    UPLOAD_ERR_PARTIAL => 'The file was only partially uploaded.',
+                    UPLOAD_ERR_NO_FILE => 'No file uploaded.',
+                    UPLOAD_ERR_NO_TMP_DIR => 'Missing a temporary folder on the server.',
+                    UPLOAD_ERR_CANT_WRITE => 'Failed to write file to disk on the server.',
+                    UPLOAD_ERR_EXTENSION => 'File upload stopped by a PHP extension on the server.',
+                ];
+                $error_message = $uploadErrorMessages[$upErr] ?? ('File upload error (code ' . $upErr . ').');
             } else {
-                header('Location: ' . basename((string)$_SERVER['PHP_SELF']) . '?requested=1');
-                exit;
+                $tmp = (string)($_FILES['proof_file']['tmp_name'] ?? '');
+                $orig = (string)($_FILES['proof_file']['name'] ?? 'proof');
+                $size = (int)($_FILES['proof_file']['size'] ?? 0);
+
+                if ($tmp === '' || !is_uploaded_file($tmp)) {
+                    $error_message = 'Upload validation failed. Please try again.';
+                } elseif ($size > 5 * 1024 * 1024) {
+                    $error_message = 'File too large. Maximum is 5MB.';
+                } else {
+                    $ext = strtolower((string)pathinfo($orig, PATHINFO_EXTENSION));
+                    $allowedExt = ['pdf', 'jpg', 'jpeg', 'png', 'webp'];
+                    if (!in_array($ext, $allowedExt, true)) {
+                        $error_message = 'Unsupported file type. Please upload PDF or image (JPG/PNG/WEBP).';
+                    } else {
+                        $fileName = 'profile_request_' . $employeeId . '_' . time() . '.' . $ext;
+                        $dest = $proofDir . DIRECTORY_SEPARATOR . $fileName;
+                        if (!@move_uploaded_file($tmp, $dest)) {
+                            $error_message = 'Failed to save uploaded proof file. Please try again.';
+                        } else {
+                            $proofRelPath = 'uploads/profile_request_proofs/' . $fileName;
+
+                            $payload = json_encode([
+                                'type' => 'edit_access',
+                                'requested_at' => date('c'),
+                                'reason_choice' => $reasonChoice,
+                            ], JSON_UNESCAPED_SLASHES);
+                            if (!is_string($payload) || $payload === '') {
+                                $payload = '{"type":"edit_access"}';
+                            }
+
+                            $stmt = mysqli_prepare(
+                                $conn,
+                                'INSERT INTO profile_update_requests (employee_id, requested_data, reason_choice, reason_text, proof_file_path, status) VALUES (?, ?, ?, ?, ?, \'Pending\')'
+                            );
+                            if (!$stmt) {
+                                $error_message = 'Failed to submit request. Please try again.';
+                            } else {
+                                mysqli_stmt_bind_param($stmt, 'issss', $employeeId, $payload, $reasonChoice, $reasonText, $proofRelPath);
+                                $ok = mysqli_stmt_execute($stmt);
+                                mysqli_stmt_close($stmt);
+
+                                if (!$ok) {
+                                    $error_message = 'Failed to submit request. Please try again.';
+                                } else {
+                                    header('Location: ' . basename((string)$_SERVER['PHP_SELF']) . '?requested=1');
+                                    exit;
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
     }
@@ -252,6 +318,11 @@ $user = [
     'phone' => '+1 (555) 123-4567',
     'work_email' => 'alex.j@company.com',
     'work_location' => 'San Francisco, USA',
+    'gender' => '',
+    'age' => '',
+    'birthdate' => '',
+    'civil_status' => '',
+    'nationality' => '',
     'emp_id' => '#99214-B',
     'department' => 'Product Eng.',
     'status' => 'Full-Time',
@@ -276,7 +347,7 @@ if (is_array($emp)) {
 }
 
 if ($conn && is_int($employeeId)) {
-    $stmt = mysqli_prepare($conn, 'SELECT phone, work_location, emergency_name, emergency_relationship FROM employee_profiles WHERE employee_id = ? LIMIT 1');
+    $stmt = mysqli_prepare($conn, 'SELECT phone, work_location, gender, age, birthdate, civil_status, nationality, emergency_name, emergency_relationship FROM employee_profiles WHERE employee_id = ? LIMIT 1');
     if ($stmt) {
         mysqli_stmt_bind_param($stmt, 'i', $employeeId);
         mysqli_stmt_execute($stmt);
@@ -286,6 +357,11 @@ if ($conn && is_int($employeeId)) {
         if (is_array($row)) {
             $user['phone'] = (string)($row['phone'] ?? $user['phone']);
             $user['work_location'] = (string)($row['work_location'] ?? $user['work_location']);
+            $user['gender'] = (string)($row['gender'] ?? $user['gender']);
+            $user['age'] = (string)($row['age'] ?? $user['age']);
+            $user['birthdate'] = (string)($row['birthdate'] ?? $user['birthdate']);
+            $user['civil_status'] = (string)($row['civil_status'] ?? $user['civil_status']);
+            $user['nationality'] = (string)($row['nationality'] ?? $user['nationality']);
             $user['emergency_name'] = (string)($row['emergency_name'] ?? $user['emergency_name']);
             $user['emergency_relationship'] = (string)($row['emergency_relationship'] ?? $user['emergency_relationship']);
         }
@@ -401,9 +477,52 @@ $fieldsDisabledAttr = $editGranted ? '' : 'disabled';
             </div>
 
             <div class="lg:col-span-2 space-y-6">
-              <form id="requestEditForm" method="POST" class="hidden">
-                <input type="hidden" name="request_edit_access" value="1" />
-              </form>
+              <dialog id="requestEditModal" class="modal">
+                <div class="modal-box w-11/12 max-w-xl">
+                  <div class="flex items-start justify-between gap-3">
+                    <div>
+                      <h3 class="font-bold text-lg">Request to Edit Personal Info</h3>
+                      <p class="text-sm text-gray-500">Please select a reason and upload proof/basis.</p>
+                    </div>
+                    <form method="dialog">
+                      <button class="btn btn-sm btn-ghost" aria-label="Close">
+                        <i data-lucide="x" class="w-4 h-4"></i>
+                      </button>
+                    </form>
+                  </div>
+
+                  <form method="POST" enctype="multipart/form-data" class="mt-4 space-y-4">
+                    <input type="hidden" name="request_edit_access" value="1" />
+
+                    <div class="form-control">
+                      <label class="label"><span class="label-text">Reason</span></label>
+                      <select name="reason_choice" class="select select-bordered" required>
+                        <option value="" disabled selected>Select reason</option>
+                        <option value="Correction of Data Entry Error">Correction of Data Entry Error</option>
+                        <option value="Updated Personal Details">Updated Personal Details</option>
+                        <option value="Legal Change of Information">Legal Change of Information</option>
+                        <option value="change of surname">change of surname</option>
+                      </select>
+                    </div>
+
+                    <div class="form-control">
+                      <label class="label"><span class="label-text">Reason details</span></label>
+                      <textarea name="reason_text" class="textarea textarea-bordered" placeholder="Write your reason..." required></textarea>
+                    </div>
+
+                    <div class="form-control">
+                      <label class="label"><span class="label-text">Proof/Basis file</span></label>
+                      <input name="proof_file" type="file" class="file-input file-input-bordered w-full" accept=".pdf,image/*" required />
+                    </div>
+
+                    <div class="modal-action">
+                      <button type="submit" class="btn btn-primary">Submit Request</button>
+                      <form method="dialog"><button class="btn" type="button">Cancel</button></form>
+                    </div>
+                  </form>
+                </div>
+                <form method="dialog" class="modal-backdrop"><button>close</button></form>
+              </dialog>
 
               <form id="profileDataForm" method="POST">
                 <input type="hidden" name="save_profile_changes" value="1" />
@@ -451,6 +570,27 @@ $fieldsDisabledAttr = $editGranted ? '' : 'disabled';
                     <div class="form-control">
                       <label class="label"><span class="label-text text-xs font-semibold text-gray-500">LOCATION</span></label>
                       <input name="work_location" class="profile-edit-field input input-bordered" value="<?php echo htmlspecialchars($user['work_location']); ?>" <?php echo $fieldsDisabledAttr; ?> />
+                    </div>
+
+                    <div class="form-control">
+                      <label class="label"><span class="label-text text-xs font-semibold text-gray-500">GENDER</span></label>
+                      <input class="input input-bordered" value="<?php echo htmlspecialchars($user['gender']); ?>" disabled />
+                    </div>
+                    <div class="form-control">
+                      <label class="label"><span class="label-text text-xs font-semibold text-gray-500">AGE</span></label>
+                      <input class="input input-bordered" value="<?php echo htmlspecialchars($user['age']); ?>" disabled />
+                    </div>
+                    <div class="form-control">
+                      <label class="label"><span class="label-text text-xs font-semibold text-gray-500">BIRTHDATE</span></label>
+                      <input class="input input-bordered" value="<?php echo htmlspecialchars($user['birthdate']); ?>" disabled />
+                    </div>
+                    <div class="form-control">
+                      <label class="label"><span class="label-text text-xs font-semibold text-gray-500">CIVIL STATUS</span></label>
+                      <input class="input input-bordered" value="<?php echo htmlspecialchars($user['civil_status']); ?>" disabled />
+                    </div>
+                    <div class="form-control">
+                      <label class="label"><span class="label-text text-xs font-semibold text-gray-500">NATIONALITY</span></label>
+                      <input class="input input-bordered" value="<?php echo htmlspecialchars($user['nationality']); ?>" disabled />
                     </div>
                   </div>
                 </div>
@@ -535,7 +675,7 @@ $fieldsDisabledAttr = $editGranted ? '' : 'disabled';
     const editableFields = document.querySelectorAll('.profile-edit-field');
     const saveBtn = document.getElementById('saveChangesBtn');
     const discardBtn = document.getElementById('discardChangesBtn');
-    const requestEditForm = document.getElementById('requestEditForm');
+    const requestModal = document.getElementById('requestEditModal');
 
     function setEditing(enabled) {
       editableFields.forEach((el) => {
@@ -591,19 +731,8 @@ $fieldsDisabledAttr = $editGranted ? '' : 'disabled';
         return;
       }
 
-      const res = await Swal.fire({
-        icon: 'info',
-        title: 'Request required',
-        text: 'You need to request first before editing your profile information (except profile photo).',
-        showCancelButton: true,
-        confirmButtonText: 'Submit Request',
-        cancelButtonText: 'Cancel'
-      });
-
-      if (res.isConfirmed) {
-        if (requestEditForm) {
-          requestEditForm.submit();
-        }
+      if (requestModal && typeof requestModal.showModal === 'function') {
+        requestModal.showModal();
       }
     }
 

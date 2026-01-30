@@ -8,6 +8,11 @@ if (!is_dir($uploadDir)) {
     @mkdir($uploadDir, 0775, true);
 }
 
+$profileProofDir = $uploadDir . DIRECTORY_SEPARATOR . 'profile_request_proofs';
+if (!is_dir($profileProofDir)) {
+    @mkdir($profileProofDir, 0775, true);
+}
+
 $success_message = '';
 $error_message = '';
 
@@ -26,6 +31,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_profile_reques
         $reviewedBy = is_int($approverId) ? $approverId : 0;
         $reviewedAt = date('Y-m-d H:i:s');
 
+        $stmtMeta = mysqli_prepare($conn, 'SELECT employee_id, reason_choice, proof_file_path FROM profile_update_requests WHERE id = ? LIMIT 1');
+        $meta = null;
+        if ($stmtMeta) {
+            mysqli_stmt_bind_param($stmtMeta, 'i', $rid);
+            mysqli_stmt_execute($stmtMeta);
+            $resMeta = mysqli_stmt_get_result($stmtMeta);
+            $meta = $resMeta ? mysqli_fetch_assoc($resMeta) : null;
+            mysqli_stmt_close($stmtMeta);
+        }
+
         $stmt = mysqli_prepare($conn, 'UPDATE profile_update_requests SET status = ?, remarks = ?, reviewed_by = ?, reviewed_at = ?, seen_by_employee = 0 WHERE id = ?');
         if (!$stmt) {
             $error_message = 'Failed to update request.';
@@ -37,7 +52,64 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_profile_reques
             if (!$ok) {
                 $error_message = 'Failed to update request.';
             } else {
+                if (
+                    $newStatus === 'Approved'
+                    && is_array($meta)
+                    && (int)($meta['employee_id'] ?? 0) > 0
+                    && strtolower(trim((string)($meta['reason_choice'] ?? ''))) === 'change of surname'
+                ) {
+                    $eid = (int)$meta['employee_id'];
+                    $stmt2 = mysqli_prepare(
+                        $conn,
+                        'INSERT INTO employee_profiles (employee_id, civil_status) VALUES (?, ?) '
+                        . 'ON DUPLICATE KEY UPDATE civil_status = VALUES(civil_status)'
+                    );
+                    if ($stmt2) {
+                        $civil = 'Married';
+                        mysqli_stmt_bind_param($stmt2, 'is', $eid, $civil);
+                        mysqli_stmt_execute($stmt2);
+                        mysqli_stmt_close($stmt2);
+                    }
+                }
+
+                if ($newStatus === 'Approved' && is_array($meta) && (int)($meta['employee_id'] ?? 0) > 0) {
+                    $eid = (int)$meta['employee_id'];
+                    $proofPath = trim((string)($meta['proof_file_path'] ?? ''));
+                    if ($proofPath !== '') {
+                        $docName = 'Profile Request Proof';
+                        $reasonChoice = trim((string)($meta['reason_choice'] ?? ''));
+                        if ($reasonChoice !== '') {
+                            $docName .= ' - ' . $reasonChoice;
+                        }
+
+                        $existsStmt = mysqli_prepare($conn, 'SELECT id FROM employee_documents WHERE employee_id = ? AND file_path = ? LIMIT 1');
+                        $already = false;
+                        if ($existsStmt) {
+                            mysqli_stmt_bind_param($existsStmt, 'is', $eid, $proofPath);
+                            mysqli_stmt_execute($existsStmt);
+                            $res = mysqli_stmt_get_result($existsStmt);
+                            $already = $res ? (mysqli_num_rows($res) > 0) : false;
+                            mysqli_stmt_close($existsStmt);
+                        }
+
+                        if (!$already) {
+                            $docType = 'Profile Request';
+                            $stmtDoc = mysqli_prepare($conn, 'INSERT INTO employee_documents (employee_id, document_name, document_type, file_path) VALUES (?, ?, ?, ?)');
+                            if ($stmtDoc) {
+                                mysqli_stmt_bind_param($stmtDoc, 'isss', $eid, $docName, $docType, $proofPath);
+                                mysqli_stmt_execute($stmtDoc);
+                                mysqli_stmt_close($stmtDoc);
+                            }
+                        }
+                    }
+                }
+
                 $success_message = 'Profile request updated successfully.';
+
+                $redirect = (string)($_SERVER['PHP_SELF']);
+                $qs = http_build_query(['section' => 'profiles', 'pstatus' => 'pending']);
+                header('Location: ' . $redirect . '?' . $qs);
+                exit;
             }
         }
     }
@@ -136,12 +208,87 @@ $filter = (string)($_GET['status'] ?? 'all');
 $allowedFilters = ['all', 'for approval', 'approved', 'rejected', 'for compliance'];
 $filter = in_array(strtolower($filter), $allowedFilters, true) ? strtolower($filter) : 'all';
 
-$profileFilter = (string)($_GET['pstatus'] ?? 'all');
+$profileFilter = (string)($_GET['pstatus'] ?? '');
+$hasExplicitProfileFilter = array_key_exists('pstatus', $_GET);
+$profileFilter = $hasExplicitProfileFilter ? $profileFilter : (($section === 'profiles') ? 'pending' : 'all');
 $profileAllowed = ['all', 'pending', 'approved', 'rejected'];
 $profileFilter = in_array(strtolower($profileFilter), $profileAllowed, true) ? strtolower($profileFilter) : 'all';
 
 $viewParam = (string)($_GET['view'] ?? '');
 $downloadParam = (string)($_GET['download'] ?? '');
+
+$profileProofViewParam = (string)($_GET['profile_proof_view'] ?? '');
+$profileProofDownloadParam = (string)($_GET['profile_proof_download'] ?? '');
+
+if ($section === 'profiles' && $profileProofDownloadParam !== '') {
+    if ($conn) {
+        $id = (int)$profileProofDownloadParam;
+        $stmt = mysqli_prepare($conn, 'SELECT proof_file_path FROM profile_update_requests WHERE id = ? LIMIT 1');
+        if ($stmt) {
+            mysqli_stmt_bind_param($stmt, 'i', $id);
+            mysqli_stmt_execute($stmt);
+            $res = mysqli_stmt_get_result($stmt);
+            $target = $res ? mysqli_fetch_assoc($res) : null;
+            mysqli_stmt_close($stmt);
+
+            if (is_array($target)) {
+                $filePath = (string)($target['proof_file_path'] ?? '');
+                $path = ess_resolve_file_path($filePath, $profileProofDir);
+                if ($path && is_file($path)) {
+                    header('Content-Type: application/octet-stream');
+                    header('Content-Disposition: attachment; filename="' . basename($path) . '"');
+                    header('Content-Length: ' . filesize($path));
+                    readfile($path);
+                    exit;
+                }
+            }
+        }
+    }
+
+    http_response_code(404);
+    echo 'File not found.';
+    exit;
+}
+
+if ($section === 'profiles' && $profileProofViewParam !== '') {
+    if ($conn) {
+        $id = (int)$profileProofViewParam;
+        $stmt = mysqli_prepare($conn, 'SELECT proof_file_path FROM profile_update_requests WHERE id = ? LIMIT 1');
+        if ($stmt) {
+            mysqli_stmt_bind_param($stmt, 'i', $id);
+            mysqli_stmt_execute($stmt);
+            $res = mysqli_stmt_get_result($stmt);
+            $target = $res ? mysqli_fetch_assoc($res) : null;
+            mysqli_stmt_close($stmt);
+
+            if (is_array($target)) {
+                $filePath = (string)($target['proof_file_path'] ?? '');
+                $path = ess_resolve_file_path($filePath, $profileProofDir);
+                if ($path && is_file($path)) {
+                    $ext = strtolower((string)pathinfo($path, PATHINFO_EXTENSION));
+                    $mimeMap = [
+                        'pdf' => 'application/pdf',
+                        'png' => 'image/png',
+                        'jpg' => 'image/jpeg',
+                        'jpeg' => 'image/jpeg',
+                        'gif' => 'image/gif',
+                        'webp' => 'image/webp',
+                    ];
+                    $mime = $mimeMap[$ext] ?? 'application/octet-stream';
+
+                    header('Content-Type: ' . $mime);
+                    header('Content-Disposition: inline; filename="' . basename($path) . '"');
+                    readfile($path);
+                    exit;
+                }
+            }
+        }
+    }
+
+    http_response_code(404);
+    echo 'File not found.';
+    exit;
+}
 
 if ($section === 'documents' && $downloadParam !== '') {
     if ($conn) {
@@ -312,7 +459,7 @@ if ($conn) {
         $where = "WHERE r.status = 'Rejected'";
     }
 
-    $sql = "SELECT r.id, r.employee_id, e.employee_no, e.first_name, e.last_name, r.status, r.remarks, r.created_at, r.reviewed_at FROM profile_update_requests r LEFT JOIN employees e ON e.id = r.employee_id {$where} ORDER BY r.created_at DESC";
+    $sql = "SELECT r.id, r.employee_id, e.employee_no, e.first_name, e.last_name, r.status, r.remarks, r.created_at, r.reviewed_at, r.reason_choice, r.reason_text, r.proof_file_path FROM profile_update_requests r LEFT JOIN employees e ON e.id = r.employee_id {$where} ORDER BY r.created_at DESC";
     $res = mysqli_query($conn, $sql);
     if ($res) {
         while ($row = mysqli_fetch_assoc($res)) {
@@ -532,6 +679,9 @@ if ($conn) {
                         $created = (string)($r['created_at'] ?? '');
                         $status = (string)($r['status'] ?? 'Pending');
                         $remarks = (string)($r['remarks'] ?? '');
+                        $reasonChoice = (string)($r['reason_choice'] ?? '');
+                        $reasonText = (string)($r['reason_text'] ?? '');
+                        $proofFilePath = (string)($r['proof_file_path'] ?? '');
                       ?>
                       <tr>
                         <td class="text-gray-800 font-medium"><?php echo htmlspecialchars(($empNo !== '' ? $empNo : 'Employee') . ($name !== '' ? (' - ' . $name) : '')); ?></td>
@@ -542,6 +692,18 @@ if ($conn) {
                         <td class="text-gray-700"><?php echo htmlspecialchars($remarks); ?></td>
                         <td class="text-right">
                           <div class="flex justify-end gap-2">
+                            <button
+                              class="btn btn-ghost btn-xs"
+                              type="button"
+                              data-profile-view-id="<?php echo htmlspecialchars($rid); ?>"
+                              data-profile-view-emp="<?php echo htmlspecialchars(($empNo !== '' ? $empNo : 'Employee') . ($name !== '' ? (' - ' . $name) : '')); ?>"
+                              data-profile-view-reason="<?php echo htmlspecialchars($reasonChoice); ?>"
+                              data-profile-view-reason-text="<?php echo htmlspecialchars($reasonText); ?>"
+                              data-profile-view-proof="<?php echo htmlspecialchars($proofFilePath); ?>"
+                            >
+                              <i data-lucide="eye" class="w-4 h-4"></i>
+                              <span class="hidden sm:inline ml-1">View</span>
+                            </button>
                             <form method="POST" action="<?php echo htmlspecialchars((string)$_SERVER['REQUEST_URI']); ?>" class="inline">
                               <input type="hidden" name="update_profile_request" value="1" />
                               <input type="hidden" name="request_id" value="<?php echo htmlspecialchars($rid); ?>" />
@@ -598,6 +760,55 @@ if ($conn) {
         <form method="dialog">
           <button class="btn">Close</button>
         </form>
+      </div>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+  </dialog>
+
+  <dialog id="profileViewModal" class="modal">
+    <div class="modal-box w-11/12 max-w-2xl">
+      <div class="flex items-start justify-between gap-3">
+        <div>
+          <h3 class="font-bold text-lg">Profile Request Details</h3>
+          <p id="profileViewEmployee" class="text-sm text-gray-500"></p>
+        </div>
+        <form method="dialog">
+          <button class="btn btn-sm btn-ghost" aria-label="Close">
+            <i data-lucide="x" class="w-4 h-4"></i>
+          </button>
+        </form>
+      </div>
+
+      <div class="mt-4 space-y-3">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <div class="text-xs font-semibold text-gray-500">REASON</div>
+            <div id="profileViewReason" class="mt-1 text-gray-800"></div>
+          </div>
+          <div>
+            <div class="text-xs font-semibold text-gray-500">PROOF</div>
+            <div class="mt-1 flex items-center gap-2">
+              <a id="profileViewProofDownload" class="btn btn-primary btn-sm" href="#">Download</a>
+            </div>
+          </div>
+        </div>
+
+        <div id="profileProofFallback" class="hidden alert alert-info">
+          <i data-lucide="info" class="w-5 h-5"></i>
+          <span>This file type can’t be previewed here. Use Download instead.</span>
+        </div>
+
+        <img id="profileProofImage" class="hidden w-full h-[55vh] object-contain rounded-lg border border-base-200 bg-white" alt="Proof" />
+        <iframe id="profileProofFrame" class="w-full h-[55vh] rounded-lg border border-base-200 bg-white" src="about:blank"></iframe>
+
+        <div>
+          <div class="text-xs font-semibold text-gray-500">REASON DETAILS</div>
+          <div id="profileViewReasonText" class="mt-1 whitespace-pre-line text-gray-800"></div>
+        </div>
+      </div>
+
+      <div class="modal-action">
+        <form method="dialog"><button class="btn">Close</button></form>
       </div>
     </div>
     <form method="dialog" class="modal-backdrop"><button>close</button></form>
@@ -747,6 +958,67 @@ if ($conn) {
           }
         });
       });
+
+      const profileViewModal = document.getElementById('profileViewModal');
+      const profileViewEmployee = document.getElementById('profileViewEmployee');
+      const profileViewReason = document.getElementById('profileViewReason');
+      const profileViewReasonText = document.getElementById('profileViewReasonText');
+      const profileViewProofDownload = document.getElementById('profileViewProofDownload');
+      const profileProofImage = document.getElementById('profileProofImage');
+      const profileProofFrame = document.getElementById('profileProofFrame');
+      const profileProofFallback = document.getElementById('profileProofFallback');
+
+      document.querySelectorAll('[data-profile-view-id]').forEach((btn) => {
+        btn.addEventListener('click', function () {
+          const id = this.getAttribute('data-profile-view-id') || '';
+          if (id === '') return;
+
+          const proofPath = this.getAttribute('data-profile-view-proof') || '';
+          const proofName = proofPath ? proofPath.split(/[\\/]/).pop() : '';
+
+          if (profileViewEmployee) profileViewEmployee.textContent = this.getAttribute('data-profile-view-emp') || 'Employee';
+          if (profileViewReason) profileViewReason.textContent = this.getAttribute('data-profile-view-reason') || '-';
+          if (profileViewReasonText) profileViewReasonText.textContent = this.getAttribute('data-profile-view-reason-text') || '-';
+
+          if (profileViewProofDownload) profileViewProofDownload.setAttribute('href', '?section=profiles&profile_proof_download=' + encodeURIComponent(id) + '&pstatus=<?php echo urlencode($profileFilter); ?>');
+
+          const viewUrl = '?section=profiles&profile_proof_view=' + encodeURIComponent(id) + '&pstatus=<?php echo urlencode($profileFilter); ?>';
+          const ext = (proofName || '').split('.').pop().toLowerCase();
+          const isImage = ['png', 'jpg', 'jpeg', 'gif', 'webp'].includes(ext);
+          const isPdf = ext === 'pdf';
+
+          if (profileProofFallback) profileProofFallback.classList.add('hidden');
+          if (profileProofFrame) {
+            profileProofFrame.classList.add('hidden');
+            profileProofFrame.setAttribute('src', 'about:blank');
+          }
+          if (profileProofImage) {
+            profileProofImage.classList.add('hidden');
+            profileProofImage.setAttribute('src', '');
+          }
+
+          if (isImage && profileProofImage) {
+            profileProofImage.classList.remove('hidden');
+            profileProofImage.setAttribute('src', viewUrl);
+          } else if (isPdf && profileProofFrame) {
+            profileProofFrame.classList.remove('hidden');
+            profileProofFrame.setAttribute('src', viewUrl);
+          } else if (profileProofFallback) {
+            profileProofFallback.classList.remove('hidden');
+          }
+
+          if (profileViewModal && typeof profileViewModal.showModal === 'function') {
+            profileViewModal.showModal();
+          }
+        });
+      });
+
+      if (profileViewModal) {
+        profileViewModal.addEventListener('close', function () {
+          if (profileProofFrame) profileProofFrame.setAttribute('src', 'about:blank');
+          if (profileProofImage) profileProofImage.setAttribute('src', '');
+        });
+      }
 
       viewModal.addEventListener('close', function () {
         viewFrame.setAttribute('src', 'about:blank');
