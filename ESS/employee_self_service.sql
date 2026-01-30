@@ -120,5 +120,42 @@ CREATE TABLE complaints (
 );
 
 -- ============================================
+-- 8. EMPLOYEE PROFILES (EXTENDED FIELDS)
+-- ============================================
+CREATE TABLE employee_profiles (
+    employee_id INT PRIMARY KEY,
+    phone VARCHAR(50) NULL,
+    work_location VARCHAR(150) NULL,
+    gender VARCHAR(20) NULL,
+    age INT NULL,
+    birthdate DATE NULL,
+    civil_status VARCHAR(50) NULL,
+    nationality VARCHAR(100) NULL,
+    emergency_name VARCHAR(150) NULL,
+    emergency_relationship VARCHAR(100) NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (employee_id) REFERENCES employees(id)
+);
+
+-- ============================================
+-- 9. PROFILE UPDATE REQUESTS
+-- ============================================
+CREATE TABLE profile_update_requests (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    employee_id INT NOT NULL,
+    requested_data TEXT NOT NULL,
+    reason_choice VARCHAR(100) NULL,
+    reason_text TEXT NULL,
+    proof_file_path VARCHAR(255) NULL,
+    status ENUM('Pending', 'Approved', 'Rejected') DEFAULT 'Pending',
+    remarks TEXT,
+    reviewed_by INT NULL,
+    reviewed_at TIMESTAMP NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    seen_by_employee TINYINT(1) DEFAULT 0,
+    FOREIGN KEY (employee_id) REFERENCES employees(id)
+);
+
+-- ============================================
 -- END OF EMPLOYEE SELF SERVICE DATABASE
 -- ============================================

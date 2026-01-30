@@ -42,12 +42,33 @@ function ess_ensure_profile_tables($conn): void
         return;
     }
 
+    $dbResult = @mysqli_query($conn, 'SELECT DATABASE() AS db');
+    $dbRow = $dbResult ? mysqli_fetch_assoc($dbResult) : null;
+    $dbName = (string)($dbRow['db'] ?? '');
+
+    $columnExists = static function ($table, $column) use ($conn, $dbName): bool {
+        if ($dbName === '') return false;
+        $stmt = mysqli_prepare($conn, 'SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ? LIMIT 1');
+        if (!$stmt) return false;
+        mysqli_stmt_bind_param($stmt, 'sss', $dbName, $table, $column);
+        mysqli_stmt_execute($stmt);
+        $res = mysqli_stmt_get_result($stmt);
+        $row = $res ? mysqli_fetch_assoc($res) : null;
+        mysqli_stmt_close($stmt);
+        return is_array($row);
+    };
+
     @mysqli_query(
         $conn,
         "CREATE TABLE IF NOT EXISTS employee_profiles (\n" .
             "  employee_id INT PRIMARY KEY,\n" .
             "  phone VARCHAR(50) NULL,\n" .
             "  work_location VARCHAR(150) NULL,\n" .
+            "  gender VARCHAR(20) NULL,\n" .
+            "  age INT NULL,\n" .
+            "  birthdate DATE NULL,\n" .
+            "  civil_status VARCHAR(50) NULL,\n" .
+            "  nationality VARCHAR(100) NULL,\n" .
             "  emergency_name VARCHAR(150) NULL,\n" .
             "  emergency_relationship VARCHAR(100) NULL,\n" .
             "  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,\n" .
@@ -61,6 +82,9 @@ function ess_ensure_profile_tables($conn): void
             "  id INT AUTO_INCREMENT PRIMARY KEY,\n" .
             "  employee_id INT NOT NULL,\n" .
             "  requested_data TEXT NOT NULL,\n" .
+            "  reason_choice VARCHAR(100) NULL,\n" .
+            "  reason_text TEXT NULL,\n" .
+            "  proof_file_path VARCHAR(255) NULL,\n" .
             "  status ENUM('Pending','Approved','Rejected') DEFAULT 'Pending',\n" .
             "  remarks TEXT,\n" .
             "  reviewed_by INT NULL,\n" .
@@ -70,6 +94,34 @@ function ess_ensure_profile_tables($conn): void
             "  FOREIGN KEY (employee_id) REFERENCES employees(id)\n" .
             ")"
     );
+
+    if ($dbName !== '') {
+        $profileCols = [
+            ['gender', "ALTER TABLE employee_profiles ADD COLUMN gender VARCHAR(20) NULL"],
+            ['age', "ALTER TABLE employee_profiles ADD COLUMN age INT NULL"],
+            ['birthdate', "ALTER TABLE employee_profiles ADD COLUMN birthdate DATE NULL"],
+            ['civil_status', "ALTER TABLE employee_profiles ADD COLUMN civil_status VARCHAR(50) NULL"],
+            ['nationality', "ALTER TABLE employee_profiles ADD COLUMN nationality VARCHAR(100) NULL"],
+        ];
+
+        foreach ($profileCols as [$col, $sql]) {
+            if (!$columnExists('employee_profiles', $col)) {
+                @mysqli_query($conn, $sql);
+            }
+        }
+
+        $requestCols = [
+            ['reason_choice', "ALTER TABLE profile_update_requests ADD COLUMN reason_choice VARCHAR(100) NULL"],
+            ['reason_text', "ALTER TABLE profile_update_requests ADD COLUMN reason_text TEXT NULL"],
+            ['proof_file_path', "ALTER TABLE profile_update_requests ADD COLUMN proof_file_path VARCHAR(255) NULL"],
+        ];
+
+        foreach ($requestCols as [$col, $sql]) {
+            if (!$columnExists('profile_update_requests', $col)) {
+                @mysqli_query($conn, $sql);
+            }
+        }
+    }
 }
 
 if ($conn) {
