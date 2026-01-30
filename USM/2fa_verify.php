@@ -35,7 +35,7 @@ $conn = $connections[$db_name] ?? null;
 
 if (!$conn) {
   $_SESSION["loginError"] = "Database connection not found";
-  header("Location: ../index.php");
+  header("Location: /../index.php");
   exit();
 }
 
@@ -212,7 +212,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     logAttempt($conn, $Actual_Employee_ID, $Name, $Role, 'Success', $log_type, 0, '2FA Successful', '');
     logDepartmentAttempt($conn, $Actual_Dept_ID, $Actual_Employee_ID, $Name, $Role, 'Success', $log_type, 0, '2FA Successful', '');
 
-    header("Location: ../dashboard.php");
+    header("Location: /../dashboard.php");
     exit();
   } else {
     incrementOTPAttempts();
@@ -403,7 +403,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
           <!-- Back to Login -->
           <div class="mt-4 sm:mt-6 text-center">
-            <a href="index.php" class="text-sm sm:text-base font-medium text-blue-400 hover:text-blue-300 flex items-center justify-center">
+            <a href="/../index.php" class="text-sm sm:text-base font-medium text-blue-400 hover:text-blue-300 flex items-center justify-center">
               <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 sm:h-5 sm:w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
               </svg>

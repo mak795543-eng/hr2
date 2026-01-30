@@ -719,39 +719,15 @@ function getEmployees($filter = 'all', $search = '', $department = 'all')
 
     try {
         $sql = "SELECT e.id, e.employee_id, e.full_name, e.position, e.department, e.last_assessment, e.next_review_date,
-                       COALESCE(gs.competency, 0) AS competency,
-                       CASE
-                           WHEN COALESCE(gs.competency, 0) <= 20 THEN 'Retrain'
-                           WHEN COALESCE(gs.competency, 0) <= 40 THEN 'Reskilling'
-                           WHEN COALESCE(gs.competency, 0) <= 60 THEN 'Refresher Training'
-                           WHEN COALESCE(gs.competency, 0) <= 80 THEN 'Upskilling'
-                           ELSE 'Succession Ready'
-                       END AS status
+                       COALESCE(gf.overall_competency, 0) AS competency,
+                       COALESCE(gf.status, 'Retrain') AS status
 
                 FROM employees e
-                LEFT JOIN (
-                    SELECT s2.employee_id, AVG(COALESCE(s2.score, 0)) / 5 * 100 AS competency
-                    FROM employee_kpi_scores s2
-                    WHERE s2.evaluation_period = ?
-                    GROUP BY s2.employee_id
-                ) gs ON gs.employee_id = e.employee_id
+                JOIN kpi_gap_formulations gf
+                  ON gf.employee_id = e.employee_id
+                 AND gf.evaluation_period = ?
                 WHERE 1=1
-                  AND NOT EXISTS (
-                      SELECT 1
-                      FROM individual_development_plans idp
-                      WHERE idp.employee_id = e.employee_id
-                  )
-                  AND NOT EXISTS (
-                      SELECT 1
-                      FROM requested_idps_repository ridp
-                      WHERE ridp.employee_id = e.employee_id
-                  )
-                  AND NOT EXISTS (
-                      SELECT 1
-                      FROM requested_to_idp r
-                      WHERE r.employee_id = e.employee_id
-                        AND r.status = 'Pending'
-                  )";
+                ";
         $period = date('Y') . '-Q' . (string)ceil((int)date('n') / 3);
         $params = [$period];
 
@@ -763,15 +739,7 @@ function getEmployees($filter = 'all', $search = '', $department = 'all')
 
         // Apply status filter
         if ($filter !== 'all') {
-            $sql .= " AND (
-                CASE
-                    WHEN COALESCE(gs.competency, 0) <= 20 THEN 'Retrain'
-                    WHEN COALESCE(gs.competency, 0) <= 40 THEN 'Reskilling'
-                    WHEN COALESCE(gs.competency, 0) <= 60 THEN 'Refresher Training'
-                    WHEN COALESCE(gs.competency, 0) <= 80 THEN 'Upskilling'
-                    ELSE 'Succession Ready'
-                END
-            ) = ?";
+            $sql .= " AND gf.status = ?";
             $params[] = $filter;
         }
 
@@ -787,13 +755,13 @@ function getEmployees($filter = 'all', $search = '', $department = 'all')
 
         $sql .= " ORDER BY 
             CASE
-                WHEN COALESCE(gs.competency, 0) <= 20 THEN 1
-                WHEN COALESCE(gs.competency, 0) <= 40 THEN 2
-                WHEN COALESCE(gs.competency, 0) <= 60 THEN 3
-                WHEN COALESCE(gs.competency, 0) <= 80 THEN 4
+                WHEN COALESCE(gf.overall_competency, 0) <= 20 THEN 1
+                WHEN COALESCE(gf.overall_competency, 0) <= 40 THEN 2
+                WHEN COALESCE(gf.overall_competency, 0) <= 60 THEN 3
+                WHEN COALESCE(gf.overall_competency, 0) <= 80 THEN 4
                 ELSE 5
             END,
-            COALESCE(gs.competency, 0) DESC,
+            COALESCE(gf.overall_competency, 0) DESC,
             e.full_name ASC";
 
         $stmt = $pdo->prepare($sql);
