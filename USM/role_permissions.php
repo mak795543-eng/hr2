@@ -63,7 +63,7 @@ return [
     ],
     
     // Employee - Regular staff access
-    'employee' => [
+    'sous chef' => [
         'dashboard',
         'employee_self_service'
     ],

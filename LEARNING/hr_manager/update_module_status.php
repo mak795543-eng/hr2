@@ -31,7 +31,7 @@ function columnExists($conn, $table, $column) {
 require_once __DIR__ . '/../db.php';
 
 // Create connection
-$conn = usm_db_connect('learning_db');
+$conn = usm_db_connect('hr2_learning_db');
 
 // Check connection
 if ($conn->connect_error) {
@@ -57,7 +57,7 @@ if (!$module_id || !$new_status) {
 // Map status to appropriate database values
 $new_status = $new_status === 'for-compliance' ? 'compliance' : $new_status;
 $status_map = [
-    'approved' => 'approved',
+    'approved' => 'posted',
     'rejected' => 'rejected', 
     'compliance' => 'compliance'
 ];

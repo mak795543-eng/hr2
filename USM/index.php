@@ -12,7 +12,7 @@ $imagePath = '../images/hotel3.jpg';
 $imageExists = file_exists($imagePath);
 
 // Database connections
-$hr2usm = $connections["hr2usm"] ?? null;
+$hr2usm = $connections["hr2_usm"] ?? null;
 $usm_connection = $hr2usm;
 
 // Initialize variables
