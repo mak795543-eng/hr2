@@ -116,7 +116,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_profile_reques
                 $success_message = 'Profile request updated successfully.';
 
                 $redirect = (string)($_SERVER['PHP_SELF']);
-                $qs = http_build_query(['section' => 'profiles', 'pstatus' => 'pending']);
+                $curSection = 'profiles';
+                $curPstatus = 'pending';
+                $qs = http_build_query(['section' => $curSection, 'pstatus' => $curPstatus]);
                 header('Location: ' . $redirect . '?' . $qs);
                 exit;
             }
@@ -838,11 +840,15 @@ if ($conn) {
 
         <div id="profileProofFallback" class="hidden alert alert-info">
           <i data-lucide="info" class="w-5 h-5"></i>
-          <span>This file type can’t be previewed here. Use Download instead.</span>
+          <span>Preview is not available for this file type. Use Download instead.</span>
         </div>
 
         <img id="profileProofImage" class="hidden w-full h-[55vh] object-contain rounded-lg border border-base-200 bg-white" alt="Proof" />
-        <iframe id="profileProofFrame" class="w-full h-[55vh] rounded-lg border border-base-200 bg-white" src="about:blank"></iframe>
+        <iframe id="profileProofFrame" class="hidden w-full h-[55vh] rounded-lg border border-base-200 bg-white" src="about:blank"></iframe>
+        <video id="profileProofVideo" class="hidden w-full h-[55vh] rounded-lg border border-base-200 bg-black" controls></video>
+        <audio id="profileProofAudio" class="hidden w-full mt-2" controls></audio>
+        <pre id="profileProofText" class="hidden w-full h-[55vh] overflow-auto rounded-lg border border-base-200 bg-white p-4 text-sm"></pre>
+        <div id="profileProofHtml" class="hidden w-full h-[55vh] overflow-auto rounded-lg border border-base-200 bg-white p-4 prose max-w-none"></div>
 
         <div>
           <div class="text-xs font-semibold text-gray-500">REASON DETAILS</div>
@@ -891,7 +897,7 @@ if ($conn) {
 
         <div class="modal-action">
           <button class="btn btn-primary" type="submit">Save</button>
-          <form method="dialog"><button class="btn" type="button">Cancel</button></form>
+          <form method="dialog"><button class="btn" type="submit">Cancel</button></form>
         </div>
       </form>
     </div>
@@ -933,7 +939,7 @@ if ($conn) {
 
         <div class="modal-action">
           <button class="btn btn-primary" type="submit">Save</button>
-          <form method="dialog"><button class="btn" type="button">Cancel</button></form>
+          <form method="dialog"><button class="btn" type="submit">Cancel</button></form>
         </div>
       </form>
     </div>
@@ -1145,6 +1151,10 @@ if ($conn) {
       const profileProofImage = document.getElementById('profileProofImage');
       const profileProofFrame = document.getElementById('profileProofFrame');
       const profileProofFallback = document.getElementById('profileProofFallback');
+      const profileProofVideo = document.getElementById('profileProofVideo');
+      const profileProofAudio = document.getElementById('profileProofAudio');
+      const profileProofText = document.getElementById('profileProofText');
+      const profileProofHtml = document.getElementById('profileProofHtml');
 
       document.querySelectorAll('[data-profile-view-id]').forEach((btn) => {
         btn.addEventListener('click', async function () {
@@ -1166,22 +1176,31 @@ if ($conn) {
             fallback: profileProofFallback,
             img: profileProofImage,
             frame: profileProofFrame,
-            video: null,
-            audio: null,
-            text: null,
-            html: null,
+            video: profileProofVideo,
+            audio: profileProofAudio,
+            text: profileProofText,
+            html: profileProofHtml,
           });
 
           if (profileViewModal && typeof profileViewModal.showModal === 'function') {
             profileViewModal.showModal();
+          } else if (profileViewModal) {
+            profileViewModal.setAttribute('open', '');
           }
         });
       });
 
       if (profileViewModal) {
         profileViewModal.addEventListener('close', function () {
-          if (profileProofFrame) profileProofFrame.setAttribute('src', 'about:blank');
-          if (profileProofImage) profileProofImage.setAttribute('src', '');
+          resetPreview({
+            fallback: profileProofFallback,
+            img: profileProofImage,
+            frame: profileProofFrame,
+            video: profileProofVideo,
+            audio: profileProofAudio,
+            text: profileProofText,
+            html: profileProofHtml,
+          });
         });
       }
 

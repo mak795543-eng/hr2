@@ -52,7 +52,7 @@ function ess_resolve_file_path(string $filePath, string $baseDir): ?string {
     if ($p === '') return null;
     $p = str_replace(['\\', '/'], DIRECTORY_SEPARATOR, $p);
 
-    if (preg_match('#^[A-Za-z]:\\#', $p) || str_starts_with($p, DIRECTORY_SEPARATOR)) {
+    if (preg_match('/^[A-Za-z]:\\\\/', $p) || str_starts_with($p, DIRECTORY_SEPARATOR)) {
         $candidate = $p;
     } else {
         $candidate = __DIR__ . DIRECTORY_SEPARATOR . ltrim($p, DIRECTORY_SEPARATOR);
@@ -124,6 +124,19 @@ if ($viewParam !== '') {
                         'jpeg' => 'image/jpeg',
                         'gif' => 'image/gif',
                         'webp' => 'image/webp',
+                        'txt' => 'text/plain; charset=utf-8',
+                        'csv' => 'text/csv; charset=utf-8',
+                        'mp4' => 'video/mp4',
+                        'webm' => 'video/webm',
+                        'mp3' => 'audio/mpeg',
+                        'wav' => 'audio/wav',
+                        'ogg' => 'audio/ogg',
+                        'doc' => 'application/msword',
+                        'docx' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                        'xls' => 'application/vnd.ms-excel',
+                        'xlsx' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                        'ppt' => 'application/vnd.ms-powerpoint',
+                        'pptx' => 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
                     ];
                     $mime = $mimeMap[$ext] ?? 'application/octet-stream';
 
@@ -150,6 +163,8 @@ if ($viewParam !== '') {
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://cdn.jsdelivr.net/npm/daisyui@4.6.0/dist/full.css" rel="stylesheet" type="text/css" />
   <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://unpkg.com/mammoth@1.6.0/mammoth.browser.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 </head>
 <body class="bg-gray-50 min-h-screen">
   <div class="flex h-screen">
@@ -196,6 +211,8 @@ if ($viewParam !== '') {
                         $id = (string)($d['id'] ?? '');
                         $orig = (string)($d['document_name'] ?? '');
                         $uploaded = (string)($d['uploaded_at'] ?? '');
+                        $filePathRaw = (string)($d['file_path'] ?? '');
+                        $fileBase = $filePathRaw !== '' ? basename(str_replace(['\\', '/'], DIRECTORY_SEPARATOR, $filePathRaw)) : '';
                         $path = ess_resolve_file_path((string)($d['file_path'] ?? ''), $uploadDir);
                         $size = ($path && is_file($path)) ? (int)@filesize($path) : 0;
                       ?>
@@ -210,7 +227,7 @@ if ($viewParam !== '') {
                         <td class="text-gray-700"><?php echo htmlspecialchars(humanFileSize($size)); ?></td>
                         <td class="text-right">
                           <div class="flex justify-end gap-2">
-                            <button class="btn btn-ghost btn-xs" type="button" data-view-id="<?php echo htmlspecialchars($id); ?>" data-view-name="<?php echo htmlspecialchars($orig); ?>">
+                            <button class="btn btn-ghost btn-xs" type="button" data-view-id="<?php echo htmlspecialchars($id); ?>" data-view-name="<?php echo htmlspecialchars($orig); ?>" data-view-file="<?php echo htmlspecialchars($fileBase); ?>">
                               <i data-lucide="eye" class="w-4 h-4"></i>
                               <span class="hidden sm:inline ml-1">View</span>
                             </button>
@@ -241,7 +258,7 @@ if ($viewParam !== '') {
       <div class="flex items-start justify-between gap-3">
         <div>
           <h3 id="docViewTitle" class="font-bold text-lg">View Document</h3>
-          <p class="text-sm text-gray-500">Preview (PDF/Image only). Other files will open/download.</p>
+          <p class="text-sm text-gray-500">Preview</p>
         </div>
         <form method="dialog">
           <button class="btn btn-sm btn-ghost" aria-label="Close">
@@ -253,13 +270,19 @@ if ($viewParam !== '') {
       <div class="mt-4">
         <div id="docViewFallback" class="hidden alert alert-info">
           <i data-lucide="info" class="w-5 h-5"></i>
-          <span>This file type can’t be previewed here. Use Download instead.</span>
+          <span>Preview is not available for this file type. Use Open or Download.</span>
         </div>
 
-        <iframe id="docViewFrame" class="w-full h-[65vh] rounded-lg border border-base-200 bg-white" src="about:blank"></iframe>
+        <img id="docViewImage" class="hidden w-full h-[65vh] object-contain rounded-lg border border-base-200 bg-white" alt="Preview" />
+        <iframe id="docViewFrame" class="hidden w-full h-[65vh] rounded-lg border border-base-200 bg-white" src="about:blank"></iframe>
+        <video id="docViewVideo" class="hidden w-full h-[65vh] rounded-lg border border-base-200 bg-black" controls></video>
+        <audio id="docViewAudio" class="hidden w-full mt-2" controls></audio>
+        <pre id="docViewText" class="hidden w-full h-[65vh] overflow-auto rounded-lg border border-base-200 bg-white p-4 text-sm"></pre>
+        <div id="docViewHtml" class="hidden w-full h-[65vh] overflow-auto rounded-lg border border-base-200 bg-white p-4 prose max-w-none"></div>
       </div>
 
       <div class="modal-action">
+        <a id="docViewOpen" class="btn btn-outline" href="#" target="_blank" rel="noopener">Open</a>
         <a id="docViewDownload" class="btn btn-primary" href="#">Download</a>
         <form method="dialog">
           <button class="btn">Close</button>
@@ -270,9 +293,127 @@ if ($viewParam !== '') {
   </dialog>
 
   <script>
-    function canPreview(name) {
-      const ext = (name || '').split('.').pop().toLowerCase();
-      return ['pdf', 'png', 'jpg', 'jpeg', 'gif', 'webp'].includes(ext);
+    function getExt(name) {
+      return (name || '').split('.').pop().toLowerCase();
+    }
+
+    function setHidden(el, hidden) {
+      if (!el) return;
+      if (hidden) el.classList.add('hidden');
+      else el.classList.remove('hidden');
+    }
+
+    function resetPreview(opts) {
+      if (!opts) return;
+      setHidden(opts.fallback, true);
+      setHidden(opts.img, true);
+      setHidden(opts.frame, true);
+      setHidden(opts.video, true);
+      setHidden(opts.audio, true);
+      setHidden(opts.text, true);
+      setHidden(opts.html, true);
+
+      if (opts.frame) opts.frame.setAttribute('src', 'about:blank');
+      if (opts.img) opts.img.setAttribute('src', '');
+      if (opts.img) opts.img.onerror = null;
+      if (opts.video) opts.video.removeAttribute('src');
+      if (opts.audio) opts.audio.removeAttribute('src');
+      if (opts.text) opts.text.textContent = '';
+      if (opts.html) opts.html.innerHTML = '';
+    }
+
+    async function renderPreview(fileName, viewUrl, opts) {
+      resetPreview(opts);
+
+      const ext = getExt(fileName);
+      const isImage = ['png', 'jpg', 'jpeg', 'gif', 'webp'].includes(ext);
+      const isPdf = ext === 'pdf';
+      const isText = ['txt', 'csv'].includes(ext);
+      const isVideo = ['mp4', 'webm'].includes(ext);
+      const isAudio = ['mp3', 'wav', 'ogg'].includes(ext);
+      const isDocx = ext === 'docx';
+      const isXlsx = ext === 'xlsx' || ext === 'xls';
+
+      try {
+        if (isImage && opts.img) {
+          setHidden(opts.img, false);
+          opts.img.onerror = function () {
+            setHidden(opts.img, true);
+            if (opts.fallback) setHidden(opts.fallback, false);
+          };
+          opts.img.setAttribute('src', viewUrl);
+          return;
+        }
+
+        if (isPdf && opts.frame) {
+          setHidden(opts.frame, false);
+          opts.frame.setAttribute('src', viewUrl);
+          return;
+        }
+
+        if (isVideo && opts.video) {
+          setHidden(opts.video, false);
+          opts.video.setAttribute('src', viewUrl);
+          opts.video.load();
+          return;
+        }
+
+        if (isAudio && opts.audio) {
+          setHidden(opts.audio, false);
+          opts.audio.setAttribute('src', viewUrl);
+          opts.audio.load();
+          return;
+        }
+
+        if (isText && opts.text) {
+          setHidden(opts.text, false);
+          const res = await fetch(viewUrl, { method: 'GET' });
+          if (!res.ok) throw new Error('Failed to load text');
+          const t = await res.text();
+          opts.text.textContent = t;
+          return;
+        }
+
+        if (isDocx && opts.html && window.mammoth) {
+          setHidden(opts.html, false);
+          const res = await fetch(viewUrl, { method: 'GET' });
+          if (!res.ok) throw new Error('Failed to load DOCX');
+          const buf = await res.arrayBuffer();
+          const result = await window.mammoth.convertToHtml({ arrayBuffer: buf });
+          opts.html.innerHTML = result && result.value ? result.value : '';
+          return;
+        }
+
+        if (isXlsx && opts.html && window.XLSX) {
+          setHidden(opts.html, false);
+          const res = await fetch(viewUrl, { method: 'GET' });
+          if (!res.ok) throw new Error('Failed to load spreadsheet');
+          const buf = await res.arrayBuffer();
+          const wb = window.XLSX.read(buf, { type: 'array' });
+          const first = wb.SheetNames && wb.SheetNames.length ? wb.SheetNames[0] : null;
+          if (!first) {
+            opts.html.innerHTML = '';
+            return;
+          }
+          const ws = wb.Sheets[first];
+          opts.html.innerHTML = window.XLSX.utils.sheet_to_html(ws);
+          return;
+        }
+
+        if (opts.frame) {
+          setHidden(opts.frame, false);
+          opts.frame.setAttribute('src', viewUrl);
+          return;
+        }
+
+        if (opts.fallback) {
+          setHidden(opts.fallback, false);
+        }
+      } catch (e) {
+        if (opts.fallback) {
+          setHidden(opts.fallback, false);
+        }
+      }
     }
 
     document.addEventListener('DOMContentLoaded', function () {
@@ -283,34 +424,56 @@ if ($viewParam !== '') {
       const frame = document.getElementById('docViewFrame');
       const fallback = document.getElementById('docViewFallback');
       const dl = document.getElementById('docViewDownload');
+      const openBtn = document.getElementById('docViewOpen');
+      const img = document.getElementById('docViewImage');
+      const video = document.getElementById('docViewVideo');
+      const audio = document.getElementById('docViewAudio');
+      const text = document.getElementById('docViewText');
+      const html = document.getElementById('docViewHtml');
 
       document.querySelectorAll('[data-view-id]').forEach((btn) => {
-        btn.addEventListener('click', function () {
+        btn.addEventListener('click', async function () {
           const id = this.getAttribute('data-view-id') || '';
           const name = this.getAttribute('data-view-name') || 'Document';
+          const fileName = this.getAttribute('data-view-file') || name;
 
           title.textContent = name;
           dl.setAttribute('href', '?download=' + encodeURIComponent(id));
+          if (openBtn) openBtn.setAttribute('href', '?view=' + encodeURIComponent(id));
 
-          if (canPreview(name)) {
-            fallback.classList.add('hidden');
-            frame.classList.remove('hidden');
-            frame.setAttribute('src', '?view=' + encodeURIComponent(id));
-          } else {
-            frame.classList.add('hidden');
-            frame.setAttribute('src', 'about:blank');
-            fallback.classList.remove('hidden');
-          }
+          const viewUrl = '?view=' + encodeURIComponent(id);
+
+          await renderPreview(fileName, viewUrl, {
+            fallback,
+            img,
+            frame,
+            video,
+            audio,
+            text,
+            html,
+          });
 
           if (modal && typeof modal.showModal === 'function') {
             modal.showModal();
+          } else if (modal) {
+            modal.setAttribute('open', '');
           }
         });
       });
 
-      modal.addEventListener('close', function () {
-        frame.setAttribute('src', 'about:blank');
-      });
+      if (modal) {
+        modal.addEventListener('close', function () {
+          resetPreview({
+            fallback,
+            img,
+            frame,
+            video,
+            audio,
+            text,
+            html,
+          });
+        });
+      }
     });
   </script>
 </body>

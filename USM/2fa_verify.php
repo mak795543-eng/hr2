@@ -212,7 +212,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     logAttempt($conn, $Actual_Employee_ID, $Name, $Role, 'Success', $log_type, 0, '2FA Successful', '');
     logDepartmentAttempt($conn, $Actual_Dept_ID, $Actual_Employee_ID, $Name, $Role, 'Success', $log_type, 0, '2FA Successful', '');
 
-    header("Location: /../dashboard.php");
+    header("Location:  /../dashboard.php");
     exit();
   } else {
     incrementOTPAttempts();
