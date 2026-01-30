@@ -5,7 +5,7 @@ header('Content-Type: application/json');
 function columnExists($conn, $table, $column) {
     $dbResult = $conn->query('SELECT DATABASE() AS db');
     $dbRow = $dbResult ? $dbResult->fetch_assoc() : null;
-    $dbName = $dbRow['db'] ?? '';
+    $dbName = is_array($dbRow) ? ($dbRow['db'] ?? '') : '';
 
     if ($dbName === '') {
         return false;
@@ -31,7 +31,7 @@ function columnExists($conn, $table, $column) {
 require_once __DIR__ . '/../db.php';
 
 // Create connection
-$conn = usm_db_connect('learning_db');
+$conn = usm_db_connect('hr2_learning_db');
 
 // Check connection
 if ($conn->connect_error) {
