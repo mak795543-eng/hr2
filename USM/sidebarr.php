@@ -416,19 +416,19 @@ if (!function_exists('hasAccess')) {
                         <i class="w-4 h-4 text-blue-200 transform transition-transform duration-200 peer-checked:rotate-90 dropdown-icon" data-lucide="chevron-down"></i>
                     </div>
                     <div class="collapse-content pl-14 pr-4 py-1 space-y-1">
-                        <a href="USM/department_accounts.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
+                        <a href="/../USM/department_accounts.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
                             <span class="flex items-center gap-2">
                                 <i data-lucide="users" class="w-4 h-4 text-[#F7B32B]"></i>
                                 Department Accounts
                             </span>
                         </a>
-                        <a href="USM/department_logs.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
+                        <a href="/../USM/department_logs.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
                             <span class="flex items-center gap-2">
                                 <i data-lucide="list" class="w-4 h-4 text-[#F7B32B]"></i>
                                 Department Logs
                             </span>
                         </a>
-                        <a href="USM/audit_trail&transaction.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
+                        <a href="/../USM/audit_trail&transaction.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
                             <span class="flex items-center gap-2">
                                 <i data-lucide="database" class="w-4 h-4 text-[#F7B32B]"></i>
                                 Audit Trail & Transaction
@@ -442,7 +442,7 @@ if (!function_exists('hasAccess')) {
             <div class="px-4 py-2 mt-4">
                 <p class="text-xs font-semibold text-blue-300 uppercase tracking-wider section-title">Account</p>
             </div>
-            <form action="USM/logout.php" method="POST" class="px-4 py-3">
+            <form action="/../USM/logout.php" method="POST" class="px-4 py-3">
                 <button type="submit" class="flex items-center w-full text-sm font-medium rounded-lg transition-all hover:bg-blue-600/50 text-white group">
                     <div class="p-1.5 rounded-lg bg-blue-800/30 group-hover:bg-blue-700/50 transition-colors">
                         <i data-lucide="log-out" class="w-5 h-5 text-[#F7B32B] group-hover:text-white"></i>
