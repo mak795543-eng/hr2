@@ -7,7 +7,7 @@ function training_db_connect(string $dbName = 'hr2_schema_training_request'): my
 
     $dbPrefix = getenv('DB_PREFIX') ?: '';
     $host = getenv('TRAINING_DB_HOST') ?: (getenv('DB_HOST') ?: 'localhost');
-    $user = getenv('TRAINING_DB_USER') ?: (getenv('DB_USER') ?: 'hr2_usm');
+    $user = getenv('TRAINING_DB_USER') ?: (getenv('DB_USER') ?: 'hr2_schema_training_request');
     $passEnv = getenv('TRAINING_DB_PASS');
     $passGlobal = getenv('DB_PASS');
     $passPassword = getenv('DB_PASSWORD');
