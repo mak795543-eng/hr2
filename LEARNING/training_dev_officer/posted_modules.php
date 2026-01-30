@@ -1,7 +1,7 @@
 ﻿<?php
 session_start();
 // Database connection
-require_once __DIR__ . '../../db.php';
+require_once __DIR__ . '/../db.php';
 
 // Create connection
 $conn = usm_db_connect('hr2_learning_db');
@@ -621,7 +621,12 @@ $conn->close();
           </div>
           
           <!-- CRUD Actions - Colors removed but design preserved -->
-          <div class="action-buttons"></div>
+          <div class="action-buttons">
+            <button class="action-btn" id="posted-hold-btn" type="button">
+              <i class="fas fa-pause-circle"></i>
+              Hold Module
+            </button>
+          </div>
         </div>
       </div>
       

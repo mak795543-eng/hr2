@@ -1,9 +1,11 @@
 <?php
 
+session_start();
+
 function isAutoIncrement(mysqli $conn, string $table, string $column = 'id'): bool {
     $dbResult = $conn->query('SELECT DATABASE() AS db');
     $dbRow = $dbResult ? $dbResult->fetch_assoc() : null;
-    $dbName = $dbRow['db'] ?? '';
+    $dbName = is_array($dbRow) ? ($dbRow['db'] ?? '') : '';
     if ($dbName === '') {
         return false;
     }
@@ -13,13 +15,16 @@ function isAutoIncrement(mysqli $conn, string $table, string $column = 'id'): bo
             WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ?
             LIMIT 1";
     $stmt = $conn->prepare($sql);
+    if (!$stmt) {
+        return false;
+    }
     $stmt->bind_param('sss', $dbName, $table, $column);
     $stmt->execute();
     $res = $stmt->get_result();
     $row = $res ? $res->fetch_assoc() : null;
     $stmt->close();
 
-    $extra = (string)($row['EXTRA'] ?? '');
+    $extra = is_array($row) ? (string)($row['EXTRA'] ?? '') : '';
     return stripos($extra, 'auto_increment') !== false;
 }
 
@@ -31,7 +36,7 @@ function getNextId(mysqli $conn, string $table, string $column = 'id'): int {
     $sql = "SELECT COALESCE(MAX(`$column`), 0) + 1 AS next_id FROM `$table` FOR UPDATE";
     $res = $conn->query($sql);
     $row = $res ? $res->fetch_assoc() : null;
-    return (int)($row['next_id'] ?? 0);
+    return is_array($row) ? (int)($row['next_id'] ?? 0) : 0;
 }
 
 header('Content-Type: application/json');
@@ -39,7 +44,7 @@ header('Content-Type: application/json');
 function columnExists($conn, $table, $column) {
     $dbResult = $conn->query('SELECT DATABASE() AS db');
     $dbRow = $dbResult ? $dbResult->fetch_assoc() : null;
-    $dbName = $dbRow['db'] ?? '';
+    $dbName = is_array($dbRow) ? ($dbRow['db'] ?? '') : '';
 
     if ($dbName === '') {
         return false;
@@ -50,6 +55,9 @@ function columnExists($conn, $table, $column) {
             WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ?
             LIMIT 1";
     $stmt = $conn->prepare($sql);
+    if (!$stmt) {
+        return false;
+    }
     $stmt->bind_param('sss', $dbName, $table, $column);
     $stmt->execute();
     $res = $stmt->get_result();
@@ -62,11 +70,13 @@ function columnExists($conn, $table, $column) {
 require_once __DIR__ . '/../db.php';
 
 // Create connection
-$conn = usm_db_connect('learning_db');
+$conn = usm_db_connect('hr2_learning_db');
 
 // Check connection
 if ($conn->connect_error) {
-    die(json_encode(['success' => false, 'message' => 'Database connection failed']));
+    http_response_code(500);
+    echo json_encode(['success' => false, 'message' => 'Database connection failed']);
+    exit;
 }
 
 $conn->set_charset('utf8mb4');
@@ -77,21 +87,28 @@ $newStatus = isset($_POST['new_status']) ? $_POST['new_status'] : '';
 $remarks = isset($_POST['remarks']) ? $_POST['remarks'] : '';
 
 if ($examId <= 0 || empty($newStatus)) {
-    die(json_encode(['success' => false, 'message' => 'Invalid parameters']));
+    http_response_code(400);
+    echo json_encode(['success' => false, 'message' => 'Invalid parameters']);
+    exit;
 }
 
 // Valid statuses
 $newStatus = $newStatus === 'for-compliance' ? 'compliance' : $newStatus;
 $validStatuses = ['approved', 'rejected', 'compliance', 'hold', 'cancelled'];
 if (!in_array($newStatus, $validStatuses, true)) {
-    die(json_encode(['success' => false, 'message' => 'Invalid status']));
+    http_response_code(400);
+    echo json_encode(['success' => false, 'message' => 'Invalid status']);
+    exit;
 }
 
 try {
     // Update exam status
     $stmt = $conn->prepare("UPDATE examinations SET status = ?, remarks = ?, reviewed_at = NOW() WHERE id = ?");
+    if (!$stmt) {
+        throw new Exception('Prepare failed: ' . $conn->error);
+    }
     $stmt->bind_param("ssi", $newStatus, $remarks, $examId);
-    
+
     if ($stmt->execute()) {
         // If approved, also update the exam repository
         if ($newStatus === 'approved') {
@@ -103,11 +120,15 @@ try {
 
             // Check if already exists in repository
             $existsStmt = $conn->prepare("SELECT id FROM exam_repository WHERE original_exam_id = ? LIMIT 1");
+            if (!$existsStmt) {
+                throw new Exception('Prepare failed: ' . $conn->error);
+            }
             $existsStmt->bind_param("i", $examId);
             $existsStmt->execute();
             $existsResult = $existsStmt->get_result();
             if ($existsResult && $existsResult->num_rows > 0) {
-                $repoId = (int) $existsResult->fetch_assoc()['id'];
+                $repoRow = $existsResult->fetch_assoc();
+                $repoId = is_array($repoRow) ? (int)($repoRow['id'] ?? 0) : 0;
             }
             $existsStmt->close();
 
@@ -139,6 +160,9 @@ try {
                 ";
 
                 $updateRepoStmt = $conn->prepare($updateRepoSql);
+                if (!$updateRepoStmt) {
+                    throw new Exception('Prepare failed: ' . $conn->error);
+                }
                 $updateRepoStmt->bind_param("i", $repoId);
                 $updateRepoStmt->execute();
                 $updateRepoStmt->close();
@@ -199,6 +223,9 @@ try {
                 ";
 
                 $copyStmt = $conn->prepare($copySql);
+                if (!$copyStmt) {
+                    throw new Exception('Prepare failed: ' . $conn->error);
+                }
                 $copyStmt->bind_param("i", $examId);
                 try {
                     $copyStmt->execute();
@@ -220,6 +247,9 @@ try {
                             WHERE id = ?
                         ";
                         $copyStmt = $conn->prepare($copySql);
+                        if (!$copyStmt) {
+                            throw new Exception('Prepare failed: ' . $conn->error);
+                        }
                         $copyStmt->bind_param("i", $examId);
                         $copyStmt->execute();
                     } else {
@@ -232,6 +262,9 @@ try {
 
             if ($repoId) {
                 $deleteRepoQuestionsStmt = $conn->prepare("DELETE FROM exam_repository_questions WHERE exam_id = ?");
+                if (!$deleteRepoQuestionsStmt) {
+                    throw new Exception('Prepare failed: ' . $conn->error);
+                }
                 $deleteRepoQuestionsStmt->bind_param("i", $repoId);
                 $deleteRepoQuestionsStmt->execute();
                 $deleteRepoQuestionsStmt->close();
@@ -245,6 +278,9 @@ try {
                     FROM examination_questions
                     WHERE examination_id = ?
                 ");
+                if (!$copyQuestionsStmt) {
+                    throw new Exception('Prepare failed: ' . $conn->error);
+                }
                 $copyQuestionsStmt->bind_param("ii", $repoId, $examId);
                 $copyQuestionsStmt->execute();
                 $copyQuestionsStmt->close();
@@ -253,11 +289,14 @@ try {
 
         if ($newStatus === 'cancelled') {
             $cancelRepoStmt = $conn->prepare("UPDATE exam_repository SET status = 'cancelled' WHERE original_exam_id = ?");
+            if (!$cancelRepoStmt) {
+                throw new Exception('Prepare failed: ' . $conn->error);
+            }
             $cancelRepoStmt->bind_param('i', $examId);
             $cancelRepoStmt->execute();
             $cancelRepoStmt->close();
         }
-        
+
         echo json_encode([
             'success' => true,
             'message' => 'Examination status updated successfully'
@@ -265,10 +304,11 @@ try {
     } else {
         throw new Exception("Failed to update examination status: " . $stmt->error);
     }
-    
+
     $stmt->close();
 } catch (Exception $e) {
     error_log("Error updating exam status: " . $e->getMessage());
+    http_response_code(500);
     echo json_encode([
         'success' => false,
         'message' => $e->getMessage()
