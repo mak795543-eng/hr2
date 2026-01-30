@@ -149,9 +149,9 @@ if ($conn && is_int($employeeId)) {
                     $error_message = 'File too large. Maximum is 5MB.';
                 } else {
                     $ext = strtolower((string)pathinfo($orig, PATHINFO_EXTENSION));
-                    $allowedExt = ['pdf', 'jpg', 'jpeg', 'png', 'webp'];
+                    $allowedExt = ['pdf', 'jpg', 'jpeg', 'png', 'gif', 'webp', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt', 'csv'];
                     if (!in_array($ext, $allowedExt, true)) {
-                        $error_message = 'Unsupported file type. Please upload PDF or image (JPG/PNG/WEBP).';
+                        $error_message = 'Unsupported file type. Please upload PDF, image, or document file.';
                     } else {
                         $fileName = 'profile_request_' . $employeeId . '_' . time() . '.' . $ext;
                         $dest = $proofDir . DIRECTORY_SEPARATOR . $fileName;
@@ -544,6 +544,7 @@ $user = [
     'suffix' => '',
     'position' => 'Design & Product Team',
     'role' => 'Senior UX Designer',
+    'access_role' => '',
     'location' => 'San Francisco, CA',
     'joined' => 'Joined Jan 12, 2023',
     'email' => 'alex.j@company.com',
@@ -557,6 +558,7 @@ $user = [
     'nationality' => '',
     'emp_id' => '#99214-B',
     'department' => 'Product Eng.',
+    'department_no' => '',
     'status' => 'Full-Time',
     'emergency_name' => 'Jamie Johnson',
     'emergency_relationship' => 'Spouse'
@@ -589,9 +591,11 @@ if (is_array($emp)) {
 
     $user['position'] = (string)($emp['department'] ?? '');
     $user['role'] = (string)($emp['position'] ?? '');
+    $user['access_role'] = (string)($_SESSION['role'] ?? '');
     $user['work_email'] = (string)($emp['email'] ?? '');
     $user['email'] = (string)($emp['email'] ?? '');
     $user['department'] = (string)($emp['department'] ?? '');
+    $user['department_no'] = (string)($_SESSION['Dept_id'] ?? '');
     $user['emp_id'] = (string)($emp['employee_no'] ?? '');
     $user['status'] = (string)($emp['status'] ?? 'Active');
 }
@@ -668,7 +672,7 @@ if ((string)$user['birthdate'] !== '') {
         <div class="max-w-6xl mx-auto">
           <div class="mb-6">
             <h1 class="text-2xl font-bold text-gray-800">Profile Management</h1>
-            <p class="text-gray-600">Manage your account information and security settings.</p>
+            <p class="text-gray-600">Manage your account information.</p>
           </div>
 
           <?php if ($success_message !== ''): ?>
@@ -719,6 +723,18 @@ if ((string)$user['birthdate'] !== '') {
                       <i data-lucide="briefcase" class="w-4 h-4 text-blue-600"></i>
                       <span><?php echo htmlspecialchars($user['role']); ?></span>
                     </div>
+                    <?php if (trim((string)$user['department_no']) !== ''): ?>
+                    <div class="flex items-center gap-2 text-gray-700">
+                      <i data-lucide="hash" class="w-4 h-4 text-slate-600"></i>
+                      <span><?php echo htmlspecialchars((string)$user['department_no']); ?></span>
+                    </div>
+                    <?php endif; ?>
+                    <?php if (trim((string)$user['access_role']) !== ''): ?>
+                    <div class="flex items-center gap-2 text-gray-700">
+                      <i data-lucide="user" class="w-4 h-4 text-indigo-600"></i>
+                      <span><?php echo htmlspecialchars((string)$user['access_role']); ?></span>
+                    </div>
+                    <?php endif; ?>
                     <div class="flex items-center gap-2 text-gray-700">
                       <i data-lucide="map-pin" class="w-4 h-4 text-green-600"></i>
                       <span><?php echo htmlspecialchars($user['location']); ?></span>
@@ -733,22 +749,29 @@ if ((string)$user['birthdate'] !== '') {
 
               <div class="card bg-base-100 shadow-sm border border-base-200">
                 <div class="card-body">
-                  <div class="flex items-center gap-2">
-                    <i data-lucide="shield" class="w-5 h-5 text-blue-600"></i>
-                    <h2 class="card-title text-base">Security</h2>
+                  <h2 class="card-title">Employment Data</h2>
+                  <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
+                    <div>
+                      <div class="text-xs font-semibold text-gray-500">EMP ID</div>
+                      <div class="mt-1 font-semibold text-gray-900"><?php echo htmlspecialchars($user['emp_id']); ?></div>
+                    </div>
+                    <div>
+                      <div class="text-xs font-semibold text-gray-500">DEPARTMENT</div>
+                      <div class="mt-1 font-semibold text-gray-900"><?php echo htmlspecialchars($user['department']); ?></div>
+                    </div>
+                    <div>
+                      <div class="text-xs font-semibold text-gray-500">STATUS</div>
+                      <div class="mt-1 font-semibold text-gray-900"><?php echo htmlspecialchars($user['status']); ?></div>
+                    </div>
                   </div>
-                  <div class="mt-4 space-y-2">
-                    <button class="btn btn-outline btn-sm w-full justify-start" type="button">
-                      <i data-lucide="key" class="w-4 h-4"></i>
-                      <span class="ml-2">Change Password</span>
-                    </button>
-                    <button class="btn btn-outline btn-sm w-full justify-start" type="button">
-                      <i data-lucide="smartphone" class="w-4 h-4"></i>
-                      <span class="ml-2">Two-Factor Auth</span>
-                    </button>
+
+                  <div class="mt-4 flex items-start gap-2 text-sm text-amber-700">
+                    <i data-lucide="info" class="w-4 h-4 mt-0.5"></i>
+                    <div>To change employment details, please contact HR administrator.</div>
                   </div>
                 </div>
               </div>
+
             </div>
 
             <div class="lg:col-span-2 space-y-6">
@@ -833,7 +856,7 @@ if ((string)$user['birthdate'] !== '') {
 
                     <div class="form-control">
                       <label class="label"><span class="label-text">Proof/Basis file</span></label>
-                      <input name="proof_file" type="file" class="file-input file-input-bordered w-full" accept=".pdf,image/*" required />
+                      <input name="proof_file" type="file" class="file-input file-input-bordered w-full" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,image/*" required />
                     </div>
 
                     <div class="modal-action">
@@ -989,31 +1012,6 @@ if ((string)$user['birthdate'] !== '') {
                         <?php echo $canEditNationality ? '' : 'disabled'; ?>
                       />
                     </div>
-                  </div>
-                </div>
-              </div>
-
-              <div class="card bg-base-100 shadow-sm border border-base-200">
-                <div class="card-body">
-                  <h2 class="card-title">Employment Data</h2>
-                  <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
-                    <div>
-                      <div class="text-xs font-semibold text-gray-500">EMP ID</div>
-                      <div class="mt-1 font-semibold text-gray-900"><?php echo htmlspecialchars($user['emp_id']); ?></div>
-                    </div>
-                    <div>
-                      <div class="text-xs font-semibold text-gray-500">DEPARTMENT</div>
-                      <div class="mt-1 font-semibold text-gray-900"><?php echo htmlspecialchars($user['department']); ?></div>
-                    </div>
-                    <div>
-                      <div class="text-xs font-semibold text-gray-500">STATUS</div>
-                      <div class="mt-1 font-semibold text-gray-900"><?php echo htmlspecialchars($user['status']); ?></div>
-                    </div>
-                  </div>
-
-                  <div class="mt-4 flex items-start gap-2 text-sm text-amber-700">
-                    <i data-lucide="info" class="w-4 h-4 mt-0.5"></i>
-                    <div>To change employment details, please contact HR administrator.</div>
                   </div>
                 </div>
               </div>
