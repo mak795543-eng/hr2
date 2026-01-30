@@ -121,6 +121,17 @@ function ess_ensure_profile_tables($conn): void
                 @mysqli_query($conn, $sql);
             }
         }
+
+        $employeeCols = [
+            ['middle_name', "ALTER TABLE employees ADD COLUMN middle_name VARCHAR(100) NULL"],
+            ['suffix', "ALTER TABLE employees ADD COLUMN suffix VARCHAR(50) NULL"],
+        ];
+
+        foreach ($employeeCols as [$col, $sql]) {
+            if (!$columnExists('employees', $col)) {
+                @mysqli_query($conn, $sql);
+            }
+        }
     }
 }
 

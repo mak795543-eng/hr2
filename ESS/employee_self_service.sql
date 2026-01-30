@@ -2,11 +2,11 @@
 -- EMPLOYEE SELF SERVICE DATABASE
 -- ============================================
 
-CREATE DATABASE IF NOT EXISTS employee_self_service
+CREATE DATABASE IF NOT EXISTS hr2_employee_self_service
 CHARACTER SET utf8mb4
 COLLATE utf8mb4_unicode_ci;
 
-USE employee_self_service;
+USE hr2_employee_self_service;
 
 -- ============================================
 -- 1. EMPLOYEES (CORE TABLE)
@@ -15,7 +15,9 @@ CREATE TABLE employees (
     id INT AUTO_INCREMENT PRIMARY KEY,
     employee_no VARCHAR(50) UNIQUE NOT NULL,
     first_name VARCHAR(100) NOT NULL,
+    middle_name VARCHAR(100) NULL,
     last_name VARCHAR(100) NOT NULL,
+    suffix VARCHAR(50) NULL,
     email VARCHAR(150) UNIQUE NOT NULL,
     department VARCHAR(100),
     position VARCHAR(100),
