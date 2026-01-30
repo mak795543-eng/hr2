@@ -43,7 +43,7 @@ require('../../partials/header.php');
             </div>
             <div class="flex gap-2">
                 <a href="gap_analysis.php" class="btn btn-outline btn-sm">Gap Analysis</a>
-                <a href="general_skills_management.php" class="btn btn-primary btn-sm">General Skills Management</a>
+                <a href="../../kpi_eval_dummy.php" class="btn btn-primary btn-sm">KPI Evaluation</a>
                 <button type="button" id="push-all-to-succession" class="btn btn-outline btn-sm">Push All to Succession</button>
             </div>
         </div>
@@ -406,46 +406,65 @@ require('../../partials/header.php');
             subtitle.textContent = `${employee.full_name} | ${employee.position} | ${employee.department}`;
             
             const overall = parseFloat(employee.competency) || 0;
-            const skills = Array.isArray(employee.skills) ? employee.skills : [];
+            const maxScore = 5;
+            const kpis = Array.isArray(employee.kpis) ? employee.kpis : [];
 
-            const skillsRows = skills.map((skill) => {
-                const score = parseFloat(skill.skill_score) || 0;
+            const kpisHtml = kpis.length > 0 ? kpis.map((kpi) => {
+                const name = String(kpi.kpi_name ?? kpi.kpi ?? '');
+                const evaluations = Array.isArray(kpi.evaluations) ? kpi.evaluations : [];
+                const scores = evaluations.map(e => Number(e.score)).filter(v => Number.isFinite(v));
+                const avg = scores.length ? (scores.reduce((a, b) => a + b, 0) / scores.length) : 0;
+                const pct = Math.max(0, Math.min(100, (avg / maxScore) * 100));
+
+                const rows = evaluations.map((ev) => {
+                    const s = Number(ev.score);
+                    const sSafe = Number.isFinite(s) ? s : 0;
+                    const sPct = Math.max(0, Math.min(100, (sSafe / maxScore) * 100));
+                    return `
+                        <tr class="hover:bg-gray-50">
+                            <td class="py-2 px-4 border-b border-gray-300 text-sm text-gray-900">${escapeHtml(ev.criteria ?? '')}</td>
+                            <td class="py-2 px-4 border-b border-gray-300 text-right">
+                                <div class="font-semibold ${getSkillScoreColor(sPct)}">${sSafe.toFixed(1)} / ${maxScore}</div>
+                                <div class="text-xs text-gray-500">${sPct.toFixed(0)}%</div>
+                            </td>
+                        </tr>
+                    `;
+                }).join('');
+
                 return `
-                    <tr class="hover:bg-gray-50">
-                        <td class="py-3 px-4 border-b border-gray-300">
-                            <div class="font-medium text-gray-900">${escapeHtml(skill.skill_name)}</div>
-                        </td>
-                        <td class="py-3 px-4 border-b border-gray-300 text-sm text-gray-600">${escapeHtml(skill.description || '')}</td>
-                        <td class="py-3 px-4 border-b border-gray-300">
-                            <div class="text-lg font-bold ${getSkillScoreColor(score)}">${Math.round(score)}%</div>
-                        </td>
-                        <td class="py-3 px-4 border-b border-gray-300 text-sm text-gray-600">${formatAssessmentDate(skill.assessment_date)}</td>
-                    </tr>
+                    <div class="border border-gray-300 rounded-lg overflow-hidden">
+                        <div class="px-4 py-3 bg-gray-50 border-b border-gray-300 flex items-center justify-between gap-3">
+                            <div class="font-semibold text-gray-900">${escapeHtml(name)}</div>
+                            <div class="text-right">
+                                <div class="text-sm text-gray-600">Average</div>
+                                <div class="font-bold text-gray-900">${avg.toFixed(2)} / ${maxScore} (${pct.toFixed(1)}%)</div>
+                            </div>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="table w-full">
+                                <thead>
+                                    <tr class="bg-white">
+                                        <th class="text-gray-700 py-2 px-4 border-b border-gray-300">Criteria</th>
+                                        <th class="text-gray-700 py-2 px-4 border-b border-gray-300 text-right">Score</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-gray-200">
+                                    ${rows || `
+                                        <tr>
+                                            <td colspan="2" class="py-8 text-center text-gray-500">No evaluations</td>
+                                        </tr>
+                                    `}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
                 `;
-            }).join('');
-
-            const skillsHtml = skills.length > 0 ? `
-                <div class="overflow-x-auto">
-                    <table class="table w-full">
-                        <thead>
-                            <tr class="bg-gray-50">
-                                <th class="text-gray-700 py-3 px-4 border-b border-gray-300">Skill Name</th>
-                                <th class="text-gray-700 py-3 px-4 border-b border-gray-300">Description</th>
-                                <th class="text-gray-700 py-3 px-4 border-b border-gray-300">Score</th>
-                                <th class="text-gray-700 py-3 px-4 border-b border-gray-300">Last Assessed</th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-gray-200">${skillsRows}</tbody>
-                    </table>
-                </div>
-            ` : `
+            }).join('') : `
                 <div class="text-center py-12 text-gray-500">
                     <i data-lucide="alert-circle" class="w-12 h-12 mx-auto mb-4"></i>
-                    <p class="text-lg font-medium">No skill assessments available</p>
-                    <p class="text-sm mt-2">This employee has not been assessed for general skills yet.</p>
+                    <p class="text-lg font-medium">No KPI evaluations available</p>
                 </div>
             `;
-
             content.innerHTML = `
                 <div class="space-y-6">
                     <div class="bg-gray-50 p-5 rounded-lg border border-gray-300">
@@ -480,9 +499,14 @@ require('../../partials/header.php');
                     <div class="bg-white border border-gray-300 rounded-lg p-5">
                         <h4 class="font-semibold text-gray-900 flex items-center gap-2 mb-4">
                             <i data-lucide="list-checks" class="w-4 h-4"></i>
-                            General Skills
+                            KPI Evaluations
                         </h4>
-                        ${skillsHtml}
+                        <div class="space-y-4">
+                            ${employee.evaluation_period ? `
+                                <div class="text-sm text-gray-600">Evaluation period: <span class="font-semibold">${escapeHtml(employee.evaluation_period)}</span></div>
+                            ` : ''}
+                            ${kpisHtml}
+                        </div>
                     </div>
 
                     <div class="flex justify-between items-center pt-6 border-t border-gray-300">
