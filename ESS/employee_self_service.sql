@@ -7,7 +7,6 @@ CHARACTER SET utf8mb4
 COLLATE utf8mb4_unicode_ci;
 
 USE hr2_employee_self_service;
-
 -- ============================================
 -- 1. EMPLOYEES (CORE TABLE)
 -- ============================================
