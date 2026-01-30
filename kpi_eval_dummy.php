@@ -340,7 +340,7 @@ if ($basePath === '.') {
         return;
       }
 
-      const url = `${apiBase}/api/employee/${encodeURIComponent(employeeId)}/kpi-evaluation`;
+      const url = `${apiBase}/api/employee_kpi_evaluation.php?employee_id=${encodeURIComponent(employeeId)}`;
 
       try {
         const res = await fetch(url, {

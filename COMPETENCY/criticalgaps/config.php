@@ -215,6 +215,50 @@ function createTablesIfNotExist()
     }
 }
 
+function ensureCompetencyCriteriaSchema(): void
+{
+    global $pdo;
+
+    try {
+        $pdo->exec(
+            "CREATE TABLE IF NOT EXISTS competency_criteria (
+                id INT PRIMARY KEY AUTO_INCREMENT,
+                name VARCHAR(150) NOT NULL,
+                description TEXT,
+                required_level DECIMAL(5,2) NOT NULL DEFAULT 80,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                UNIQUE KEY uniq_competency_name (name)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
+        );
+    } catch (Throwable $e) {
+    }
+}
+
+function ensureGapFormulationSchema(): void
+{
+    global $pdo;
+
+    try {
+        $pdo->exec(
+            "CREATE TABLE IF NOT EXISTS kpi_gap_formulations (
+                id INT PRIMARY KEY AUTO_INCREMENT,
+                employee_id VARCHAR(50) NOT NULL,
+                evaluation_period VARCHAR(50) NOT NULL,
+                overall_competency DECIMAL(5,2) NOT NULL DEFAULT 0,
+                status VARCHAR(50) NOT NULL,
+                details_json LONGTEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                UNIQUE KEY uniq_emp_period (employee_id, evaluation_period),
+                INDEX idx_period (evaluation_period),
+                CONSTRAINT fk_gap_emp FOREIGN KEY (employee_id) REFERENCES employees(employee_id) ON DELETE CASCADE
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
+        );
+    } catch (Throwable $e) {
+    }
+}
+
 function ensureSchema()
 {
     global $pdo;
@@ -451,12 +495,118 @@ function insertDefaultGeneralSkills()
     }
 }
 
+function ensureKpiSchema(): void
+{
+    global $pdo;
+
+    try {
+        $pdo->exec(
+            "CREATE TABLE IF NOT EXISTS kpis (
+                id INT PRIMARY KEY AUTO_INCREMENT,
+                kpi_name VARCHAR(150) NOT NULL,
+                department VARCHAR(100) DEFAULT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE KEY uniq_kpi (kpi_name, department)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
+        );
+    } catch (Throwable $e) {
+    }
+
+    try {
+        $pdo->exec(
+            "CREATE TABLE IF NOT EXISTS employee_kpi_scores (
+                id INT PRIMARY KEY AUTO_INCREMENT,
+                employee_id VARCHAR(50) NOT NULL,
+                evaluation_period VARCHAR(50) NOT NULL,
+                kpi_id INT NOT NULL,
+                criteria VARCHAR(255) NOT NULL,
+                score DECIMAL(5,2) NOT NULL DEFAULT 0,
+                assessed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE KEY uniq_emp_kpi_criteria (employee_id, evaluation_period, kpi_id, criteria),
+                INDEX idx_emp_period (employee_id, evaluation_period),
+                CONSTRAINT fk_emp_kpi_employee FOREIGN KEY (employee_id) REFERENCES employees(employee_id) ON DELETE CASCADE,
+                CONSTRAINT fk_emp_kpi_kpi FOREIGN KEY (kpi_id) REFERENCES kpis(id) ON DELETE CASCADE
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
+        );
+    } catch (Throwable $e) {
+    }
+}
+
+function seedMissingKpiEvaluations(string $employeeId, string $evaluationPeriod): bool
+{
+    global $pdo;
+
+    $employeeId = trim($employeeId);
+    $evaluationPeriod = trim($evaluationPeriod);
+    if ($employeeId === '' || $evaluationPeriod === '') return false;
+
+    $stmtEmp = $pdo->prepare('SELECT department FROM employees WHERE employee_id = ? LIMIT 1');
+    $stmtEmp->execute([$employeeId]);
+    $dept = (string)($stmtEmp->fetchColumn() ?: '');
+
+    $check = $pdo->prepare('SELECT COUNT(*) FROM employee_kpi_scores WHERE employee_id = ? AND evaluation_period = ?');
+    $check->execute([$employeeId, $evaluationPeriod]);
+    $has = (int)($check->fetchColumn() ?? 0);
+    if ($has > 0) return false;
+
+    $kpiBlueprint = [
+        'Work Quality' => [
+            'Accuracy of work',
+            'Attention to detail',
+            'Consistency',
+            'Compliance with standards',
+            'Cleanliness',
+        ],
+        'Productivity' => [
+            'Time management',
+            'Task completion',
+            'Meeting deadlines',
+        ],
+        'Customer Service' => [
+            'Professionalism',
+            'Responsiveness',
+            'Guest handling',
+        ],
+        'Teamwork' => [
+            'Collaboration',
+            'Communication',
+            'Reliability',
+        ],
+        'Compliance' => [
+            'Policy adherence',
+            'Safety & sanitation',
+        ],
+    ];
+
+    $insertKpi = $pdo->prepare('INSERT INTO kpis (kpi_name, department) VALUES (?, ?) ON DUPLICATE KEY UPDATE id = LAST_INSERT_ID(id)');
+    $insertScore = $pdo->prepare('INSERT IGNORE INTO employee_kpi_scores (employee_id, evaluation_period, kpi_id, criteria, score) VALUES (?, ?, ?, ?, ?)');
+
+    foreach ($kpiBlueprint as $kpiName => $criteriaList) {
+        $insertKpi->execute([$kpiName, $dept !== '' ? $dept : null]);
+        $kpiId = (int)$pdo->lastInsertId();
+        if ($kpiId <= 0) {
+            $fallback = $pdo->prepare('SELECT id FROM kpis WHERE kpi_name = ? AND ((department IS NULL AND ? IS NULL) OR department = ?) LIMIT 1');
+            $fallback->execute([$kpiName, $dept !== '' ? $dept : null, $dept !== '' ? $dept : null]);
+            $kpiId = (int)($fallback->fetchColumn() ?? 0);
+        }
+        if ($kpiId <= 0) continue;
+
+        foreach ($criteriaList as $crit) {
+            $seed = crc32($employeeId . '|' . $evaluationPeriod . '|' . $kpiName . '|' . $crit);
+            $score = (float)((($seed % 5) + 1));
+            $insertScore->execute([$employeeId, $evaluationPeriod, $kpiId, $crit, $score]);
+        }
+    }
+
+    return true;
+}
+
 function mapCompetencyToStatus(float $pct): string
 {
-    if ($pct <= 30) return 'Retrain';
-    if ($pct <= 50) return 'Reskilling';
-    if ($pct <= 75) return 'Refresher Training';
-    if ($pct <= 90) return 'Upskilling';
+    if ($pct <= 20) return 'Retrain';
+    if ($pct <= 40) return 'Reskilling';
+    if ($pct <= 60) return 'Refresher Training';
+    if ($pct <= 80) return 'Upskilling';
     return 'Succession Ready';
 }
 
@@ -464,31 +614,32 @@ function computeEmployeeCompetency(string $employeeId): array
 {
     global $pdo;
 
+    ensureKpiSchema();
+
     $deptStmt = $pdo->prepare("SELECT department FROM employees WHERE employee_id = ? LIMIT 1");
     $deptStmt->execute([$employeeId]);
     $dept = (string)($deptStmt->fetchColumn() ?: '');
-    if ($dept === '') {
-        return ['competency' => 0.0, 'status' => 'Retrain', 'department' => ''];
-    }
+
+    $period = date('Y') . '-Q' . (string)ceil((int)date('n') / 3);
+    seedMissingKpiEvaluations($employeeId, $period);
 
     $stmt = $pdo->prepare(
-        "SELECT AVG(COALESCE(es.skill_score, 0)) AS competency
-         FROM skills s
-         LEFT JOIN employee_skills es
-           ON es.employee_id = ?
-          AND es.skill_id = s.id
-         WHERE s.category = 'General Skills'
-           AND s.department = ?"
+        "SELECT AVG(COALESCE(score, 0)) AS avg_score
+         FROM employee_kpi_scores
+         WHERE employee_id = ? AND evaluation_period = ?"
     );
-    $stmt->execute([$employeeId, $dept]);
-    $val = $stmt->fetchColumn();
-    $competency = is_numeric($val) ? (float)$val : 0.0;
-    $competency = round($competency, 1);
+    $stmt->execute([$employeeId, $period]);
+    $avg = $stmt->fetchColumn();
+    $avgScore = is_numeric($avg) ? (float)$avg : 0.0;
+    if ($avgScore < 0) $avgScore = 0.0;
+    if ($avgScore > 5) $avgScore = 5.0;
+    $pct = round(($avgScore / 5.0) * 100.0, 1);
 
     return [
-        'competency' => $competency,
-        'status' => mapCompetencyToStatus($competency),
+        'competency' => $pct,
+        'status' => mapCompetencyToStatus($pct),
         'department' => $dept,
+        'evaluation_period' => $period,
     ];
 }
 
@@ -496,26 +647,27 @@ function employeeHasGaps(string $employeeId): bool
 {
     global $pdo;
 
-    $deptStmt = $pdo->prepare("SELECT department FROM employees WHERE employee_id = ? LIMIT 1");
-    $deptStmt->execute([$employeeId]);
-    $dept = (string)($deptStmt->fetchColumn() ?: '');
-    if ($dept === '') {
-        return true;
-    }
+    ensureKpiSchema();
+    ensureCompetencyCriteriaSchema();
+
+    $period = date('Y') . '-Q' . (string)ceil((int)date('n') / 3);
+    seedMissingKpiEvaluations($employeeId, $period);
 
     $stmt = $pdo->prepare(
         "SELECT COUNT(*)
-         FROM skills s
-         LEFT JOIN general_skill_standards gss
-           ON gss.skill_id = s.id
-         LEFT JOIN employee_skills es
-           ON es.employee_id = ?
-          AND es.skill_id = s.id
-         WHERE s.category = 'General Skills'
-           AND s.department = ?
-           AND (COALESCE(gss.standard_percentage, 80) - COALESCE(es.skill_score, 0)) > 0"
+         FROM (
+            SELECT k.kpi_name,
+                   AVG(COALESCE(s.score, 0)) / 5 * 100 AS kpi_pct
+            FROM employee_kpi_scores s
+            JOIN kpis k ON k.id = s.kpi_id
+            WHERE s.employee_id = ? AND s.evaluation_period = ?
+            GROUP BY k.kpi_name
+         ) t
+         LEFT JOIN competency_criteria cc
+           ON cc.name = t.kpi_name
+         WHERE (COALESCE(cc.required_level, 80) - COALESCE(t.kpi_pct, 0)) > 0"
     );
-    $stmt->execute([$employeeId, $dept]);
+    $stmt->execute([$employeeId, $period]);
     $cnt = (int)($stmt->fetchColumn() ?? 0);
     return $cnt > 0;
 }
@@ -556,6 +708,9 @@ function syncPrePromotionEmployee(string $employeeId): void
 
 // Initialize database
 createTablesIfNotExist();
+ensureKpiSchema();
+ensureCompetencyCriteriaSchema();
+ensureGapFormulationSchema();
 
 // Function to get employees
 function getEmployees($filter = 'all', $search = '', $department = 'all')
@@ -566,25 +721,20 @@ function getEmployees($filter = 'all', $search = '', $department = 'all')
         $sql = "SELECT e.id, e.employee_id, e.full_name, e.position, e.department, e.last_assessment, e.next_review_date,
                        COALESCE(gs.competency, 0) AS competency,
                        CASE
-                           WHEN COALESCE(gs.competency, 0) <= 30 THEN 'Retrain'
-                           WHEN COALESCE(gs.competency, 0) <= 50 THEN 'Reskilling'
-                           WHEN COALESCE(gs.competency, 0) <= 75 THEN 'Refresher Training'
-                           WHEN COALESCE(gs.competency, 0) <= 90 THEN 'Upskilling'
+                           WHEN COALESCE(gs.competency, 0) <= 20 THEN 'Retrain'
+                           WHEN COALESCE(gs.competency, 0) <= 40 THEN 'Reskilling'
+                           WHEN COALESCE(gs.competency, 0) <= 60 THEN 'Refresher Training'
+                           WHEN COALESCE(gs.competency, 0) <= 80 THEN 'Upskilling'
                            ELSE 'Succession Ready'
                        END AS status
 
                 FROM employees e
                 LEFT JOIN (
-                    SELECT e2.employee_id, e2.department, AVG(COALESCE(es2.skill_score, 0)) AS competency
-                    FROM employees e2
-                    JOIN skills s2
-                      ON s2.category = 'General Skills'
-                     AND s2.department = e2.department
-                    LEFT JOIN employee_skills es2
-                      ON es2.employee_id = e2.employee_id
-                     AND es2.skill_id = s2.id
-                    GROUP BY e2.employee_id, e2.department
-                ) gs ON gs.employee_id = e.employee_id AND gs.department = e.department
+                    SELECT s2.employee_id, AVG(COALESCE(s2.score, 0)) / 5 * 100 AS competency
+                    FROM employee_kpi_scores s2
+                    WHERE s2.evaluation_period = ?
+                    GROUP BY s2.employee_id
+                ) gs ON gs.employee_id = e.employee_id
                 WHERE 1=1
                   AND NOT EXISTS (
                       SELECT 1
@@ -602,7 +752,8 @@ function getEmployees($filter = 'all', $search = '', $department = 'all')
                       WHERE r.employee_id = e.employee_id
                         AND r.status = 'Pending'
                   )";
-        $params = [];
+        $period = date('Y') . '-Q' . (string)ceil((int)date('n') / 3);
+        $params = [$period];
 
         // Apply department filter
         if ($department !== 'all') {
@@ -614,10 +765,10 @@ function getEmployees($filter = 'all', $search = '', $department = 'all')
         if ($filter !== 'all') {
             $sql .= " AND (
                 CASE
-                    WHEN COALESCE(gs.competency, 0) <= 30 THEN 'Retrain'
-                    WHEN COALESCE(gs.competency, 0) <= 50 THEN 'Reskilling'
-                    WHEN COALESCE(gs.competency, 0) <= 75 THEN 'Refresher Training'
-                    WHEN COALESCE(gs.competency, 0) <= 90 THEN 'Upskilling'
+                    WHEN COALESCE(gs.competency, 0) <= 20 THEN 'Retrain'
+                    WHEN COALESCE(gs.competency, 0) <= 40 THEN 'Reskilling'
+                    WHEN COALESCE(gs.competency, 0) <= 60 THEN 'Refresher Training'
+                    WHEN COALESCE(gs.competency, 0) <= 80 THEN 'Upskilling'
                     ELSE 'Succession Ready'
                 END
             ) = ?";
@@ -636,10 +787,10 @@ function getEmployees($filter = 'all', $search = '', $department = 'all')
 
         $sql .= " ORDER BY 
             CASE
-                WHEN COALESCE(gs.competency, 0) <= 30 THEN 1
-                WHEN COALESCE(gs.competency, 0) <= 50 THEN 2
-                WHEN COALESCE(gs.competency, 0) <= 75 THEN 3
-                WHEN COALESCE(gs.competency, 0) <= 90 THEN 4
+                WHEN COALESCE(gs.competency, 0) <= 20 THEN 1
+                WHEN COALESCE(gs.competency, 0) <= 40 THEN 2
+                WHEN COALESCE(gs.competency, 0) <= 60 THEN 3
+                WHEN COALESCE(gs.competency, 0) <= 80 THEN 4
                 ELSE 5
             END,
             COALESCE(gs.competency, 0) DESC,
@@ -667,39 +818,64 @@ function getEmployeeDetails($employee_id)
         $employee = $stmt->fetch();
 
         if ($employee) {
-            // Get employee general skills by department
-            $sql = "SELECT s.skill_name, s.category, s.description,
-                           COALESCE(es.skill_score, 0) AS skill_score,
-                           es.skill_score AS raw_skill_score,
-                           es.assessment_date, es.assessed_by, es.notes
-                    FROM skills s
-                    LEFT JOIN employee_skills es
-                        ON es.skill_id = s.id AND es.employee_id = ?
-                    WHERE s.category = 'General Skills' AND s.department = ?
-                    ORDER BY s.skill_name ASC";
+            ensureKpiSchema();
 
-            $stmt = $pdo->prepare($sql);
-            $stmt->execute([$employee_id, $employee['department']]);
-            $employee['skills'] = $stmt->fetchAll();
+            $period = date('Y') . '-Q' . (string)ceil((int)date('n') / 3);
+            seedMissingKpiEvaluations((string)$employee_id, $period);
 
-            $total = 0.0;
-            $count = 0;
-            foreach (($employee['skills'] ?? []) as $s) {
-                $total += is_numeric($s['skill_score'] ?? null) ? (float)$s['skill_score'] : 0.0;
-                $count++;
+            $stmtKpis = $pdo->prepare(
+                'SELECT k.id, k.kpi_name
+                 FROM employee_kpi_scores s
+                 JOIN kpis k ON k.id = s.kpi_id
+                 WHERE s.employee_id = ? AND s.evaluation_period = ?
+                 GROUP BY k.id, k.kpi_name
+                 ORDER BY k.kpi_name ASC'
+            );
+            $stmtKpis->execute([$employee_id, $period]);
+            $kpiRows = $stmtKpis->fetchAll();
+
+            $stmtEvals = $pdo->prepare(
+                'SELECT k.id AS kpi_id, s.criteria, s.score
+                 FROM employee_kpi_scores s
+                 JOIN kpis k ON k.id = s.kpi_id
+                 WHERE s.employee_id = ? AND s.evaluation_period = ?
+                 ORDER BY k.kpi_name ASC, s.id ASC'
+            );
+            $stmtEvals->execute([$employee_id, $period]);
+            $evalRows = $stmtEvals->fetchAll();
+
+            $byKpi = [];
+            $sumAll = 0.0;
+            $cntAll = 0;
+            foreach ($evalRows as $r) {
+                $kid = (int)($r['kpi_id'] ?? 0);
+                if (!isset($byKpi[$kid])) $byKpi[$kid] = [];
+                $score = is_numeric($r['score'] ?? null) ? (float)$r['score'] : 0.0;
+                $byKpi[$kid][] = [
+                    'criteria' => (string)($r['criteria'] ?? ''),
+                    'score' => $score,
+                ];
+                $sumAll += $score;
+                $cntAll++;
             }
-            $employee['competency'] = $count > 0 ? round($total / $count, 1) : 0;
-            if ($employee['competency'] <= 30) {
-                $employee['status'] = 'Retrain';
-            } elseif ($employee['competency'] <= 50) {
-                $employee['status'] = 'Reskilling';
-            } elseif ($employee['competency'] <= 75) {
-                $employee['status'] = 'Refresher Training';
-            } elseif ($employee['competency'] <= 90) {
-                $employee['status'] = 'Upskilling';
-            } else {
-                $employee['status'] = 'Succession Ready';
+
+            $employee['kpis'] = [];
+            foreach ($kpiRows as $k) {
+                $kid = (int)($k['id'] ?? 0);
+                $employee['kpis'][] = [
+                    'kpi_id' => $kid,
+                    'kpi_name' => (string)($k['kpi_name'] ?? ''),
+                    'evaluations' => $byKpi[$kid] ?? [],
+                ];
             }
+
+            $avgScore = $cntAll > 0 ? ($sumAll / $cntAll) : 0.0;
+            if ($avgScore < 0) $avgScore = 0.0;
+            if ($avgScore > 5) $avgScore = 5.0;
+            $pct = round(($avgScore / 5.0) * 100.0, 1);
+            $employee['competency'] = $pct;
+            $employee['status'] = mapCompetencyToStatus($pct);
+            $employee['evaluation_period'] = $period;
         }
 
         return $employee;
@@ -722,68 +898,69 @@ function getCompetencyStats()
             'by_department' => []
         ];
 
-        // Total employees and average (computed from General Skills)
-        $stmt = $pdo->query(
+        ensureKpiSchema();
+
+        $period = date('Y') . '-Q' . (string)ceil((int)date('n') / 3);
+
+        $stmt = $pdo->prepare(
             "SELECT COUNT(*) AS total, AVG(t.competency) AS average
              FROM (
-                SELECT e.employee_id, e.department, AVG(COALESCE(es.skill_score, 0)) AS competency
+                SELECT e.employee_id, e.department, COALESCE(gs.competency, 0) AS competency
                 FROM employees e
-                JOIN skills s
-                  ON s.category = 'General Skills'
-                 AND s.department = e.department
-                LEFT JOIN employee_skills es
-                  ON es.employee_id = e.employee_id
-                 AND es.skill_id = s.id
-                GROUP BY e.employee_id, e.department
+                LEFT JOIN (
+                    SELECT employee_id, AVG(COALESCE(score, 0)) / 5 * 100 AS competency
+                    FROM employee_kpi_scores
+                    WHERE evaluation_period = ?
+                    GROUP BY employee_id
+                ) gs ON gs.employee_id = e.employee_id
              ) t"
         );
+        $stmt->execute([$period]);
         $result = $stmt->fetch();
         $stats['total_employees'] = $result['total'] ?? 0;
         $stats['average_competency'] = round($result['average'] ?? 0, 1);
 
-        // By status (computed)
-        $stmt = $pdo->query(
+        $stmt = $pdo->prepare(
             "SELECT t.status, COUNT(*) AS count
              FROM (
                 SELECT e.employee_id,
                        CASE
-                           WHEN AVG(COALESCE(es.skill_score, 0)) <= 30 THEN 'Retrain'
-                           WHEN AVG(COALESCE(es.skill_score, 0)) <= 50 THEN 'Reskilling'
-                           WHEN AVG(COALESCE(es.skill_score, 0)) <= 75 THEN 'Refresher Training'
-                           WHEN AVG(COALESCE(es.skill_score, 0)) <= 90 THEN 'Upskilling'
+                           WHEN COALESCE(gs.competency, 0) <= 20 THEN 'Retrain'
+                           WHEN COALESCE(gs.competency, 0) <= 40 THEN 'Reskilling'
+                           WHEN COALESCE(gs.competency, 0) <= 60 THEN 'Refresher Training'
+                           WHEN COALESCE(gs.competency, 0) <= 80 THEN 'Upskilling'
                            ELSE 'Succession Ready'
                        END AS status
                 FROM employees e
-                JOIN skills s
-                  ON s.category = 'General Skills'
-                 AND s.department = e.department
-                LEFT JOIN employee_skills es
-                  ON es.employee_id = e.employee_id
-                 AND es.skill_id = s.id
-                GROUP BY e.employee_id
+                LEFT JOIN (
+                    SELECT employee_id, AVG(COALESCE(score, 0)) / 5 * 100 AS competency
+                    FROM employee_kpi_scores
+                    WHERE evaluation_period = ?
+                    GROUP BY employee_id
+                ) gs ON gs.employee_id = e.employee_id
              ) t
              GROUP BY t.status
              ORDER BY t.status"
         );
+        $stmt->execute([$period]);
         $stats['by_status'] = $stmt->fetchAll();
 
-        // By department (computed)
-        $stmt = $pdo->query(
+        $stmt = $pdo->prepare(
             "SELECT t.department, COUNT(*) AS count, AVG(t.competency) AS avg_competency
              FROM (
-                SELECT e.employee_id, e.department, AVG(COALESCE(es.skill_score, 0)) AS competency
+                SELECT e.employee_id, e.department, COALESCE(gs.competency, 0) AS competency
                 FROM employees e
-                JOIN skills s
-                  ON s.category = 'General Skills'
-                 AND s.department = e.department
-                LEFT JOIN employee_skills es
-                  ON es.employee_id = e.employee_id
-                 AND es.skill_id = s.id
-                GROUP BY e.employee_id, e.department
+                LEFT JOIN (
+                    SELECT employee_id, AVG(COALESCE(score, 0)) / 5 * 100 AS competency
+                    FROM employee_kpi_scores
+                    WHERE evaluation_period = ?
+                    GROUP BY employee_id
+                ) gs ON gs.employee_id = e.employee_id
              ) t
              GROUP BY t.department
              ORDER BY t.department"
         );
+        $stmt->execute([$period]);
         $stats['by_department'] = $stmt->fetchAll();
 
         return $stats;

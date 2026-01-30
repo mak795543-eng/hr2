@@ -19,7 +19,8 @@ try {
 $allowedStatuses = ['Retrain', 'Reskilling', 'Refresher Training', 'Upskilling', 'Succession Ready'];
 
 $where = ['ss.is_pushed = 1'];
-$params = [];
+$period = date('Y') . '-Q' . (string)ceil((int)date('n') / 3);
+$params = [$period];
 
 if ($departmentFilter !== 'all' && $departmentFilter !== '') {
     $where[] = 'ss.department = ?';
@@ -56,6 +57,7 @@ $stmt = $pdo->prepare(
             ss.position,
             ss.department,
             COALESCE(gs.competency, 0) AS competency_level,
+
             CASE
                 WHEN COALESCE(gs.competency, 0) <= 20 THEN 'Retrain'
                 WHEN COALESCE(gs.competency, 0) <= 40 THEN 'Reskilling'
@@ -68,16 +70,11 @@ $stmt = $pdo->prepare(
             ss.updated_at
      FROM succession_submissions ss
      LEFT JOIN (
-         SELECT ss2.employee_id, ss2.department, AVG(COALESCE(es2.skill_score, 0)) AS competency
-         FROM succession_submissions ss2
-         JOIN skills s2
-           ON s2.category = 'General Skills'
-          AND s2.department = ss2.department
-         LEFT JOIN employee_skills es2
-           ON es2.employee_id = ss2.employee_id
-          AND es2.skill_id = s2.id
-         GROUP BY ss2.employee_id, ss2.department
-     ) gs ON gs.employee_id = ss.employee_id AND gs.department = ss.department
+         SELECT s2.employee_id, AVG(COALESCE(s2.score, 0)) / 5 * 100 AS competency
+         FROM employee_kpi_scores s2
+         WHERE s2.evaluation_period = ?
+         GROUP BY s2.employee_id
+     ) gs ON gs.employee_id = ss.employee_id
      $whereSql
      ORDER BY ss.updated_at DESC, ss.created_at DESC"
 );
@@ -108,13 +105,13 @@ require('../../partials/header.php');
     <!-- Sidebar -->
     <?php 
     // Use relative path or absolute path based on your directory structure
-    include '../../../../USM/sidebarr.php'; 
+    include '../../USM/sidebarr.php'; 
     ?>
 
     <!-- Content Area -->
     <div class="flex flex-col flex-1 overflow-auto">
       <!-- Navbar -->
-      <?php include '../../../../USM/navbar.php'; ?>
+      <?php include '../../USM/navbar.php'; ?>
     <div class="max-w-7xl mx-auto p-6">
         <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-6">
             <div>

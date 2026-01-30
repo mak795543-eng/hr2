@@ -196,9 +196,11 @@ $base = '/hr2/';
                                 Competency Criteria
                             </span>
                         </a>
-<a href="/../hr2/kpi_eval_dummy.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
+                        <a href="/../hr2/kpi_eval_dummy.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
                             <span class="flex items-center gap-2">
-                                <i data-lucide="alert-triangle" class="w-4 h-4 text-[#F7B32B]"></i> VACANCY REQUEST </span>
+                                <i data-lucide="bar-chart-3" class="w-4 h-4 text-[#F7B32B]"></i>
+                                KPI Evaluation
+                            </span>
                         </a>
                     </div>
                 </div>
