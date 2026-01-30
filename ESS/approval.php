@@ -1,6 +1,15 @@
 <?php
 session_start();
 
+$isBinaryView = isset($_GET['view'])
+    || isset($_GET['download'])
+    || isset($_GET['profile_proof_view'])
+    || isset($_GET['profile_proof_download']);
+
+if ($isBinaryView && !defined('SUPPRESS_DB_ERRORS')) {
+    define('SUPPRESS_DB_ERRORS', true);
+}
+
 require __DIR__ . '/db.php';
 
 $uploadDir = __DIR__ . DIRECTORY_SEPARATOR . 'uploads';
@@ -180,6 +189,49 @@ function ess_resolve_file_path(string $filePath, string $baseDir): ?string {
     return $real;
 }
 
+function ess_guess_mime_type(string $path): string {
+    $ext = strtolower((string)pathinfo($path, PATHINFO_EXTENSION));
+
+    $mimeMap = [
+        'pdf' => 'application/pdf',
+        'png' => 'image/png',
+        'jpg' => 'image/jpeg',
+        'jpeg' => 'image/jpeg',
+        'gif' => 'image/gif',
+        'webp' => 'image/webp',
+        'txt' => 'text/plain',
+        'csv' => 'text/csv',
+        'mp4' => 'video/mp4',
+        'webm' => 'video/webm',
+        'mp3' => 'audio/mpeg',
+        'wav' => 'audio/wav',
+        'ogg' => 'audio/ogg',
+        'doc' => 'application/msword',
+        'docx' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'xls' => 'application/vnd.ms-excel',
+        'xlsx' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'ppt' => 'application/vnd.ms-powerpoint',
+        'pptx' => 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    ];
+
+    if (isset($mimeMap[$ext])) {
+        return $mimeMap[$ext];
+    }
+
+    if (function_exists('finfo_open')) {
+        $finfo = finfo_open(FILEINFO_MIME_TYPE);
+        if ($finfo) {
+            $mime = (string)finfo_file($finfo, $path);
+            finfo_close($finfo);
+            if ($mime !== '') {
+                return $mime;
+            }
+        }
+    }
+
+    return 'application/octet-stream';
+}
+
 function badgeClassForStatus($status) {
     $s = strtolower(trim((string)$status));
     return match ($s) {
@@ -265,16 +317,7 @@ if ($section === 'profiles' && $profileProofViewParam !== '') {
                 $filePath = (string)($target['proof_file_path'] ?? '');
                 $path = ess_resolve_file_path($filePath, $profileProofDir);
                 if ($path && is_file($path)) {
-                    $ext = strtolower((string)pathinfo($path, PATHINFO_EXTENSION));
-                    $mimeMap = [
-                        'pdf' => 'application/pdf',
-                        'png' => 'image/png',
-                        'jpg' => 'image/jpeg',
-                        'jpeg' => 'image/jpeg',
-                        'gif' => 'image/gif',
-                        'webp' => 'image/webp',
-                    ];
-                    $mime = $mimeMap[$ext] ?? 'application/octet-stream';
+                    $mime = ess_guess_mime_type($path);
 
                     header('Content-Type: ' . $mime);
                     header('Content-Disposition: inline; filename="' . basename($path) . '"');
@@ -337,16 +380,7 @@ if ($section === 'documents' && $viewParam !== '') {
                 $filePath = (string)($target['file_path'] ?? '');
                 $path = ess_resolve_file_path($filePath, $uploadDir);
                 if ($path && is_file($path)) {
-                    $ext = strtolower((string)pathinfo($path, PATHINFO_EXTENSION));
-                    $mimeMap = [
-                        'pdf' => 'application/pdf',
-                        'png' => 'image/png',
-                        'jpg' => 'image/jpeg',
-                        'jpeg' => 'image/jpeg',
-                        'gif' => 'image/gif',
-                        'webp' => 'image/webp',
-                    ];
-                    $mime = $mimeMap[$ext] ?? 'application/octet-stream';
+                    $mime = ess_guess_mime_type($path);
 
                     header('Content-Type: ' . $mime);
                     header('Content-Disposition: inline; filename="' . basename($orig) . '"');
@@ -477,6 +511,8 @@ if ($conn) {
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://cdn.jsdelivr.net/npm/daisyui@4.6.0/dist/full.css" rel="stylesheet" type="text/css" />
   <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://unpkg.com/mammoth@1.6.0/mammoth.browser.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 </head>
 <body class="bg-gray-50 min-h-screen">
   <div class="flex h-screen">
@@ -738,7 +774,7 @@ if ($conn) {
       <div class="flex items-start justify-between gap-3">
         <div>
           <h3 id="docViewTitle" class="font-bold text-lg">View Document</h3>
-          <p class="text-sm text-gray-500">Preview (PDF/Image only). Other files will open/download.</p>
+          <p class="text-sm text-gray-500">Preview</p>
         </div>
         <form method="dialog">
           <button class="btn btn-sm btn-ghost" aria-label="Close">
@@ -750,12 +786,19 @@ if ($conn) {
       <div class="mt-4">
         <div id="docViewFallback" class="hidden alert alert-info">
           <i data-lucide="info" class="w-5 h-5"></i>
-          <span>This file type can’t be previewed here. Use Download instead.</span>
+          <span>Preview is not available for this file type. Use Open or Download.</span>
         </div>
-        <iframe id="docViewFrame" class="w-full h-[65vh] rounded-lg border border-base-200 bg-white" src="about:blank"></iframe>
+
+        <img id="docViewImage" class="hidden w-full h-[65vh] object-contain rounded-lg border border-base-200 bg-white" alt="Preview" />
+        <iframe id="docViewFrame" class="hidden w-full h-[65vh] rounded-lg border border-base-200 bg-white" src="about:blank"></iframe>
+        <video id="docViewVideo" class="hidden w-full h-[65vh] rounded-lg border border-base-200 bg-black" controls></video>
+        <audio id="docViewAudio" class="hidden w-full mt-2" controls></audio>
+        <pre id="docViewText" class="hidden w-full h-[65vh] overflow-auto rounded-lg border border-base-200 bg-white p-4 text-sm"></pre>
+        <div id="docViewHtml" class="hidden w-full h-[65vh] overflow-auto rounded-lg border border-base-200 bg-white p-4 prose max-w-none"></div>
       </div>
 
       <div class="modal-action">
+        <a id="docViewOpen" class="btn btn-outline" href="#" target="_blank" rel="noopener">Open</a>
         <a id="docViewDownload" class="btn btn-primary" href="#">Download</a>
         <form method="dialog">
           <button class="btn">Close</button>
@@ -898,9 +941,127 @@ if ($conn) {
   </dialog>
 
   <script>
-    function canPreview(name) {
-      const ext = (name || '').split('.').pop().toLowerCase();
-      return ['pdf', 'png', 'jpg', 'jpeg', 'gif', 'webp'].includes(ext);
+    function getExt(name) {
+      return (name || '').split('.').pop().toLowerCase();
+    }
+
+    function setHidden(el, hidden) {
+      if (!el) return;
+      if (hidden) el.classList.add('hidden');
+      else el.classList.remove('hidden');
+    }
+
+    function resetPreview(opts) {
+      if (!opts) return;
+      setHidden(opts.fallback, true);
+      setHidden(opts.img, true);
+      setHidden(opts.frame, true);
+      setHidden(opts.video, true);
+      setHidden(opts.audio, true);
+      setHidden(opts.text, true);
+      setHidden(opts.html, true);
+
+      if (opts.frame) opts.frame.setAttribute('src', 'about:blank');
+      if (opts.img) opts.img.setAttribute('src', '');
+      if (opts.img) opts.img.onerror = null;
+      if (opts.video) opts.video.removeAttribute('src');
+      if (opts.audio) opts.audio.removeAttribute('src');
+      if (opts.text) opts.text.textContent = '';
+      if (opts.html) opts.html.innerHTML = '';
+    }
+
+    async function renderPreview(fileName, viewUrl, opts) {
+      resetPreview(opts);
+
+      const ext = getExt(fileName);
+      const isImage = ['png', 'jpg', 'jpeg', 'gif', 'webp'].includes(ext);
+      const isPdf = ext === 'pdf';
+      const isText = ['txt', 'csv'].includes(ext);
+      const isVideo = ['mp4', 'webm'].includes(ext);
+      const isAudio = ['mp3', 'wav', 'ogg'].includes(ext);
+      const isDocx = ext === 'docx';
+      const isXlsx = ext === 'xlsx' || ext === 'xls';
+
+      try {
+        if (isImage && opts.img) {
+          setHidden(opts.img, false);
+          opts.img.onerror = function () {
+            setHidden(opts.img, true);
+            if (opts.fallback) setHidden(opts.fallback, false);
+          };
+          opts.img.setAttribute('src', viewUrl);
+          return;
+        }
+
+        if (isPdf && opts.frame) {
+          setHidden(opts.frame, false);
+          opts.frame.setAttribute('src', viewUrl);
+          return;
+        }
+
+        if (isVideo && opts.video) {
+          setHidden(opts.video, false);
+          opts.video.setAttribute('src', viewUrl);
+          opts.video.load();
+          return;
+        }
+
+        if (isAudio && opts.audio) {
+          setHidden(opts.audio, false);
+          opts.audio.setAttribute('src', viewUrl);
+          opts.audio.load();
+          return;
+        }
+
+        if (isText && opts.text) {
+          setHidden(opts.text, false);
+          const res = await fetch(viewUrl, { method: 'GET' });
+          if (!res.ok) throw new Error('Failed to load text');
+          const t = await res.text();
+          opts.text.textContent = t;
+          return;
+        }
+
+        if (isDocx && opts.html && window.mammoth) {
+          setHidden(opts.html, false);
+          const res = await fetch(viewUrl, { method: 'GET' });
+          if (!res.ok) throw new Error('Failed to load DOCX');
+          const buf = await res.arrayBuffer();
+          const result = await window.mammoth.convertToHtml({ arrayBuffer: buf });
+          opts.html.innerHTML = result && result.value ? result.value : '';
+          return;
+        }
+
+        if (isXlsx && opts.html && window.XLSX) {
+          setHidden(opts.html, false);
+          const res = await fetch(viewUrl, { method: 'GET' });
+          if (!res.ok) throw new Error('Failed to load spreadsheet');
+          const buf = await res.arrayBuffer();
+          const wb = window.XLSX.read(buf, { type: 'array' });
+          const first = wb.SheetNames && wb.SheetNames.length ? wb.SheetNames[0] : null;
+          if (!first) {
+            opts.html.innerHTML = '';
+            return;
+          }
+          const ws = wb.Sheets[first];
+          opts.html.innerHTML = window.XLSX.utils.sheet_to_html(ws);
+          return;
+        }
+
+        if (opts.frame) {
+          setHidden(opts.frame, false);
+          opts.frame.setAttribute('src', viewUrl);
+          return;
+        }
+
+        if (opts.fallback) {
+          setHidden(opts.fallback, false);
+        }
+      } catch (e) {
+        if (opts.fallback) {
+          setHidden(opts.fallback, false);
+        }
+      }
     }
 
     document.addEventListener('DOMContentLoaded', function () {
@@ -934,24 +1095,41 @@ if ($conn) {
       const viewFrame = document.getElementById('docViewFrame');
       const viewFallback = document.getElementById('docViewFallback');
       const viewDl = document.getElementById('docViewDownload');
+      const viewOpen = document.getElementById('docViewOpen');
+      const viewImg = document.getElementById('docViewImage');
+      const viewVideo = document.getElementById('docViewVideo');
+      const viewAudio = document.getElementById('docViewAudio');
+      const viewText = document.getElementById('docViewText');
+      const viewHtml = document.getElementById('docViewHtml');
+
+      const docStatusValue = () => {
+        if (filter && filter.value) return filter.value;
+        const url = new URL(window.location.href);
+        return url.searchParams.get('status') || 'all';
+      };
 
       document.querySelectorAll('[data-view-id]').forEach((btn) => {
-        btn.addEventListener('click', function () {
+        btn.addEventListener('click', async function () {
           const id = this.getAttribute('data-view-id') || '';
           const name = this.getAttribute('data-view-name') || 'Document';
 
           viewTitle.textContent = name;
-          viewDl.setAttribute('href', '?download=' + encodeURIComponent(id) + '&status=' + encodeURIComponent(filter.value));
 
-          if (canPreview(name)) {
-            viewFallback.classList.add('hidden');
-            viewFrame.classList.remove('hidden');
-            viewFrame.setAttribute('src', '?view=' + encodeURIComponent(id) + '&status=' + encodeURIComponent(filter.value));
-          } else {
-            viewFrame.classList.add('hidden');
-            viewFrame.setAttribute('src', 'about:blank');
-            viewFallback.classList.remove('hidden');
-          }
+          const st = docStatusValue();
+          const viewUrl = '?view=' + encodeURIComponent(id) + '&status=' + encodeURIComponent(st);
+          const dlUrl = '?download=' + encodeURIComponent(id) + '&status=' + encodeURIComponent(st);
+          viewDl.setAttribute('href', dlUrl);
+          if (viewOpen) viewOpen.setAttribute('href', viewUrl);
+
+          await renderPreview(name, viewUrl, {
+            fallback: viewFallback,
+            img: viewImg,
+            frame: viewFrame,
+            video: viewVideo,
+            audio: viewAudio,
+            text: viewText,
+            html: viewHtml,
+          });
 
           if (viewModal && typeof viewModal.showModal === 'function') {
             viewModal.showModal();
@@ -969,7 +1147,7 @@ if ($conn) {
       const profileProofFallback = document.getElementById('profileProofFallback');
 
       document.querySelectorAll('[data-profile-view-id]').forEach((btn) => {
-        btn.addEventListener('click', function () {
+        btn.addEventListener('click', async function () {
           const id = this.getAttribute('data-profile-view-id') || '';
           if (id === '') return;
 
@@ -983,29 +1161,16 @@ if ($conn) {
           if (profileViewProofDownload) profileViewProofDownload.setAttribute('href', '?section=profiles&profile_proof_download=' + encodeURIComponent(id) + '&pstatus=<?php echo urlencode($profileFilter); ?>');
 
           const viewUrl = '?section=profiles&profile_proof_view=' + encodeURIComponent(id) + '&pstatus=<?php echo urlencode($profileFilter); ?>';
-          const ext = (proofName || '').split('.').pop().toLowerCase();
-          const isImage = ['png', 'jpg', 'jpeg', 'gif', 'webp'].includes(ext);
-          const isPdf = ext === 'pdf';
 
-          if (profileProofFallback) profileProofFallback.classList.add('hidden');
-          if (profileProofFrame) {
-            profileProofFrame.classList.add('hidden');
-            profileProofFrame.setAttribute('src', 'about:blank');
-          }
-          if (profileProofImage) {
-            profileProofImage.classList.add('hidden');
-            profileProofImage.setAttribute('src', '');
-          }
-
-          if (isImage && profileProofImage) {
-            profileProofImage.classList.remove('hidden');
-            profileProofImage.setAttribute('src', viewUrl);
-          } else if (isPdf && profileProofFrame) {
-            profileProofFrame.classList.remove('hidden');
-            profileProofFrame.setAttribute('src', viewUrl);
-          } else if (profileProofFallback) {
-            profileProofFallback.classList.remove('hidden');
-          }
+          await renderPreview(proofName || 'Proof', viewUrl, {
+            fallback: profileProofFallback,
+            img: profileProofImage,
+            frame: profileProofFrame,
+            video: null,
+            audio: null,
+            text: null,
+            html: null,
+          });
 
           if (profileViewModal && typeof profileViewModal.showModal === 'function') {
             profileViewModal.showModal();
@@ -1021,7 +1186,15 @@ if ($conn) {
       }
 
       viewModal.addEventListener('close', function () {
-        viewFrame.setAttribute('src', 'about:blank');
+        resetPreview({
+          fallback: viewFallback,
+          img: viewImg,
+          frame: viewFrame,
+          video: viewVideo,
+          audio: viewAudio,
+          text: viewText,
+          html: viewHtml,
+        });
       });
 
       const updateModal = document.getElementById('updateModal');

@@ -97,8 +97,7 @@ require('../../partials/header.php');
                 <div class="text-sm opacity-70">Edit standard competency % per General Skill (scalable).</div>
             </div>
             <div class="flex gap-2">
-                <a href="../../COMPETENCY/criticalgaps/criticalgaps/gap_analysis.php" class="btn btn-outline btn-sm">Back to Gap Analysis</a>
-                <a href="../../COMPETENCY/criticalgaps/criticalgaps/general_skills_management.php" class="btn btn-primary btn-sm">General Skills Management</a>
+                <a href="../../COMPETENCY/criticalgaps/gap_analysis.php" class="btn btn-outline btn-sm">Back to Gap Analysis</a>
                 <a href="succession_dashboard.php" class="btn btn-outline btn-sm">Succession Dashboard</a>
             </div>
         </div>
