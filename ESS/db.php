@@ -114,6 +114,10 @@ function ess_ensure_profile_tables($conn): void
             ['reason_choice', "ALTER TABLE profile_update_requests ADD COLUMN reason_choice VARCHAR(100) NULL"],
             ['reason_text', "ALTER TABLE profile_update_requests ADD COLUMN reason_text TEXT NULL"],
             ['proof_file_path', "ALTER TABLE profile_update_requests ADD COLUMN proof_file_path VARCHAR(255) NULL"],
+            ['remarks', "ALTER TABLE profile_update_requests ADD COLUMN remarks TEXT NULL"],
+            ['reviewed_by', "ALTER TABLE profile_update_requests ADD COLUMN reviewed_by INT NULL"],
+            ['reviewed_at', "ALTER TABLE profile_update_requests ADD COLUMN reviewed_at TIMESTAMP NULL"],
+            ['seen_by_employee', "ALTER TABLE profile_update_requests ADD COLUMN seen_by_employee TINYINT(1) DEFAULT 0"],
         ];
 
         foreach ($requestCols as [$col, $sql]) {
