@@ -589,8 +589,8 @@ if (is_array($emp)) {
     }
     $user['name'] = count($nameParts) > 0 ? implode(', ', $nameParts) : (string)($emp['employee_no'] ?? 'Employee');
 
-    $user['position'] = (string)($emp['department'] ?? '');
-    $user['role'] = (string)($emp['position'] ?? '');
+    $user['position'] = (string)($emp['position'] ?? '');
+    $user['role'] = (string)($emp['department'] ?? '');
     $user['access_role'] = (string)($_SESSION['role'] ?? '');
     $user['work_email'] = (string)($emp['email'] ?? '');
     $user['email'] = (string)($emp['email'] ?? '');

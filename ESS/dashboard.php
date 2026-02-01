@@ -150,10 +150,7 @@ function badgeClassForStatus($status) {
               <h1 class="text-xl md:text-2xl font-bold text-gray-800">Employee Self Service</h1>
               <p class="text-sm text-gray-500">Quick summary and recent activities for your requests and records.</p>
             </div>
-            <a href="mydocuments.php" class="btn btn-outline btn-sm hidden sm:inline-flex">
-              <i data-lucide="external-link" class="w-4 h-4"></i>
-              <span class="ml-2">Open ESS</span>
-            </a>
+           
           </div>
 
           <div class="mt-6 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
