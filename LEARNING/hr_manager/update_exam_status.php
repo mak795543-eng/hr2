@@ -62,7 +62,7 @@ function columnExists($conn, $table, $column) {
 require_once __DIR__ . '/../db.php';
 
 // Create connection
-$conn = usm_db_connect('learning_db');
+$conn = usm_db_connect('hr2_learning_db');
 
 // Check connection
 if ($conn->connect_error) {
@@ -118,7 +118,7 @@ try {
                     "er.module_id = e.module_id",
                     "er.department = e.department",
                     "er.roles = e.roles",
-                    "er.status = 'approved'"
+                    "er.status = 'posted'"
                 ];
 
                 if ($repoHasTotalPoints) {
@@ -169,7 +169,7 @@ try {
                     'department',
                     'roles',
                     'created_at',
-                    "'approved'"
+                    "'posted'"
                 ];
 
                 if (!$repoIdAutoIncrement) {
