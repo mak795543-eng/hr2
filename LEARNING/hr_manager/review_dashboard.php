@@ -1042,9 +1042,6 @@ $conn->close();
                     <button class="action-btn compliance" onclick="forExamCompliance()">
                         <i class="fas fa-exclamation-triangle mr-2"></i>For Compliance
                     </button>
-                    <button class="action-btn" id="examEditBtn" onclick="editPendingExam()" style="display:none;">
-                        <i class="fas fa-edit mr-2"></i>Edit
-                    </button>
                     <button class="action-btn" id="examCancelBtn" onclick="cancelPendingExam()" style="display:none;">
                         <i class="fas fa-ban mr-2"></i>Cancel
                     </button>

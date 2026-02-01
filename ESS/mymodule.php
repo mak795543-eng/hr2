@@ -13,6 +13,54 @@ $conn->set_charset('utf8mb4');
 $role = trim((string)($_SESSION['role'] ?? ''));
 $roleLower = strtolower($role);
 
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['download']) && isset($_GET['module_id'])) {
+    $moduleId = (int)($_GET['module_id'] ?? 0);
+    if ($moduleId <= 0 || $roleLower === '') {
+        http_response_code(400);
+        echo 'Invalid request';
+        exit;
+    }
+
+    $stmt = $conn->prepare(
+        "SELECT id, title, content, topic, department, roles, created_at\n         FROM learning_modules\n         WHERE id = ? AND status = 'posted'\n           AND (LOWER(TRIM(roles)) = ? OR FIND_IN_SET(?, LOWER(REPLACE(roles, ', ', ','))) > 0)\n         LIMIT 1"
+    );
+    if (!$stmt) {
+        http_response_code(500);
+        echo 'Query prepare failed';
+        exit;
+    }
+
+    $stmt->bind_param('iss', $moduleId, $roleLower, $roleLower);
+    $stmt->execute();
+    $res = $stmt->get_result();
+    $row = $res ? $res->fetch_assoc() : null;
+    $stmt->close();
+
+    if (!is_array($row)) {
+        http_response_code(404);
+        echo 'Module not found';
+        exit;
+    }
+
+    $title = (string)($row['title'] ?? 'module');
+    $safeName = preg_replace('/[^A-Za-z0-9 _\-]/', '', $title);
+    $safeName = trim((string)$safeName);
+    if ($safeName === '') {
+        $safeName = 'module';
+    }
+    $safeName = str_replace(' ', '_', $safeName);
+
+    $html = "<!DOCTYPE html><html lang=\"en\"><head><meta charset=\"UTF-8\"><title>" . htmlspecialchars($title, ENT_QUOTES, 'UTF-8') . "</title></head><body>";
+    $html .= (string)($row['content'] ?? '');
+    $html .= "</body></html>";
+
+    header('Content-Type: text/html; charset=utf-8');
+    header('Content-Disposition: attachment; filename="' . $safeName . '.html"');
+    header('X-Content-Type-Options: nosniff');
+    echo $html;
+    exit;
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['module_id'])) {
     header('Content-Type: application/json; charset=utf-8');
 
@@ -132,6 +180,10 @@ $conn->close();
                         <i data-lucide="eye" class="w-4 h-4"></i>
                         <span class="ml-2">View</span>
                       </button>
+                      <a class="btn btn-sm btn-outline ml-2" href="mymodule.php?download=1&module_id=<?php echo (int)($m['id'] ?? 0); ?>">
+                        <i data-lucide="download" class="w-4 h-4"></i>
+                        <span class="ml-2">Download</span>
+                      </a>
                     </div>
                   </div>
                 </div>
