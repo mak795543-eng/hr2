@@ -158,8 +158,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_document'])) {
               <p class="text-sm text-gray-500">Upload documents requested by HR and track their status.</p>
             </div>
             <div class="flex items-center gap-2">
-              <a href="mydocuments.php" class="btn btn-outline btn-sm">My Documents</a>
-              <a href="approval.php" class="btn btn-ghost btn-sm">Approval</a>
             </div>
           </div>
 

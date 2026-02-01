@@ -358,7 +358,7 @@ if (!function_exists('hasAccess')) {
                                 Payment History
                             </span>
                         </a>
-                        <a href=".php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
+                        <a href="/../hr2/ESS/myexamination.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
                             <span class="flex items-center gap-2">
                                 <i data-lucide="receipt" class="w-4 h-4 text-[#F7B32B]"></i>
                                 My Training
@@ -392,6 +392,12 @@ if (!function_exists('hasAccess')) {
                             <span class="flex items-center gap-2">
                                 <i data-lucide="calendar" class="w-4 h-4 text-[#F7B32B]"></i>
                                 Complaint
+                            </span>
+                        </a>
+                        <a href="/../hr2/ESS/myexamination.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
+                            <span class="flex items-center gap-2">
+                                <i data-lucide="calendar" class="w-4 h-4 text-[#F7B32B]"></i>
+                                My Examinations
                             </span>
                         </a>
                     </div>

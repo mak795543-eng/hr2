@@ -1167,6 +1167,12 @@ sort($all_roles);
             document.getElementById('successMessage').textContent = `"${currentExamTitle}" has been assigned for ${audience === 'applicant' ? 'Applicants' : (audience === 'specific_employee' ? 'Specific Employee' : 'Employees')}.`;
             assign_exam_modal.close();
             success_modal.showModal();
+
+            setTimeout(() => {
+              try {
+                window.location.reload();
+              } catch (e) {}
+            }, 600);
           })
           .catch(err => {
             Swal.fire({
