@@ -66,7 +66,7 @@ return [
     'sous chef' => [
         'dashboard',
         'employee_self_service'
-    ],
+    ]
 
     // Admin - Full system access (super admin)
     'admin' => [
