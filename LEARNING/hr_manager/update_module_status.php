@@ -5,7 +5,7 @@ header('Content-Type: application/json');
 function columnExists($conn, $table, $column) {
     $dbResult = $conn->query('SELECT DATABASE() AS db');
     $dbRow = $dbResult ? $dbResult->fetch_assoc() : null;
-    $dbName = is_array($dbRow) ? ($dbRow['db'] ?? '') : '';
+    $dbName = $dbRow['db'] ?? '';
 
     if ($dbName === '') {
         return false;
@@ -57,7 +57,7 @@ if (!$module_id || !$new_status) {
 // Map status to appropriate database values
 $new_status = $new_status === 'for-compliance' ? 'compliance' : $new_status;
 $status_map = [
-    'approved' => 'approved',
+    'approved' => 'posted',
     'rejected' => 'rejected', 
     'compliance' => 'compliance'
 ];
