@@ -1256,9 +1256,21 @@ function createTablesIfNotExist()
         id INT PRIMARY KEY AUTO_INCREMENT,
         employee_id VARCHAR(50) NOT NULL,
         name VARCHAR(100) NOT NULL,
-        competency_level VARCHAR(50) NOT NULL,
+        department VARCHAR(100) NOT NULL,
+        current_position VARCHAR(100) NOT NULL,
+        competency DECIMAL(5,2) DEFAULT 0,
+        succession_status ENUM('Retrain', 'Reskilling', 'Refresher Training', 'Upskilling', 'Succession Ready') DEFAULT 'Succession Ready',
+        target_role VARCHAR(150) NOT NULL,
+        readiness_level ENUM('Ready Now','Ready in 6 Months','Ready in 12 Months') NOT NULL DEFAULT 'Ready Now',
+        expected_transition_date DATE DEFAULT NULL,
+        mentor_coach VARCHAR(150) DEFAULT NULL,
+        promotion_status ENUM('pending','sent','promoted','cancelled') NOT NULL DEFAULT 'pending',
+        promotion_sent_at TIMESTAMP NULL DEFAULT NULL,
         date_added TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         UNIQUE KEY uniq_pre_promotion_employee (employee_id),
+        INDEX idx_pre_promo_status (promotion_status),
+        INDEX idx_pre_promo_readiness (readiness_level),
         FOREIGN KEY (employee_id) REFERENCES employees(employee_id) ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     ";
@@ -1433,7 +1445,84 @@ function ensureSchema()
     }
 
     try {
-        $pdo->exec("CREATE TABLE IF NOT EXISTS pre_promotion_employees (id INT PRIMARY KEY AUTO_INCREMENT, employee_id VARCHAR(50) NOT NULL, name VARCHAR(100) NOT NULL, competency_level VARCHAR(50) NOT NULL, date_added TIMESTAMP DEFAULT CURRENT_TIMESTAMP, UNIQUE KEY uniq_pre_promotion_employee (employee_id), FOREIGN KEY (employee_id) REFERENCES employees(employee_id) ON DELETE CASCADE) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+        $pdo->exec("CREATE TABLE IF NOT EXISTS pre_promotion_employees (id INT PRIMARY KEY AUTO_INCREMENT, employee_id VARCHAR(50) NOT NULL, name VARCHAR(100) NOT NULL, department VARCHAR(100) NOT NULL, current_position VARCHAR(100) NOT NULL, competency DECIMAL(5,2) DEFAULT 0, succession_status ENUM('Retrain', 'Reskilling', 'Refresher Training', 'Upskilling', 'Succession Ready') DEFAULT 'Succession Ready', target_role VARCHAR(150) NOT NULL, readiness_level ENUM('Ready Now','Ready in 6 Months','Ready in 12 Months') NOT NULL DEFAULT 'Ready Now', expected_transition_date DATE DEFAULT NULL, mentor_coach VARCHAR(150) DEFAULT NULL, promotion_status ENUM('pending','sent','promoted','cancelled') NOT NULL DEFAULT 'pending', promotion_sent_at TIMESTAMP NULL DEFAULT NULL, date_added TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, UNIQUE KEY uniq_pre_promotion_employee (employee_id), INDEX idx_pre_promo_status (promotion_status), INDEX idx_pre_promo_readiness (readiness_level), FOREIGN KEY (employee_id) REFERENCES employees(employee_id) ON DELETE CASCADE) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    } catch (PDOException $e) {
+    }
+
+    try {
+        $pdo->exec("ALTER TABLE pre_promotion_employees ADD COLUMN department VARCHAR(100) NULL DEFAULT NULL");
+    } catch (PDOException $e) {
+    }
+    try {
+        $pdo->exec("ALTER TABLE pre_promotion_employees ADD COLUMN current_position VARCHAR(100) NULL DEFAULT NULL");
+    } catch (PDOException $e) {
+    }
+    try {
+        $pdo->exec("ALTER TABLE pre_promotion_employees ADD COLUMN competency DECIMAL(5,2) DEFAULT 0");
+    } catch (PDOException $e) {
+    }
+    try {
+        $pdo->exec("ALTER TABLE pre_promotion_employees ADD COLUMN succession_status ENUM('Retrain', 'Reskilling', 'Refresher Training', 'Upskilling', 'Succession Ready') DEFAULT 'Succession Ready'");
+    } catch (PDOException $e) {
+    }
+    try {
+        $pdo->exec("ALTER TABLE pre_promotion_employees ADD COLUMN target_role VARCHAR(150) NULL DEFAULT NULL");
+    } catch (PDOException $e) {
+    }
+    try {
+        $pdo->exec("ALTER TABLE pre_promotion_employees ADD COLUMN readiness_level ENUM('Ready Now','Ready in 6 Months','Ready in 12 Months') NOT NULL DEFAULT 'Ready Now'");
+    } catch (PDOException $e) {
+    }
+    try {
+        $pdo->exec("ALTER TABLE pre_promotion_employees ADD COLUMN expected_transition_date DATE DEFAULT NULL");
+    } catch (PDOException $e) {
+    }
+    try {
+        $pdo->exec("ALTER TABLE pre_promotion_employees ADD COLUMN mentor_coach VARCHAR(150) DEFAULT NULL");
+    } catch (PDOException $e) {
+    }
+    try {
+        $pdo->exec("ALTER TABLE pre_promotion_employees ADD COLUMN promotion_status ENUM('pending','sent','promoted','cancelled') NOT NULL DEFAULT 'pending'");
+    } catch (PDOException $e) {
+    }
+    try {
+        $pdo->exec("ALTER TABLE pre_promotion_employees ADD COLUMN promotion_sent_at TIMESTAMP NULL DEFAULT NULL");
+    } catch (PDOException $e) {
+    }
+    try {
+        $pdo->exec("ALTER TABLE pre_promotion_employees ADD COLUMN updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP");
+    } catch (PDOException $e) {
+    }
+
+    try {
+        $pdo->exec(
+            "UPDATE pre_promotion_employees p
+             JOIN employees e ON e.employee_id = p.employee_id
+             SET p.department = COALESCE(p.department, e.department),
+                 p.current_position = COALESCE(p.current_position, e.position),
+                 p.target_role = COALESCE(p.target_role, e.position),
+                 p.competency = CASE WHEN COALESCE(p.competency, 0) > 0 THEN p.competency ELSE COALESCE(e.competency, 0) END,
+                 p.succession_status = COALESCE(p.succession_status, e.status)
+             WHERE (p.department IS NULL OR p.current_position IS NULL OR p.target_role IS NULL OR COALESCE(p.competency, 0) = 0 OR p.succession_status IS NULL)"
+        );
+    } catch (PDOException $e) {
+    }
+
+    try {
+        $pdo->exec("UPDATE pre_promotion_employees SET department = COALESCE(department, ''), current_position = COALESCE(current_position, ''), target_role = COALESCE(target_role, '')");
+    } catch (PDOException $e) {
+    }
+
+    try {
+        $pdo->exec("ALTER TABLE pre_promotion_employees MODIFY COLUMN department VARCHAR(100) NOT NULL");
+    } catch (PDOException $e) {
+    }
+    try {
+        $pdo->exec("ALTER TABLE pre_promotion_employees MODIFY COLUMN current_position VARCHAR(100) NOT NULL");
+    } catch (PDOException $e) {
+    }
+    try {
+        $pdo->exec("ALTER TABLE pre_promotion_employees MODIFY COLUMN target_role VARCHAR(150) NOT NULL");
     } catch (PDOException $e) {
     }
 }
@@ -1760,15 +1849,21 @@ function syncPrePromotionEmployee(string $employeeId): void
 
     if ($eligible) {
         $stmt = $pdo->prepare(
-            "INSERT INTO pre_promotion_employees (employee_id, name, competency_level)
-             SELECT employee_id, full_name, ?
+            "INSERT INTO pre_promotion_employees (employee_id, name, department, current_position, competency, succession_status, target_role, readiness_level)
+             SELECT employee_id, full_name, department, position, ?, ?, position, 'Ready Now'
              FROM employees
              WHERE employee_id = ?
              ON DUPLICATE KEY UPDATE
                 name = VALUES(name),
-                competency_level = VALUES(competency_level)"
+                department = VALUES(department),
+                current_position = VALUES(current_position),
+                competency = VALUES(competency),
+                succession_status = VALUES(succession_status),
+                target_role = VALUES(target_role),
+                readiness_level = VALUES(readiness_level),
+                promotion_status = CASE WHEN pre_promotion_employees.promotion_status IN ('sent','promoted') THEN pre_promotion_employees.promotion_status ELSE 'pending' END"
         );
-        $stmt->execute([(string)$r['status'], $employeeId]);
+        $stmt->execute([(float)$r['competency'], (string)$r['status'], $employeeId]);
         return;
     }
 
