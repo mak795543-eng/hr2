@@ -23,28 +23,15 @@ function action() {
             $items = $data;
         }
 
-        $allowedStatuses = ['Retrain', 'Reskilling', 'Refresher Training', 'Upskilling', 'Succession Ready'];
-
-        $calcStatus = function (float $competency): string {
-            if ($competency <= 20) return 'Retrain';
-            if ($competency <= 40) return 'Reskilling';
-            if ($competency <= 60) return 'Refresher Training';
-            if ($competency <= 80) return 'Upskilling';
-            return 'Succession Ready';
-        };
+        $period = date('Y') . '-Q' . (string)ceil((int)date('n') / 3);
 
         $stmtCompute = $pdo->prepare(
-            "SELECT e.department,
-                    AVG(COALESCE(es.skill_score, 0)) AS competency
-             FROM employees e
-             JOIN skills s
-               ON s.category = 'General Skills'
-              AND s.department = e.department
-             LEFT JOIN employee_skills es
-               ON es.employee_id = e.employee_id
-              AND es.skill_id = s.id
-             WHERE e.employee_id = ?
-             GROUP BY e.employee_id, e.department"
+            "SELECT g.overall_competency AS competency,
+                    g.status
+             FROM kpi_gap_formulations g
+             WHERE g.employee_id = ?
+               AND g.evaluation_period = ?
+             LIMIT 1"
         );
 
         $stmt = $pdo->prepare(
@@ -64,12 +51,12 @@ function action() {
 
         $stmtReq = $pdo->prepare(
             "INSERT INTO requested_to_idp (employee_id, employee_name, position, department, status)
-             VALUES (?, ?, ?, ?, 'Pending')
+             VALUES (?, ?, ?, ?, 'Requested')
              ON DUPLICATE KEY UPDATE
                 employee_name = VALUES(employee_name),
                 position = VALUES(position),
                 department = VALUES(department),
-                status = 'Pending',
+                status = 'Requested',
                 updated_at = CURRENT_TIMESTAMP"
         );
 
@@ -92,12 +79,11 @@ function action() {
                 $competency = 0;
                 $status = 'Retrain';
                 try {
-                    $stmtCompute->execute([$employeeId]);
+                    $stmtCompute->execute([$employeeId, $period]);
                     $compRow = $stmtCompute->fetch(PDO::FETCH_ASSOC);
                     if ($compRow) {
-                        $department = $department !== '' ? $department : (string)($compRow['department'] ?? '');
                         $competency = is_numeric($compRow['competency'] ?? null) ? (float)$compRow['competency'] : 0;
-                        $status = $calcStatus($competency);
+                        $status = (string)($compRow['status'] ?? 'Retrain');
                     }
                 } catch (Throwable $e) {
                     $competency = 0;
@@ -111,6 +97,7 @@ function action() {
 
                 $stmt->execute([$employeeId, $employeeName, $position, $department, $competency, $status]);
                 $stmtReq->execute([$employeeId, $employeeName, $position, $department]);
+                logAction($employeeId, 'Critical Roles', 'Requested IDP', 'Requested from Critical Roles');
                 $inserted++;
             }
             $pdo->commit();
@@ -124,15 +111,15 @@ function action() {
         $position = trim((string)($data['position'] ?? ''));
         $department = trim((string)($data['department'] ?? ''));
 
+        $period = date('Y') . '-Q' . (string)ceil((int)date('n') / 3);
         $competency = 0;
         $status = 'Retrain';
         try {
-            $stmtCompute->execute([$employeeId]);
+            $stmtCompute->execute([$employeeId, $period]);
             $compRow = $stmtCompute->fetch(PDO::FETCH_ASSOC);
             if ($compRow) {
-                $department = $department !== '' ? $department : (string)($compRow['department'] ?? '');
                 $competency = is_numeric($compRow['competency'] ?? null) ? (float)$compRow['competency'] : 0;
-                $status = $calcStatus($competency);
+                $status = (string)($compRow['status'] ?? 'Retrain');
             }
         } catch (Throwable $e) {
             $competency = 0;
@@ -146,8 +133,10 @@ function action() {
 
         $stmt->execute([$employeeId, $employeeName, $position, $department, $competency, $status]);
         $stmtReq->execute([$employeeId, $employeeName, $position, $department]);
+        logAction($employeeId, 'Critical Roles', 'Requested IDP', 'Requested from Critical Roles');
 
-        echo json_encode(['success' => true, 'inserted' => 1, 'skipped' => 0]);
+        echo json_encode(['success' => true]);
+        return;
     } catch (Throwable $e) {
         try {
             if (isset($pdo) && $pdo instanceof PDO && $pdo->inTransaction()) {
