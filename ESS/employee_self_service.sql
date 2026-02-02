@@ -148,7 +148,7 @@ CREATE TABLE profile_update_requests (
     reason_choice VARCHAR(100) NULL,
     reason_text TEXT NULL,
     proof_file_path VARCHAR(255) NULL,
-    status ENUM('Pending', 'Approved', 'Rejected') DEFAULT 'Pending',
+    status ENUM('Pending', 'Approved', 'Rejected', 'For Compliance') DEFAULT 'Pending',
     remarks TEXT,
     reviewed_by INT NULL,
     reviewed_at TIMESTAMP NULL,

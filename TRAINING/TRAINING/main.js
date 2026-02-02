@@ -1,10 +1,110 @@
 (() => {
   const qs = (sel) => document.querySelector(sel);
 
+  const enhanceTextarea = (ta) => {
+    if (!ta || ta.nodeType !== 1) return;
+    if (String(ta.tagName || '').toUpperCase() !== 'TEXTAREA') return;
+    if (ta.dataset && ta.dataset.autogrowApplied === '1') return;
+
+    try {
+      if (ta.dataset) ta.dataset.autogrowApplied = '1';
+      ta.style.resize = 'vertical';
+      ta.style.overflowY = 'hidden';
+    } catch (_) {
+    }
+
+    const getMinHeight = () => {
+      let minH = 0;
+      try {
+        minH = ta.dataset ? parseFloat(ta.dataset.autogrowMinHeight || '0') : 0;
+      } catch (_) {
+        minH = 0;
+      }
+      if (minH && !isNaN(minH) && minH > 0) return minH;
+
+      try {
+        const cs = window.getComputedStyle ? window.getComputedStyle(ta) : null;
+        if (cs) {
+          const mh = cs.minHeight ? parseFloat(cs.minHeight) : 0;
+          if (mh && !isNaN(mh) && mh > 0) minH = mh;
+          if (!minH) {
+            const h = cs.height ? parseFloat(cs.height) : 0;
+            if (h && !isNaN(h) && h > 0) minH = h;
+          }
+        }
+      } catch (_) {
+      }
+
+      try {
+        if (ta.dataset) ta.dataset.autogrowMinHeight = String(minH || 0);
+        if (minH && !isNaN(minH) && minH > 0) ta.style.minHeight = String(minH) + 'px';
+      } catch (_) {
+      }
+
+      return minH && !isNaN(minH) ? minH : 0;
+    };
+
+    const autoGrow = () => {
+      try {
+        const minH = getMinHeight();
+        ta.style.height = 'auto';
+        const next = Math.max(ta.scrollHeight, minH || 0);
+        ta.style.height = String(next) + 'px';
+      } catch (_) {
+      }
+    };
+
+    ta.addEventListener('input', autoGrow);
+    ta.addEventListener('change', autoGrow);
+    autoGrow();
+  };
+
+  const enhanceAllTextareas = (root) => {
+    const base = root && root.querySelectorAll ? root : document;
+    try {
+      const list = Array.from(base.querySelectorAll('textarea'));
+      list.forEach((ta) => enhanceTextarea(ta));
+    } catch (_) {
+    }
+  };
+
+  const observeTextareas = () => {
+    if (!document.body || !window.MutationObserver) return;
+
+    const obs = new MutationObserver((mutations) => {
+      for (const m of mutations) {
+        const nodes = Array.from(m.addedNodes || []);
+        nodes.forEach((n) => {
+          if (!n || n.nodeType !== 1) return;
+          if (String(n.tagName || '').toUpperCase() === 'TEXTAREA') {
+            enhanceTextarea(n);
+          } else {
+            enhanceAllTextareas(n);
+          }
+        });
+      }
+    });
+
+    try {
+      obs.observe(document.body, { childList: true, subtree: true });
+    } catch (_) {
+    }
+  };
+
   const getOpenDialogTarget = () => {
     const openDialogs = Array.from(document.querySelectorAll('dialog[open]'));
     return openDialogs.length ? openDialogs[openDialogs.length - 1] : undefined;
   };
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => {
+      enhanceAllTextareas(document);
+      observeTextareas();
+    });
+  } else {
+    enhanceAllTextareas(document);
+    observeTextareas();
+  }
 
   const swalFire = async (opts, targetDialog) => {
     if (!window.Swal) return null;
@@ -1346,7 +1446,7 @@
         </div>
         <div class="form-control md:col-span-2">
           <label class="label"><span class="label-text">Description</span></label>
-          <input type="text" class="input input-bordered w-full budget-item-desc" required placeholder="E.g., Conference hall rental">
+          <textarea class="textarea textarea-bordered w-full budget-item-desc" rows="2" required placeholder="E.g., Conference hall rental"></textarea>
         </div>
         <div class="form-control">
           <label class="label"><span class="label-text">Quantity</span></label>
@@ -1360,7 +1460,7 @@
         </div>
         <div class="form-control md:col-span-2">
           <label class="label"><span class="label-text">Remarks</span></label>
-          <input type="text" class="input input-bordered w-full budget-item-remarks" placeholder="Additional details...">
+          <textarea class="textarea textarea-bordered w-full budget-item-remarks" rows="2" placeholder="Additional details..."></textarea>
         </div>
       </div>
     `;
@@ -1456,7 +1556,7 @@
       </div>
       <div class="form-control mt-3">
         <label class="label"><span class="label-text">Remarks</span></label>
-        <input type="text" class="input input-bordered w-full logistics-item-remarks" placeholder="Specifications, brand preferences, or special requirements...">
+        <textarea class="textarea textarea-bordered w-full logistics-item-remarks" rows="2" placeholder="Specifications, brand preferences, or special requirements..."></textarea>
       </div>
     `;
 

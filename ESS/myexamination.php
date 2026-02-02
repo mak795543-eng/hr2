@@ -28,6 +28,8 @@ $conn->query(
 $role = trim((string)($_SESSION['role'] ?? ''));
 $roleLower = strtolower($role);
 
+$employeeId = (string)($_SESSION['employee_id'] ?? ($_SESSION['user_id'] ?? ''));
+
 if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['exam_id'])) {
     header('Content-Type: application/json; charset=utf-8');
 
@@ -95,6 +97,25 @@ if ($roleLower !== '') {
     }
 }
 
+$completedExamIds = [];
+if ($employeeId !== '' && $roleLower !== '' && $conn) {
+    $stmt = $conn->prepare(
+        "SELECT DISTINCT exam_id
+         FROM exam_results
+         WHERE employee_id = ?
+           AND taker_type = 'employee'"
+    );
+    if ($stmt) {
+        $stmt->bind_param('s', $employeeId);
+        $stmt->execute();
+        $res = $stmt->get_result();
+        while ($res && ($row = $res->fetch_assoc())) {
+            $completedExamIds[(int)($row['exam_id'] ?? 0)] = true;
+        }
+        $stmt->close();
+    }
+}
+
 $conn->close();
 ?>
 <!DOCTYPE html>
@@ -106,6 +127,7 @@ $conn->close();
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://cdn.jsdelivr.net/npm/daisyui@4.6.0/dist/full.css" rel="stylesheet" type="text/css" />
   <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 </head>
 <body class="bg-gray-50 min-h-screen">
   <div class="flex h-screen">
@@ -140,6 +162,7 @@ $conn->close();
           <?php else: ?>
             <div class="mt-6 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
               <?php foreach ($exams as $e): ?>
+                <?php $isCompleted = isset($completedExamIds[(int)($e['id'] ?? 0)]); ?>
                 <div class="card bg-base-100 border border-base-200 shadow-sm hover:shadow transition-shadow">
                   <div class="card-body">
                     <div class="flex items-start justify-between gap-3">
@@ -147,7 +170,11 @@ $conn->close();
                         <h2 class="font-semibold text-gray-900 leading-tight"><?php echo htmlspecialchars((string)($e['title'] ?? 'Untitled')); ?></h2>
                         <p class="text-sm text-gray-500 mt-1"><?php echo htmlspecialchars((string)($e['module_title'] ?? '')); ?></p>
                       </div>
-                      <span class="badge badge-info badge-outline">Posted</span>
+                      <?php if ($isCompleted): ?>
+                        <span class="badge badge-success badge-outline">Completed</span>
+                      <?php else: ?>
+                        <span class="badge badge-info badge-outline">Posted</span>
+                      <?php endif; ?>
                     </div>
 
                     <div class="mt-3 flex flex-wrap gap-2">
@@ -158,9 +185,9 @@ $conn->close();
                     <p class="text-xs text-gray-500 mt-3">Duration: <?php echo htmlspecialchars((string)($e['duration'] ?? '')); ?> minutes</p>
 
                     <div class="mt-4 flex justify-end">
-                      <button class="btn btn-sm btn-outline" onclick="viewExam(<?php echo (int)($e['id'] ?? 0); ?>)">
-                        <i data-lucide="eye" class="w-4 h-4"></i>
-                        <span class="ml-2">View</span>
+                      <button class="btn btn-sm btn-primary" <?php echo $isCompleted ? 'disabled' : ''; ?> onclick="<?php echo $isCompleted ? '' : ('takeExam(' . (int)($e['id'] ?? 0) . ')'); ?>">
+                        <i data-lucide="play" class="w-4 h-4"></i>
+                        <span class="ml-2"><?php echo $isCompleted ? 'Completed' : 'Take Exam'; ?></span>
                       </button>
                     </div>
                   </div>
@@ -172,6 +199,83 @@ $conn->close();
       </main>
     </div>
   </div>
+
+  <dialog id="terms_modal" class="modal">
+    <div class="modal-box w-11/12 max-w-4xl">
+      <form method="dialog">
+        <button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2" aria-label="Close">✕</button>
+      </form>
+
+      <h3 class="font-bold text-lg text-gray-900">Examination Terms and Conditions</h3>
+      <p class="text-sm text-gray-600 mt-2">
+        Please read the following Terms and Conditions carefully before proceeding. These terms govern your access to and participation in this examination.
+      </p>
+
+      <div class="mt-5 space-y-4 text-sm text-gray-700 leading-relaxed">
+        <div>
+          <div class="font-semibold text-gray-900">1. Purpose of the Examination</div>
+          <div class="mt-1">This examination is administered for assessment, evaluation, training, and/or employment-related purposes as determined by the organization.</div>
+        </div>
+
+        <div>
+          <div class="font-semibold text-gray-900">2. Eligibility and Authorization</div>
+          <div class="mt-1">Only authorized users may take the examination. Account sharing is strictly prohibited.</div>
+        </div>
+
+        <div>
+          <div class="font-semibold text-gray-900">3. Examination Rules and Conduct</div>
+          <div class="mt-1">You must take the exam individually. Cheating, collaboration, plagiarism, or any form of unauthorized assistance is prohibited.</div>
+        </div>
+
+        <div>
+          <div class="font-semibold text-gray-900">4. Time Limit and Attempts</div>
+          <div class="mt-1">The examination is time-bound. Attempts are limited unless explicitly authorized by the organization.</div>
+        </div>
+
+        <div>
+          <div class="font-semibold text-gray-900">5. Data Privacy and Confidentiality</div>
+          <div class="mt-1">Personal data may be collected and processed in accordance with company policy and applicable data privacy laws. Data is used solely for evaluation, compliance, and related administrative purposes.</div>
+        </div>
+
+        <div>
+          <div class="font-semibold text-gray-900">6. System Integrity and Violations</div>
+          <div class="mt-1">Any attempt to manipulate, bypass, or disrupt the examination system may result in disqualification and may lead to disciplinary action in accordance with organizational policy.</div>
+        </div>
+
+        <div>
+          <div class="font-semibold text-gray-900">7. Technical Responsibility Disclaimer</div>
+          <div class="mt-1">The organization is not liable for issues arising from your internet connection, power interruptions, or device-related problems.</div>
+        </div>
+
+        <div>
+          <div class="font-semibold text-gray-900">8. Results and Evaluation Policy</div>
+          <div class="mt-1">Results are considered final unless a formal review process is made available. The organization reserves the right to invalidate results if violations are detected.</div>
+        </div>
+
+        <div>
+          <div class="font-semibold text-gray-900">9. User Agreement Clause</div>
+          <div class="mt-1">Proceeding with the examination signifies your full acceptance of these Terms and Conditions.</div>
+        </div>
+      </div>
+
+      <div class="mt-6 border-t pt-4">
+        <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <label class="flex items-start gap-3 cursor-pointer">
+            <input id="terms_accept_checkbox" type="checkbox" class="checkbox checkbox-sm mt-1" />
+            <span class="text-sm text-gray-700">I have read and agree to the Terms and Conditions of the Examination.</span>
+          </label>
+
+          <button id="accept_all_start_btn" class="btn btn-primary" disabled>
+              Start Examination
+          </button>
+        </div>
+        <div class="text-xs text-gray-500 mt-2">You must accept the Terms and Conditions before you can proceed.</div>
+      </div>
+    </div>
+    <form method="dialog" class="modal-backdrop">
+      <button>close</button>
+    </form>
+  </dialog>
 
   <dialog id="exam_modal" class="modal">
     <div class="modal-box w-11/12 max-w-5xl">
@@ -201,6 +305,10 @@ $conn->close();
   </dialog>
 
   <script>
+    let pendingExamId = null;
+
+    const completedFromRedirect = <?php echo (isset($_GET['completed']) && (string)$_GET['completed'] === '1') ? 'true' : 'false'; ?>;
+
     function escapeHtml(s) {
       return String(s || '')
         .replace(/&/g, '&amp;')
@@ -208,6 +316,18 @@ $conn->close();
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&#039;');
+    }
+
+    function takeExam(examId) {
+      pendingExamId = examId;
+      const termsModal = document.getElementById('terms_modal');
+      const cb = document.getElementById('terms_accept_checkbox');
+      const btn = document.getElementById('accept_all_start_btn');
+
+      if (cb) cb.checked = false;
+      if (btn) btn.disabled = true;
+
+      termsModal.showModal();
     }
 
     function viewExam(examId) {
@@ -253,6 +373,43 @@ $conn->close();
           qEl.textContent = err.message || 'Failed to load examination.';
         });
     }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      if (completedFromRedirect && window.Swal) {
+        Swal.fire({
+          title: 'Examination Completed',
+          text: 'You have finished the examination.',
+          icon: 'success',
+          confirmButtonText: 'OK',
+          allowOutsideClick: false
+        });
+      }
+
+      const cb = document.getElementById('terms_accept_checkbox');
+      const btn = document.getElementById('accept_all_start_btn');
+      const termsModal = document.getElementById('terms_modal');
+
+      if (cb && btn) {
+        cb.addEventListener('change', () => {
+          btn.disabled = !cb.checked;
+        });
+      }
+
+      if (btn && termsModal) {
+        btn.addEventListener('click', (e) => {
+          e.preventDefault();
+          if (!cb || !cb.checked) return;
+          if (!pendingExamId) return;
+          try {
+            termsModal.close();
+          } catch (e2) {}
+
+          // Use the same assessment UI as applicants (employee mode)
+          const url = `../LEARNING/applicant/applicant_assessment.php?exam_id=${encodeURIComponent(String(pendingExamId))}&secure=1&taker_type=employee`;
+          window.location.href = url;
+        });
+      }
+    });
 
     lucide.createIcons();
   </script>
