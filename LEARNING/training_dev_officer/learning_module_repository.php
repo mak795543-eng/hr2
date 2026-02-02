@@ -69,7 +69,7 @@ if (isset($_POST['post_module']) && isset($_POST['ajax'])) {
 if (isset($_POST['edit_module']) && isset($_POST['ajax'])) {
   $module_id = $_POST['module_id'];
 
-  $stmt = $conn->prepare("UPDATE learning_modules SET status = 'pending' WHERE id = ?");
+  $stmt = $conn->prepare("UPDATE learning_modules SET status = 'pending', remarks = '' WHERE id = ?");
   $stmt->bind_param("i", $module_id);
 
   if ($stmt->execute()) {
@@ -971,7 +971,7 @@ $conn->close();
                   <option value="rejected">Rejected</option>
                   <option value="compliance">For Compliance</option>
                   <option value="pending">Under Review</option>
-                  <option value="hold">Hold</option>
+                  <option value="hold">On Hold</option>
                 </select>
               </div>
 
@@ -1037,7 +1037,7 @@ $conn->close();
                           'for-compliance' => 'For Compliance',
                           'pending' => 'Under Review',
                           'posted' => 'Posted',
-                          'hold' => 'Hold',
+                          'hold' => 'ON HOLD',
                           'draft' => 'Draft'
                         ];
                         echo $statusDisplay[$module['status']] ?? ucfirst($module['status']);
@@ -1157,7 +1157,7 @@ $conn->close();
               <label class="label">
                 <span class="label-text">Topic</span>
               </label>
-              <input type="text" name="topic" class="input input-bordered" placeholder="Enter topic" required>
+              <textarea name="topic" class="textarea textarea-bordered" placeholder="Enter topic" rows="2" required></textarea>
             </div>
           </form>
         </div>
@@ -1172,7 +1172,7 @@ $conn->close();
           <i class="fas fa-file-alt mr-2"></i>Drafts
         </button>
         <button class="btn btn-primary" onclick="startModuleCreation()">
-          <i class="fas fa-play mr-2"></i>Start Module
+          <i class="fas fa-play mr-2"></i>Upload Module
         </button>
       </div>
     </div>
@@ -1451,7 +1451,7 @@ $conn->close();
           </div>
           <div class="info-item">
             <span class="info-label">Status:</span>
-            <span class="info-value" id="hold-status">Hold</span>
+            <span class="info-value" id="hold-status">ON HOLD</span>
           </div>
           <div class="info-item">
             <span class="info-label">Date Created:</span>
@@ -2100,7 +2100,7 @@ $conn->close();
       const title = document.querySelector('input[name="title"]').value;
       const department = document.getElementById('departmentSelect').value;
       const role = document.getElementById('roleSelect').value;
-      const topic = document.querySelector('input[name="topic"]').value;
+      const topic = document.querySelector('textarea[name="topic"]').value;
 
       // Fallback: if file input has a file but uploadedFiles wasn't populated (e.g. selecting same file twice)
       try {
@@ -2281,212 +2281,6 @@ $conn->close();
         });
     }
 
-    // Department and Role Data
-    const departmentRoles = {
-      'front-office': [
-        'Front Desk Manager',
-        'Receptionist / Front Desk Officer',
-        'Guest Service Agent / Concierge',
-        'Reservation Agent',
-        'Bellhop / Porter',
-        'Front Office Supervisor'
-      ],
-      'housekeeping': [
-        'Executive Housekeeper / Housekeeping Manager',
-        'Floor Supervisor',
-        'Room Attendant / Housekeeper',
-        'Laundry Attendant',
-        'Public Area Attendant',
-        'Housekeeping Inspector'
-      ],
-      'food-beverage': [
-        'F&B Manager / Director',
-        'Restaurant Manager / Captain',
-        'Waiter / Waitress / Server',
-        'Bartender',
-        'Banquet / Catering Coordinator',
-        'F&B Supervisor'
-      ],
-      'kitchen': [
-        'Executive Chef / Head Chef',
-        'Sous Chef',
-        'Line Cook / Station Chef',
-        'Pastry Chef / Baker',
-        'Kitchen Steward / Dishwasher',
-        'Commis Chef'
-      ],
-      'sales-marketing': [
-        'Sales & Marketing Manager',
-        'Revenue Manager',
-        'Event / Banquet Sales Coordinator',
-        'Social Media / Marketing Executive',
-        'Sales Executive',
-        'Marketing Coordinator'
-      ],
-      'hr': [
-        'HR Manager / Director',
-        'Recruitment Officer',
-        'Training & Development Specialist',
-        'Payroll / HR Assistant',
-        'HR Coordinator',
-        'Employee Relations Specialist'
-      ],
-      'finance': [
-        'Finance Manager / Controller',
-        'Accountant',
-        'Payroll Officer',
-        'Cost Controller',
-        'Accounts Payable/Receivable Clerk',
-        'Financial Analyst'
-      ],
-      'engineering': [
-        'Chief Engineer / Engineering Manager',
-        'Maintenance Technician',
-        'Electrician / Plumber',
-        'HVAC Technician',
-        'Carpenter',
-        'Painter'
-      ],
-      'security': [
-        'Security Manager / Supervisor',
-        'Security Guard',
-        'CCTV / Surveillance Officer',
-        'Security Officer',
-        'Surveillance Operator',
-        'Access Control Officer'
-      ],
-      'human-resources': [
-        'HR Manager / Director',
-        'Recruitment Officer',
-        'Training & Development Specialist',
-        'Payroll / HR Assistant',
-        'HR Coordinator',
-        'Employee Relations Specialist'
-      ]
-    };
-
-    // Module data storage
-    let currentModuleId = null;
-    let currentModuleData = null;
-    let currentModal = null;
-
-    // NEW: Function to update module status to pending when editing
-    function updateModuleToPending(moduleId) {
-      const formData = new FormData();
-      formData.append('edit_module', '1');
-      formData.append('module_id', moduleId);
-      formData.append('ajax', '1');
-
-      return fetch('<?php echo $_SERVER['PHP_SELF']; ?>', {
-          method: 'POST',
-          body: formData
-        })
-        .then(response => response.json())
-        .then(data => {
-          if (data.success) {
-            showNotification(data.message, 'success');
-            // Remove the module from the UI since it's now pending and shouldn't be in this repository
-            removeModuleFromUI(moduleId);
-            return true;
-          } else {
-            showNotification(data.message, 'error');
-            return false;
-          }
-        })
-        .catch(error => {
-          console.error('Error:', error);
-          showNotification('An error occurred while updating the module status.', 'error');
-          return false;
-        });
-    }
-
-    // UPDATED: Edit Module Function - Updates status to pending then redirects
-    function editModule(moduleId) {
-      console.log('Editing module:', moduleId);
-
-      // Close modal first
-      closeCurrentModal();
-
-      // Show loading state with SweetAlert
-      Swal.fire({
-        title: 'Preparing Module for Editing',
-        text: 'Please wait...',
-        icon: 'info',
-        showConfirmButton: false,
-        allowOutsideClick: false,
-        didOpen: () => {
-          Swal.showLoading();
-        }
-      });
-
-      // First update the status to pending
-      updateModuleToPending(moduleId)
-        .then(success => {
-          if (success) {
-            // Then fetch module data from server
-            return fetch(`fetch_module_data.php?module_id=${moduleId}`);
-          } else {
-            throw new Error('Failed to update module status');
-          }
-        })
-        .then(response => {
-          if (!response.ok) {
-            throw new Error('Network response was not ok');
-          }
-          return response.json();
-        })
-        .then(moduleData => {
-          console.log('Module data fetched:', moduleData);
-
-          // Store module data in sessionStorage
-          sessionStorage.setItem('editModuleData', JSON.stringify(moduleData));
-
-          // Close SweetAlert and redirect
-          Swal.close();
-          window.location.href = `create_learning_modules.php?edit=${moduleId}`;
-        })
-        .catch(error => {
-          console.error('Error in edit process:', error);
-          Swal.fire({
-            title: 'Error!',
-            text: 'Error preparing module for editing. Please try again.',
-            icon: 'error',
-            confirmButtonText: 'OK',
-            confirmButtonColor: '#3b82f6'
-          });
-        });
-    }
-
-    // Filtering Functions
-    function applyFilters() {
-      console.log('Applying filters...');
-      const statusValue = document.getElementById('statusFilter').value;
-      const departmentValue = document.getElementById('departmentFilter').value;
-
-      const cards = document.getElementById('moduleCards').querySelectorAll('.module-card');
-      console.log('Total cards found:', cards.length);
-
-      cards.forEach(card => {
-        const cardStatus = card.getAttribute('data-status');
-        const cardDepartment = card.getAttribute('data-department');
-
-        let statusMatch = statusValue === 'all' || cardStatus === statusValue;
-        let departmentMatch = departmentValue === 'all' || cardDepartment === departmentValue;
-
-        if (statusMatch && departmentMatch) {
-          card.style.display = 'block';
-        } else {
-          card.style.display = 'none';
-        }
-      });
-    }
-
-    function clearFilters() {
-      document.getElementById('statusFilter').value = 'all';
-      document.getElementById('departmentFilter').value = 'all';
-      applyFilters();
-    }
-
     // AJAX Functions
     function showNotification(message, type = 'success') {
       const notificationContainer = document.getElementById('notificationContainer');
@@ -2633,6 +2427,7 @@ $conn->close();
                   confirmButtonText: 'OK',
                   confirmButtonColor: '#3b82f6'
                 });
+                updateModuleUI(moduleId, 'posted');
                 removeModuleFromUI(moduleId);
               } else {
                 Swal.fire({
@@ -2671,7 +2466,7 @@ $conn->close();
           'for-compliance': 'For Compliance',
           pending: 'Under Review',
           posted: 'Posted',
-          hold: 'Hold',
+          hold: 'ON HOLD',
           draft: 'Draft'
         };
         statusBadge.textContent = statusTextMap[newStatus] || (newStatus.charAt(0).toUpperCase() + newStatus.slice(1));
@@ -2974,8 +2769,8 @@ $conn->close();
           reverseButtons: true
         }).then((result) => {
           if (result.isConfirmed) {
-            // Update status to approved
-            updateModuleStatus(moduleData.id, 'approved');
+            // Update status back to pending (under review)
+            updateModuleStatus(moduleData.id, 'pending');
           }
         });
       };
@@ -3023,7 +2818,7 @@ $conn->close();
       document.getElementById('hold-topic').textContent = moduleData.topic;
       document.getElementById('hold-department').textContent = formatDepartment(moduleData.department);
       document.getElementById('hold-role').textContent = moduleData.roles;
-      document.getElementById('hold-status').textContent = 'Hold';
+      document.getElementById('hold-status').textContent = 'ON HOLD';
       document.getElementById('hold-date').textContent = moduleData.created_at || 'N/A';
 
       // Set document preview with ACTUAL content from database
@@ -3059,8 +2854,11 @@ $conn->close();
           reverseButtons: true
         }).then((result) => {
           if (result.isConfirmed) {
-            // Update status to approved
-            updateModuleStatus(moduleData.id, 'approved');
+            updateModuleStatus(moduleData.id, 'posted', '').then((success) => {
+              if (success) {
+                removeModuleFromUI(moduleData.id);
+              }
+            });
           }
         });
       };

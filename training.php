@@ -137,109 +137,109 @@ foreach ($trainings as $training) {
         </div>
 
         <!-- Create Training Modal -->
-<dialog id="createTrainingModal" class="modal">
-    <div class="modal-box w-11/12 max-w-5xl">
-        <div class="flex justify-between items-center mb-2">
-            <h3 class="font-bold text-2xl text-primary">Create Training Design</h3>
-            <button type="button" class="btn btn-sm btn-circle" onclick="createTrainingModal.close()">✕</button>
-        </div>
-        
-        <div class="divider my-2"></div>
-        
-        <!-- Progress Steps -->
-        <ul class="steps steps-vertical md:steps-horizontal w-full mb-6">
-            <li class="step step-primary">Training Details</li>
-            <li class="step">Schedule</li>
-            <li class="step">Participants</li>
-            <li class="step">Review</li>
-        </ul>
-        
-        <form id="training-form" onsubmit="return handleTrainingSubmit(event)">
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <dialog id="createTrainingModal" class="modal">
+          <div class="modal-box w-11/12 max-w-5xl">
+            <div class="flex justify-between items-center mb-2">
+              <h3 class="font-bold text-2xl text-primary">Create Training Design</h3>
+              <button type="button" class="btn btn-sm btn-circle" onclick="createTrainingModal.close()">✕</button>
+            </div>
+            
+            <div class="divider my-2"></div>
+            
+            <!-- Progress Steps -->
+            <ul class="steps steps-vertical md:steps-horizontal w-full mb-6">
+              <li class="step step-primary">Training Details</li>
+              <li class="step">Schedule</li>
+              <li class="step">Participants</li>
+              <li class="step">Review</li>
+            </ul>
+            
+            <form id="training-form" onsubmit="return handleTrainingSubmit(event)">
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <!-- Left Column -->
                 <div>
-                    <h4 class="font-semibold text-lg mb-4 text-primary">Training Details</h4>
-                    
-                    <div class="form-control w-full mb-4">
-                        <label class="label">
-                            <span class="label-text font-medium">Training Program Name</span>
-                        </label>
-                        <input type="text" id="training-name" name="name" placeholder="Enter training program name" class="input input-bordered w-full focus:input-primary" required />
-                    </div>
-                    
-                    <div class="form-control w-full mb-4">
-                        <label class="label">
-                            <span class="label-text font-medium">Training Category</span>
-                        </label>
-                        <select class="select select-bordered w-full focus:select-primary" id="training-type" name="type" required>
-                            <option disabled selected value="">Select training Category</option>
-                            <option value="Internal Program">Internal Program</option>
-                            <option value="External" selected>External</option>
-                            <option value="Workshop">Workshop</option>
-                            <option value="Seminar">Seminar</option>
-                        </select>
-                    </div>
-                    
-                    <div class="form-control w-full mb-4">
-                        <label class="label">
-                            <span class="label-text font-medium">Description</span>
-                        </label>
-                        <textarea class="textarea textarea-bordered h-24 focus:textarea-primary" id="training-description" name="description" placeholder="Training description" required></textarea>
-                    </div>
+                  <h4 class="font-semibold text-lg mb-4 text-primary">Training Details</h4>
+                  
+                  <div class="form-control w-full mb-4">
+                    <label class="label">
+                      <span class="label-text font-medium">Training Program Name</span>
+                    </label>
+                    <input type="text" id="training-name" name="name" placeholder="Enter training program name" class="input input-bordered w-full focus:input-primary" required />
+                  </div>
+                  
+                  <div class="form-control w-full mb-4">
+                    <label class="label">
+                      <span class="label-text font-medium">Training Category</span>
+                    </label>
+                    <select class="select select-bordered w-full focus:select-primary" id="training-type" name="type" required>
+                      <option disabled selected value="">Select training Category</option>
+                      <option value="Internal Program">Internal Program</option>
+                      <option value="External" selected>External</option>
+                      <option value="Workshop">Workshop</option>
+                      <option value="Seminar">Seminar</option>
+                    </select>
+                  </div>
+                  
+                  <div class="form-control w-full mb-4">
+                    <label class="label">
+                      <span class="label-text font-medium">Description</span>
+                    </label>
+                    <textarea class="textarea textarea-bordered h-24 focus:textarea-primary resize-vertical" id="training-description" name="description" placeholder="Training description" required></textarea>
+                  </div>
                 </div>
                 
                 <!-- Right Column -->
                 <div>
-                    <h4 class="font-semibold text-lg mb-4 text-primary">Schedule & Participants</h4>
-                    
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                        <div class="form-control">
-                            <label class="label">
-                                <span class="label-text font-medium">Start Date</span>
-                            </label>
-                            <input type="date" id="start-date" name="start_date" class="input input-bordered focus:input-primary" required />
-                        </div>
-                        <div class="form-control">
-                            <label class="label">
-                                <span class="label-text font-medium">End Date</span>
-                            </label>
-                            <input type="date" id="end-date" name="end_date" class="input input-bordered focus:input-primary" required />
-                        </div>
+                  <h4 class="font-semibold text-lg mb-4 text-primary">Schedule & Participants</h4>
+                  
+                  <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                    <div class="form-control">
+                      <label class="label">
+                        <span class="label-text font-medium">Start Date</span>
+                      </label>
+                      <input type="date" id="start-date" name="start_date" class="input input-bordered focus:input-primary" required />
                     </div>
-                    
-                    <div class="form-control w-full mb-4">
-                        <label class="label">
-                            <span class="label-text font-medium">Training Location</span>
-                        </label>
-                        <input type="text" id="training-location" name="location" placeholder="Enter location" class="input input-bordered w-full focus:input-primary" required />
+                    <div class="form-control">
+                      <label class="label">
+                        <span class="label-text font-medium">End Date</span>
+                      </label>
+                      <input type="date" id="end-date" name="end_date" class="input input-bordered focus:input-primary" required />
                     </div>
-                    
-                    <div class="form-control w-full mb-4">
-                        <label class="label">
-                            <span class="label-text font-medium">Max Participants</span>
-                        </label>
-                        <input type="number" id="max-participants" name="max_participants" placeholder="Enter number" class="input input-bordered w-full focus:input-primary" min="1" required />
-                    </div>
+                  </div>
+                  
+                  <div class="form-control w-full mb-4">
+                    <label class="label">
+                      <span class="label-text font-medium">Training Location</span>
+                    </label>
+                    <input type="text" id="training-location" name="location" placeholder="Enter location" class="input input-bordered w-full focus:input-primary" required />
+                  </div>
+                  
+                  <div class="form-control w-full mb-4">
+                    <label class="label">
+                      <span class="label-text font-medium">Max Participants</span>
+                    </label>
+                    <input type="number" id="max-participants" name="max_participants" placeholder="Enter number" class="input input-bordered w-full focus:input-primary" min="1" required />
+                  </div>
                 </div>
-            </div>
-            
-            <div class="modal-action mt-6">
+              </div>
+              
+              <div class="modal-action mt-6">
                 <button type="button" class="btn btn-outline mr-2" onclick="createTrainingModal.close()">Cancel</button>
                 <button type="submit" class="btn btn-primary">
-                    <span>Create Training Design</span>
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 ml-1" viewBox="0 0 20 20" fill="currentColor">
-                        <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
-                    </svg>
+                  <span>Create Training Design</span>
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 ml-1" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
+                  </svg>
                 </button>
-            </div>
-        </form>
-    </div>
-    
-    <!-- Click outside to close -->
-    <form method="dialog" class="modal-backdrop">
-        <button>close</button>
-    </form>
-</dialog>
+              </div>
+            </form>
+          </div>
+          
+          <!-- Click outside to close -->
+          <form method="dialog" class="modal-backdrop">
+            <button>close</button>
+          </form>
+        </dialog>
 
         <!-- Stats Overview -->
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
@@ -718,6 +718,62 @@ foreach ($trainings as $training) {
 
       return false;
     }
+  </script>
+
+  <script>
+    (function () {
+      function pad2(n) {
+        return String(n).padStart(2, '0');
+      }
+
+      function todayYmd() {
+        const d = new Date();
+        return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate());
+      }
+
+      function setMin(el, minValue) {
+        if (!el) return;
+        el.setAttribute('min', minValue);
+      }
+
+      function autoGrow(el) {
+        if (!el) return;
+        el.style.height = 'auto';
+        el.style.height = String(el.scrollHeight) + 'px';
+      }
+
+      document.addEventListener('DOMContentLoaded', function () {
+        const start = document.getElementById('start-date');
+        const end = document.getElementById('end-date');
+
+        if (start && end) {
+          const t = todayYmd();
+          setMin(start, t);
+          setMin(end, t);
+
+          const sync = function () {
+            const s = String(start.value || t);
+            setMin(end, s);
+            if (end.value && end.value < s) {
+              end.value = s;
+            }
+          };
+
+          start.addEventListener('change', sync);
+          end.addEventListener('change', sync);
+          sync();
+        }
+
+        const desc = document.getElementById('training-description');
+        if (desc) {
+          desc.style.resize = 'vertical';
+          autoGrow(desc);
+          desc.addEventListener('input', function () {
+            autoGrow(desc);
+          });
+        }
+      });
+    })();
   </script>
 </body>
 </html>

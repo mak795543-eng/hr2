@@ -155,7 +155,7 @@ function sendOTP($email, $otp)
 }
 
 if ($_SERVER["REQUEST_METHOD"] === "POST" && $employee_ID && $password) {
-    $stmt = mysqli_prepare($hr2usm, "SELECT email, employee_name, password, Dept_id , employee_id, role FROM department_accounts WHERE employee_id = ?");
+    $stmt = mysqli_prepare($hr_2usm, "SELECT email, employee_name, password, Dept_id , employee_id, role FROM department_accounts WHERE employee_id = ?");
     mysqli_stmt_bind_param($stmt, "s", $employee_ID);
     mysqli_stmt_execute($stmt);
     $result = mysqli_stmt_get_result($stmt);
@@ -190,15 +190,15 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && $employee_ID && $password) {
             $_SESSION["auth_method"] = "2FA";
 
             if (sendOTP($row["email"], $otp)) {
-                logAttempt($hr2usm, $employee_ID, $Name, $Role, 'Authenticating', 'Login', 0, 'Authenticating', '');
+                logAttempt($hr_2usm, $employee_ID, $Name, $Role, 'Authenticating', 'Login', 0, 'Authenticating', '');
 
-                logDepartmentAttempt($hr2usm, $Department_ID, $employee_ID, $Name, $Role, 'Success', 'Login', 0, 'Login Successful', '');
+                logDepartmentAttempt($hr_2usm, $Department_ID, $employee_ID, $Name, $Role, 'Success', 'Login', 0, 'Login Successful', '');
 
                 header("Location: USM/2fa_verify.php");
                 exit();
             } else {
                 dd("failed");
-                logAttempt($hr2usm, $employee_ID, $Name, $Role, 'Failed', 'Login', 0, 'Failed to send OTP email', '');
+                logAttempt($hr_2usm, $employee_ID, $Name, $Role, 'Failed', 'Login', 0, 'Failed to send OTP email', '');
 
                 $_SESSION["loginError"] = "Failed to send OTP email.";
                 header("Location: index.php");
@@ -206,7 +206,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && $employee_ID && $password) {
             }
         } else {
             incrementLoginAttempts($employee_ID);
-            logAttempt($hr2usm, $employee_ID, $Name, $Role, 'Failed', 'Login', 0, 'Incorrect password', '');
+            logAttempt($hr_2usm, $employee_ID, $Name, $Role, 'Failed', 'Login', 0, 'Incorrect password', '');
 
             $_SESSION["loginError"] = "Incorrect password.";
             header("Location: index.php");
