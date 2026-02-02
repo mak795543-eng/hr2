@@ -53,7 +53,6 @@ $base = '/hr2/';
                     </div>
                 </a>
             <?php endif; ?>
-
             <!-- LEARNING MANAGEMENT SECTION (Training Development Officer) -->
             <?php if (hasAccess('learning_management', $allowed_modules, $is_supervisor)): ?>
                 <div class="px-4 py-2 mt-4">
@@ -273,7 +272,7 @@ $base = '/hr2/';
                         <a href="/../hr2/ESS/approval.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
                             <span class="flex items-center gap-2">
                                 <i data-lucide="check-circle" class="w-4 h-4 text-[#F7B32B]"></i>
-                                ESS Document Approvals
+                                ESS Approvals
                             </span>
                         </a>
                         <a href="/../hr2/TRAINING/TRAINING/request_logs.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
@@ -321,92 +320,92 @@ $base = '/hr2/';
             <?php endif; ?>
 
             <!-- ESS SECTION -->
-            <?php if (hasAccess('employee_self_service', $allowed_modules, $is_supervisor)): ?>
-                <div class="px-4 py-2 mt-4">
+              <div class="px-4 py-2 mt-4">
                     <p class="text-xs font-semibold text-blue-300 uppercase tracking-wider section-title">Employee Self Service</p>
                 </div>
-
-                <div class="collapse group">
-                    <input type="checkbox" class="peer" />
-                    <div class="collapse-title flex items-center justify-between px-4 py-3 text-sm font-medium rounded-lg transition-all peer-checked:bg-blue-600/50 text-white group">
-                        <div class="flex items-center">
-                            <div class="p-1.5 rounded-lg bg-blue-800/30 group-hover:bg-blue-700/50 transition-colors">
-                                <i data-lucide="user" class="w-5 h-5 text-[#F7B32B] group-hover:text-white"></i>
-                            </div>
-                            <span class="ml-3 sidebar-text">Employee Self Service</span>
+            <?php if (hasAccess('employee_self_service', $allowed_modules, $is_supervisor)): ?>
+                <a href="/../hr2/ESS/profile_management.php" class="block">
+                    <div class="flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-all hover:bg-blue-600/50 text-white group">
+                        <div class="p-1 rounded-lg bg-blue-800/30 group-hover:bg-blue-700/50 transition-colors">
+                            <i data-lucide="user" class="w-5 h-5 text-[#F7B32B] group-hover:text-white"></i>
                         </div>
-                        <i class="w-4 h-4 text-blue-200 transform transition-transform duration-200 peer-checked:rotate-90 dropdown-icon" data-lucide="chevron-down"></i>
+                        <span class="ml-3 sidebar-text">Profile</span>
                     </div>
-                    <div class="collapse-content pl-14 pr-4 py-1 space-y-1">
-                        <a href="/../hr2/ESS/dashboard.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
-                            <span class="flex items-center gap-2">
-                                <i data-lucide="layout-dashboard" class="w-4 h-4 text-[#F7B32B]"></i>
-                                Dashboard
-                            </span>
-                        </a>
-                        <a href="/../hr2/ESS/profile_management.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
-                            <span class="flex items-center gap-2">
-                                <i data-lucide="flag" class="w-4 h-4 text-[#F7B32B]"></i>
-                                Profie
-                            </span>
-                        </a>
-                        <a href="/../hr2/ESS/social_recognition.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
-                            <span class="flex items-center gap-2">
-                                <i data-lucide="flag" class="w-4 h-4 text-[#F7B32B]"></i>
-                                My Achievements
-                            </span>
-                        </a>
-                        <a href="/../hr2/ESS/paymenthistory.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
-                            <span class="flex items-center gap-2">
-                                <i data-lucide="receipt" class="w-4 h-4 text-[#F7B32B]"></i>
-                                Payment History
-                            </span>
-                        </a>
-                        <a href="/../hr2/ESS/myexamination.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
-                            <span class="flex items-center gap-2">
-                                <i data-lucide="receipt" class="w-4 h-4 text-[#F7B32B]"></i>
-                                My Training
-                            </span>
-                        </a>
-                        <a href="/../hr2/ESS/mymodule.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
-                            <span class="flex items-center gap-2">
-                                <i data-lucide="receipt" class="w-4 h-4 text-[#F7B32B]"></i>
-                                My Modules
-                            </span>
-                        </a>
-                        <a href="/../hr2/ESS/mydocuments.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
-                            <span class="flex items-center gap-2">
-                                <i data-lucide="folder" class="w-4 h-4 text-[#F7B32B]"></i>
-                                My Documents
-                            </span>
-                        </a>
-                        <a href="/../hr2/ESS/submitdocument.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
-                            <span class="flex items-center gap-2">
-                                <i data-lucide="history" class="w-4 h-4 text-[#F7B32B]"></i>
-                                Submit document
-                            </span>
-                        </a>
-                        <a href="/../hr2/ESS/leaverequest.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
-                            <span class="flex items-center gap-2">
-                                <i data-lucide="calendar" class="w-4 h-4 text-[#F7B32B]"></i>
-                                Leave Request
-                            </span>
-                        </a>
-                        <a href="/../hr2/ESS/complaint.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
-                            <span class="flex items-center gap-2">
-                                <i data-lucide="calendar" class="w-4 h-4 text-[#F7B32B]"></i>
-                                Complaint
-                            </span>
-                        </a>
-                        <a href="/../hr2/ESS/myexamination.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
-                            <span class="flex items-center gap-2">
-                                <i data-lucide="calendar" class="w-4 h-4 text-[#F7B32B]"></i>
-                                My Examinations
-                            </span>
-                        </a>
+                </a>
+
+                <a href="/../hr2/ESS/social_recognition.php" class="block">
+                    <div class="flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-all hover:bg-blue-600/50 text-white group">
+                        <div class="p-1 rounded-lg bg-blue-800/30 group-hover:bg-blue-700/50 transition-colors">
+                            <i data-lucide="award" class="w-5 h-5 text-[#F7B32B] group-hover:text-white"></i>
+                        </div>
+                        <span class="ml-3 sidebar-text">My Achievements</span>
                     </div>
-                </div>
+                </a>
+
+                <a href="/../hr2/ESS/paymenthistory.php" class="block">
+                    <div class="flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-all hover:bg-blue-600/50 text-white group">
+                        <div class="p-1 rounded-lg bg-blue-800/30 group-hover:bg-blue-700/50 transition-colors">
+                            <i data-lucide="banknote" class="w-5 h-5 text-[#F7B32B] group-hover:text-white"></i>
+                        </div>
+                        <span class="ml-3 sidebar-text">Payroll</span>
+                    </div>
+                </a>
+        
+                <a href="/../hr2/ESS/mytraining.php" class="block">
+                    <div class="flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-all hover:bg-blue-600/50 text-white group">
+                        <div class="p-1 rounded-lg bg-blue-800/30 group-hover:bg-blue-700/50 transition-colors">
+                            <i data-lucide="graduation-cap" class="w-5 h-5 text-[#F7B32B] group-hover:text-white"></i>
+                        </div>
+                        <span class="ml-3 sidebar-text">My Training</span>
+                    </div>
+                </a>
+
+                <a href="/../hr2/ESS/mymodule.php" class="block">
+                    <div class="flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-all hover:bg-blue-600/50 text-white group">
+                        <div class="p-1 rounded-lg bg-blue-800/30 group-hover:bg-blue-700/50 transition-colors">
+                            <i data-lucide="layers" class="w-5 h-5 text-[#F7B32B] group-hover:text-white"></i>
+                        </div>
+                        <span class="ml-3 sidebar-text">My Modules</span>
+                    </div>
+                </a>
+
+                <a href="/../hr2/ESS/myexamination.php" class="block">
+                    <div class="flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-all hover:bg-blue-600/50 text-white group">
+                        <div class="p-1 rounded-lg bg-blue-800/30 group-hover:bg-blue-700/50 transition-colors">
+                            <i data-lucide="clipboard-check" class="w-5 h-5 text-[#F7B32B] group-hover:text-white"></i>
+                        </div>
+                        <span class="ml-3 sidebar-text">My Examination</span>
+                    </div>
+                </a>
+                       
+                <a href="/../hr2/ESS/submitdocument.php" class="block">
+                    <div class="flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-all hover:bg-blue-600/50 text-white group">
+                        <div class="p-1 rounded-lg bg-blue-800/30 group-hover:bg-blue-700/50 transition-colors">
+                            <i data-lucide="file-up" class="w-5 h-5 text-[#F7B32B] group-hover:text-white"></i>
+                        </div>
+                        <span class="ml-3 sidebar-text">Submit Document</span>
+                    </div>
+                </a>
+    
+                <a href="/../hr2/ESS/leaverequest.php" class="block">
+                    <div class="flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-all hover:bg-blue-600/50 text-white group">
+                        <div class="p-1 rounded-lg bg-blue-800/30 group-hover:bg-blue-700/50 transition-colors">
+                            <i data-lucide="calendar" class="w-5 h-5 text-[#F7B32B] group-hover:text-white"></i>
+                        </div>
+                        <span class="ml-3 sidebar-text">Leave Request</span>
+                    </div>
+                </a>
+
+                <a href="/../hr2/ESS/complaint.php" class="block">
+                    <div class="flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-all hover:bg-blue-600/50 text-white group">
+                        <div class="p-1 rounded-lg bg-blue-800/30 group-hover:bg-blue-700/50 transition-colors">
+                            <i data-lucide="message-square-warning" class="w-5 h-5 text-[#F7B32B] group-hover:text-white"></i>
+                        </div>
+                        <span class="ml-3 sidebar-text">Complaint</span>
+                    </div>
+                </a>
             <?php endif; ?>
+                        
 
             <!-- USER MANAGEMENT SECTION (Admin Only) -->
             <?php if (hasAccess('user_management', $allowed_modules, $is_supervisor)): ?>

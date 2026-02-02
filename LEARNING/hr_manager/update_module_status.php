@@ -57,7 +57,7 @@ if (!$module_id || !$new_status) {
 // Map status to appropriate database values
 $new_status = $new_status === 'for-compliance' ? 'compliance' : $new_status;
 $status_map = [
-    'approved' => 'posted',
+    'approved' => 'approved',
     'rejected' => 'rejected', 
     'compliance' => 'compliance'
 ];

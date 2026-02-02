@@ -4,13 +4,86 @@ session_start();
 $isBinaryView = isset($_GET['view'])
     || isset($_GET['download'])
     || isset($_GET['profile_proof_view'])
-    || isset($_GET['profile_proof_download']);
+    || isset($_GET['profile_proof_download'])
+    || isset($_GET['complaint_attachment_view'])
+    || isset($_GET['complaint_attachment_download']);
 
 if ($isBinaryView && !defined('SUPPRESS_DB_ERRORS')) {
     define('SUPPRESS_DB_ERRORS', true);
 }
-
 require __DIR__ . '/db.php';
+
+$success_message = '';
+$error_message = '';
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_complaint_workflow'])) {
+    $cid = (int)($_POST['complaint_id'] ?? 0);
+    $action = trim((string)($_POST['action'] ?? ''));
+    $reason = trim((string)($_POST['reason'] ?? ''));
+    $assignRole = trim((string)($_POST['assign_role'] ?? ''));
+    $assignTo = trim((string)($_POST['assign_to_employee_no'] ?? ''));
+
+    if ($cid <= 0 || !in_array($action, ['accept', 'return', 'assign'], true)) {
+        $error_message = 'Invalid complaint request.';
+    } elseif (!$conn) {
+        $error_message = 'Database connection unavailable.';
+    } elseif ($action === 'return' && $reason === '') {
+        $error_message = 'Clarification/return remarks are required.';
+    } elseif ($action === 'assign' && ($assignRole === '' || $assignTo === '')) {
+        $error_message = 'Please choose an assignee.';
+    } else {
+        $actorId = ess_employee_id($conn);
+        $actor = is_int($actorId) ? $actorId : 0;
+        $now = date('Y-m-d H:i:s');
+
+        if ($action === 'accept') {
+            $stmt = mysqli_prepare($conn, "UPDATE complaints SET workflow_status = 'Under Review', accepted_by = ?, accepted_at = ?, returned_reason = NULL, seen_by_employee = 0 WHERE id = ?");
+            if ($stmt) {
+                mysqli_stmt_bind_param($stmt, 'isi', $actor, $now, $cid);
+                $ok = mysqli_stmt_execute($stmt);
+                mysqli_stmt_close($stmt);
+                if ($ok) $success_message = 'Complaint accepted.';
+                else $error_message = 'Failed to update complaint.';
+            } else {
+                $error_message = 'Failed to update complaint.';
+            }
+        }
+
+        if ($action === 'return' && $error_message === '') {
+            $stmt = mysqli_prepare($conn, "UPDATE complaints SET workflow_status = 'Returned', returned_reason = ?, accepted_by = ?, accepted_at = ?, assigned_role = NULL, assigned_to_employee_no = NULL, assigned_at = NULL, seen_by_employee = 0 WHERE id = ?");
+            if ($stmt) {
+                mysqli_stmt_bind_param($stmt, 'sisi', $reason, $actor, $now, $cid);
+                $ok = mysqli_stmt_execute($stmt);
+                mysqli_stmt_close($stmt);
+                if ($ok) $success_message = 'Complaint returned.';
+                else $error_message = 'Failed to update complaint.';
+            } else {
+                $error_message = 'Failed to update complaint.';
+            }
+        }
+
+        if ($action === 'assign' && $error_message === '') {
+            $stmt = mysqli_prepare($conn, "UPDATE complaints SET workflow_status = 'Assigned', assigned_role = ?, assigned_to_employee_no = ?, assigned_at = ?, seen_by_assignee = 0, seen_by_employee = 0 WHERE id = ?");
+            if ($stmt) {
+                mysqli_stmt_bind_param($stmt, 'sssi', $assignRole, $assignTo, $now, $cid);
+                $ok = mysqli_stmt_execute($stmt);
+                mysqli_stmt_close($stmt);
+                if ($ok) $success_message = 'Complaint assigned.';
+                else $error_message = 'Failed to assign complaint.';
+            } else {
+                $error_message = 'Failed to assign complaint.';
+            }
+        }
+    }
+
+    if ($error_message === '' && $success_message !== '') {
+        $redirect = (string)($_SERVER['PHP_SELF']);
+        $curCstatus = (string)($_POST['redirect_cstatus'] ?? 'all');
+        $qs = http_build_query(['section' => 'complaints', 'cstatus' => $curCstatus]);
+        header('Location: ' . $redirect . '?' . $qs);
+        exit;
+    }
+}
 
 $uploadDir = __DIR__ . DIRECTORY_SEPARATOR . 'uploads';
 if (!is_dir($uploadDir)) {
@@ -22,20 +95,79 @@ if (!is_dir($profileProofDir)) {
     @mkdir($profileProofDir, 0775, true);
 }
 
-$success_message = '';
-$error_message = '';
+$complaintUploadDir = $uploadDir . DIRECTORY_SEPARATOR . 'complaints';
+if (!is_dir($complaintUploadDir)) {
+    @mkdir($complaintUploadDir, 0775, true);
+}
+
+
+
+function ess_profile_status_to_db(string $uiStatus, string $remarks): array {
+    $ui = strtolower(trim($uiStatus));
+    $r = trim($remarks);
+
+    if ($ui === 'for compliance') {
+        $r = preg_replace('/^\[COMPLIANCE\]\s*/', '', $r);
+        $r = '[COMPLIANCE] ' . $r;
+        return ['Pending', trim($r)];
+    }
+
+    if ($ui === 'for approval' || $ui === 'pending') {
+        $r = preg_replace('/^\[COMPLIANCE\]\s*/', '', $r);
+        return ['Pending', trim($r)];
+    }
+
+    if ($ui === 'approved') {
+        $r = preg_replace('/^\[COMPLIANCE\]\s*/', '', $r);
+        return ['Approved', trim($r)];
+    }
+
+    if ($ui === 'rejected') {
+        $r = preg_replace('/^\[COMPLIANCE\]\s*/', '', $r);
+        return ['Rejected', trim($r)];
+    }
+
+    return ['Pending', trim($r)];
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_profile_request'])) {
     $rid = (int)($_POST['request_id'] ?? 0);
-    $newStatus = trim((string)($_POST['status'] ?? ''));
+    $uiStatus = trim((string)($_POST['status'] ?? ''));
     $remarks = trim((string)($_POST['remarks'] ?? ''));
 
-    $allowed = ['Approved', 'Rejected', 'Pending'];
-    if ($rid <= 0 || !in_array($newStatus, $allowed, true)) {
+    $isAjax = (string)($_POST['ajax'] ?? '') === '1';
+
+    $allowedUi = ['Approved', 'Rejected', 'Pending', 'For Compliance', 'For Approval'];
+    if ($rid <= 0 || !in_array($uiStatus, $allowedUi, true)) {
+        if ($isAjax) {
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode(['success' => false, 'message' => 'Invalid request.']);
+            exit;
+        }
         $error_message = 'Invalid request.';
+    } elseif (strtolower(trim($uiStatus)) === 'rejected' && $remarks === '') {
+        if ($isAjax) {
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode(['success' => false, 'message' => 'Rejection reason is required.']);
+            exit;
+        }
+        $error_message = 'Rejection reason is required.';
+    } elseif (strtolower(trim($uiStatus)) === 'for compliance' && $remarks === '') {
+        if ($isAjax) {
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode(['success' => false, 'message' => 'Compliance remarks are required.']);
+            exit;
+        }
+        $error_message = 'Compliance remarks are required.';
     } elseif (!$conn) {
+        if ($isAjax) {
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode(['success' => false, 'message' => 'Database connection unavailable.']);
+            exit;
+        }
         $error_message = 'Database connection unavailable.';
     } else {
+        [$newStatus, $remarks] = ess_profile_status_to_db($uiStatus, $remarks);
         $approverId = ess_employee_id($conn);
         $reviewedBy = is_int($approverId) ? $approverId : 0;
         $reviewedAt = date('Y-m-d H:i:s');
@@ -113,11 +245,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_profile_reques
                     }
                 }
 
+                if ($isAjax) {
+                    header('Content-Type: application/json; charset=utf-8');
+                    echo json_encode(['success' => true, 'message' => 'Profile request updated successfully.']);
+                    exit;
+                }
+
                 $success_message = 'Profile request updated successfully.';
 
                 $redirect = (string)($_SERVER['PHP_SELF']);
-                $curSection = 'profiles';
-                $curPstatus = 'pending';
+                $curSection = (string)($_POST['redirect_section'] ?? 'profiles');
+                $curSection = in_array($curSection, ['documents', 'profiles'], true) ? $curSection : 'profiles';
+                $curPstatus = (string)($_POST['redirect_pstatus'] ?? 'pending');
                 $qs = http_build_query(['section' => $curSection, 'pstatus' => $curPstatus]);
                 header('Location: ' . $redirect . '?' . $qs);
                 exit;
@@ -127,7 +266,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_profile_reques
 }
 
 $section = (string)($_GET['section'] ?? 'documents');
-$section = in_array($section, ['documents', 'profiles'], true) ? $section : 'documents';
+$section = in_array($section, ['documents', 'profiles', 'complaints'], true) ? $section : 'documents';
 
 function ess_is_compliance(string $remarks): bool {
     return str_starts_with(trim($remarks), '[COMPLIANCE]');
@@ -245,6 +384,36 @@ function badgeClassForStatus($status) {
     };
 }
 
+function ess_complaint_badge_class(string $status): string {
+    $s = strtolower(trim($status));
+    return match ($s) {
+        'for approval' => 'badge-warning',
+        'under review' => 'badge-info',
+        'returned' => 'badge-error',
+        'assigned' => 'badge-success',
+        default => 'badge-ghost',
+    };
+}
+
+function ess_usm_conn(): ?mysqli {
+    if (!defined('SUPPRESS_DB_ERRORS')) {
+        define('SUPPRESS_DB_ERRORS', true);
+    }
+
+    $rootDb = __DIR__ . '/../db.php';
+    if (is_file($rootDb)) {
+        require_once $rootDb;
+    }
+
+    if (isset($connections['hr2usm']) && $connections['hr2usm'] instanceof mysqli) {
+        return $connections['hr2usm'];
+    }
+    if (isset($connections['hr2_usm']) && $connections['hr2_usm'] instanceof mysqli) {
+        return $connections['hr2_usm'];
+    }
+    return null;
+}
+
 function safeDateTime($iso) {
     $t = strtotime((string)$iso);
     if ($t === false) return (string)$iso;
@@ -265,14 +434,23 @@ $filter = in_array(strtolower($filter), $allowedFilters, true) ? strtolower($fil
 $profileFilter = (string)($_GET['pstatus'] ?? '');
 $hasExplicitProfileFilter = array_key_exists('pstatus', $_GET);
 $profileFilter = $hasExplicitProfileFilter ? $profileFilter : (($section === 'profiles') ? 'pending' : 'all');
-$profileAllowed = ['all', 'pending', 'approved', 'rejected'];
+$profileAllowed = ['all', 'pending', 'approved', 'rejected', 'for compliance'];
 $profileFilter = in_array(strtolower($profileFilter), $profileAllowed, true) ? strtolower($profileFilter) : 'all';
+
+$complaintFilter = (string)($_GET['cstatus'] ?? '');
+$hasExplicitComplaintFilter = array_key_exists('cstatus', $_GET);
+$complaintFilter = $hasExplicitComplaintFilter ? $complaintFilter : (($section === 'complaints') ? 'for approval' : 'all');
+$complaintAllowed = ['all', 'for approval', 'under review', 'returned', 'assigned'];
+$complaintFilter = in_array(strtolower($complaintFilter), $complaintAllowed, true) ? strtolower($complaintFilter) : 'all';
 
 $viewParam = (string)($_GET['view'] ?? '');
 $downloadParam = (string)($_GET['download'] ?? '');
 
 $profileProofViewParam = (string)($_GET['profile_proof_view'] ?? '');
 $profileProofDownloadParam = (string)($_GET['profile_proof_download'] ?? '');
+
+$complaintAttachmentViewParam = (string)($_GET['complaint_attachment_view'] ?? '');
+$complaintAttachmentDownloadParam = (string)($_GET['complaint_attachment_download'] ?? '');
 
 if ($section === 'profiles' && $profileProofDownloadParam !== '') {
     if ($conn) {
@@ -292,6 +470,67 @@ if ($section === 'profiles' && $profileProofDownloadParam !== '') {
                     header('Content-Type: application/octet-stream');
                     header('Content-Disposition: attachment; filename="' . basename($path) . '"');
                     header('Content-Length: ' . filesize($path));
+                    readfile($path);
+                    exit;
+                }
+            }
+        }
+    }
+
+    http_response_code(404);
+    echo 'File not found.';
+    exit;
+}
+
+if ($section === 'complaints' && $complaintAttachmentDownloadParam !== '') {
+    if ($conn) {
+        $id = (int)$complaintAttachmentDownloadParam;
+        $stmt = mysqli_prepare($conn, 'SELECT attachment_path FROM complaints WHERE id = ? LIMIT 1');
+        if ($stmt) {
+            mysqli_stmt_bind_param($stmt, 'i', $id);
+            mysqli_stmt_execute($stmt);
+            $res = mysqli_stmt_get_result($stmt);
+            $target = $res ? mysqli_fetch_assoc($res) : null;
+            mysqli_stmt_close($stmt);
+
+            if (is_array($target)) {
+                $filePath = (string)($target['attachment_path'] ?? '');
+                $path = ess_resolve_file_path($filePath, $complaintUploadDir);
+                if ($path && is_file($path)) {
+                    header('Content-Type: application/octet-stream');
+                    header('Content-Disposition: attachment; filename="' . basename($path) . '"');
+                    header('Content-Length: ' . filesize($path));
+                    readfile($path);
+                    exit;
+                }
+            }
+        }
+    }
+
+    http_response_code(404);
+    echo 'File not found.';
+    exit;
+}
+
+if ($section === 'complaints' && $complaintAttachmentViewParam !== '') {
+    if ($conn) {
+        $id = (int)$complaintAttachmentViewParam;
+        $stmt = mysqli_prepare($conn, 'SELECT attachment_path FROM complaints WHERE id = ? LIMIT 1');
+        if ($stmt) {
+            mysqli_stmt_bind_param($stmt, 'i', $id);
+            mysqli_stmt_execute($stmt);
+            $res = mysqli_stmt_get_result($stmt);
+            $target = $res ? mysqli_fetch_assoc($res) : null;
+            mysqli_stmt_close($stmt);
+
+            if (is_array($target)) {
+                $filePath = (string)($target['attachment_path'] ?? '');
+                $path = ess_resolve_file_path($filePath, $complaintUploadDir);
+                if ($path && is_file($path)) {
+                    $mime = ess_guess_mime_type($path);
+
+                    header('Content-Type: ' . $mime);
+                    header('Content-Disposition: inline; filename="' . basename($path) . '"');
                     readfile($path);
                     exit;
                 }
@@ -488,7 +727,9 @@ $profileRows = [];
 if ($conn) {
     $where = '';
     if ($profileFilter === 'pending') {
-        $where = "WHERE r.status = 'Pending'";
+        $where = "WHERE r.status = 'Pending' AND (r.remarks IS NULL OR r.remarks NOT LIKE '[COMPLIANCE]%')";
+    } elseif ($profileFilter === 'for compliance') {
+        $where = "WHERE r.status = 'Pending' AND r.remarks LIKE '[COMPLIANCE]%'";
     } elseif ($profileFilter === 'approved') {
         $where = "WHERE r.status = 'Approved'";
     } elseif ($profileFilter === 'rejected') {
@@ -502,6 +743,60 @@ if ($conn) {
             $profileRows[] = $row;
         }
     }
+}
+
+$complaintRows = [];
+if ($conn) {
+    $where = '';
+    if ($complaintFilter === 'for approval') {
+        $where = "WHERE c.workflow_status = 'For Approval'";
+    } elseif ($complaintFilter === 'under review') {
+        $where = "WHERE c.workflow_status = 'Under Review'";
+    } elseif ($complaintFilter === 'returned') {
+        $where = "WHERE c.workflow_status = 'Returned'";
+    } elseif ($complaintFilter === 'assigned') {
+        $where = "WHERE c.workflow_status = 'Assigned'";
+    }
+
+    $sql = "SELECT c.id, c.employee_id, e.employee_no, e.first_name, e.last_name, c.subject, c.description, c.category, c.category_other, c.incident_date, c.attachment_path, c.workflow_status, c.returned_reason, c.created_at, c.accepted_at, c.assigned_role, c.assigned_to_employee_no, c.assigned_at FROM complaints c LEFT JOIN employees e ON e.id = c.employee_id {$where} ORDER BY c.created_at DESC";
+    $res = mysqli_query($conn, $sql);
+    if ($res) {
+        while ($row = mysqli_fetch_assoc($res)) {
+            $complaintRows[] = $row;
+        }
+    }
+}
+
+$assignOptions = ['Department Head' => [], 'Supervisor / Manager' => []];
+try {
+    $uconn = ess_usm_conn();
+    if ($uconn) {
+        $res = $uconn->query("SELECT employee_id, employee_name, role, dept_name, status FROM department_accounts WHERE status = 'active' ORDER BY dept_name ASC, employee_name ASC");
+        if ($res) {
+            while ($r = $res->fetch_assoc()) {
+                $role = strtolower(trim((string)($r['role'] ?? '')));
+                $empNo = trim((string)($r['employee_id'] ?? ''));
+                $label = trim((string)($r['employee_name'] ?? ''));
+                $dept = trim((string)($r['dept_name'] ?? ''));
+
+                if ($empNo === '' || $label === '') {
+                    continue;
+                }
+                if ($dept !== '') {
+                    $label .= ' - ' . $dept;
+                }
+
+                if ($role === 'manager') {
+                    $assignOptions['Department Head'][] = ['employee_no' => $empNo, 'label' => $label];
+                    $assignOptions['Supervisor / Manager'][] = ['employee_no' => $empNo, 'label' => $label];
+                }
+                if ($role === 'supervisor' || $role === 'hr_manager') {
+                    $assignOptions['Supervisor / Manager'][] = ['employee_no' => $empNo, 'label' => $label];
+                }
+            }
+        }
+    }
+} catch (Throwable $e) {
 }
 ?>
 <!DOCTYPE html>
@@ -540,6 +835,7 @@ if ($conn) {
             <div class="tabs tabs-boxed">
               <a class="tab <?php echo $section === 'documents' ? 'tab-active' : ''; ?>" href="?section=documents&status=<?php echo urlencode($filter); ?>">Document Submissions</a>
               <a class="tab <?php echo $section === 'profiles' ? 'tab-active' : ''; ?>" href="?section=profiles&pstatus=<?php echo urlencode($profileFilter); ?>">Profile Requests</a>
+              <a class="tab <?php echo $section === 'complaints' ? 'tab-active' : ''; ?>" href="?section=complaints&cstatus=<?php echo urlencode($complaintFilter); ?>">Complaints</a>
             </div>
           </div>
 
@@ -667,7 +963,7 @@ if ($conn) {
 
             </div>
           </div>
-          <?php else: ?>
+          <?php elseif ($section === 'profiles'): ?>
           <div class="mt-6 card bg-base-100 border border-base-200 shadow-sm">
             <div class="card-body">
               <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
@@ -684,7 +980,8 @@ if ($conn) {
                 <div class="flex flex-col sm:flex-row gap-2">
                   <select id="profileStatusFilter" class="select select-bordered w-full sm:w-56">
                     <option value="all" <?php echo $profileFilter === 'all' ? 'selected' : ''; ?>>All Status</option>
-                    <option value="pending" <?php echo $profileFilter === 'pending' ? 'selected' : ''; ?>>Pending</option>
+                    <option value="pending" <?php echo $profileFilter === 'pending' ? 'selected' : ''; ?>>For Approval</option>
+                    <option value="for compliance" <?php echo $profileFilter === 'for compliance' ? 'selected' : ''; ?>>For Compliance</option>
                     <option value="approved" <?php echo $profileFilter === 'approved' ? 'selected' : ''; ?>>Approved</option>
                     <option value="rejected" <?php echo $profileFilter === 'rejected' ? 'selected' : ''; ?>>Rejected</option>
                   </select>
@@ -698,14 +995,13 @@ if ($conn) {
                       <th>Employee</th>
                       <th>Requested</th>
                       <th>Status</th>
-                      <th>Remarks</th>
                       <th class="text-right">Action</th>
                     </tr>
                   </thead>
                   <tbody>
                     <?php if (count($profileRows) === 0): ?>
                       <tr>
-                        <td colspan="5" class="text-center text-gray-500 py-10">No profile requests found.</td>
+                        <td colspan="4" class="text-center text-gray-500 py-10">No profile requests found.</td>
                       </tr>
                     <?php endif; ?>
 
@@ -720,14 +1016,15 @@ if ($conn) {
                         $reasonChoice = (string)($r['reason_choice'] ?? '');
                         $reasonText = (string)($r['reason_text'] ?? '');
                         $proofFilePath = (string)($r['proof_file_path'] ?? '');
+                        $uiStatus = ess_status_label($status, $remarks);
+                        $isFinalProfileStatus = in_array(strtolower(trim($uiStatus)), ['approved', 'rejected', 'for compliance'], true);
                       ?>
-                      <tr>
+                      <tr data-profile-row="<?php echo htmlspecialchars($rid); ?>">
                         <td class="text-gray-800 font-medium"><?php echo htmlspecialchars(($empNo !== '' ? $empNo : 'Employee') . ($name !== '' ? (' - ' . $name) : '')); ?></td>
                         <td class="text-gray-700"><?php echo htmlspecialchars(safeDateTime($created)); ?></td>
                         <td>
-                          <span class="badge badge-sm <?php echo badgeClassForStatus(strtolower($status) === 'pending' ? 'for approval' : $status); ?>"><?php echo htmlspecialchars($status); ?></span>
+                          <span class="badge badge-sm <?php echo badgeClassForStatus($uiStatus); ?>"><?php echo htmlspecialchars($uiStatus); ?></span>
                         </td>
-                        <td class="text-gray-700"><?php echo htmlspecialchars($remarks); ?></td>
                         <td class="text-right">
                           <div class="flex justify-end gap-2">
                             <button
@@ -742,20 +1039,144 @@ if ($conn) {
                               <i data-lucide="eye" class="w-4 h-4"></i>
                               <span class="hidden sm:inline ml-1">View</span>
                             </button>
-                            <form method="POST" action="<?php echo htmlspecialchars((string)$_SERVER['REQUEST_URI']); ?>" class="inline">
-                              <input type="hidden" name="update_profile_request" value="1" />
-                              <input type="hidden" name="request_id" value="<?php echo htmlspecialchars($rid); ?>" />
-                              <input type="hidden" name="status" value="Approved" />
-                              <input type="hidden" name="remarks" value="" />
-                              <button class="btn btn-success btn-xs" type="submit">Approved</button>
-                            </form>
-                            <form method="POST" action="<?php echo htmlspecialchars((string)$_SERVER['REQUEST_URI']); ?>" class="inline">
-                              <input type="hidden" name="update_profile_request" value="1" />
-                              <input type="hidden" name="request_id" value="<?php echo htmlspecialchars($rid); ?>" />
-                              <input type="hidden" name="status" value="Rejected" />
-                              <input type="hidden" name="remarks" value="" />
-                              <button class="btn btn-error btn-xs" type="submit">Rejected</button>
-                            </form>
+                            <?php if (!$isFinalProfileStatus): ?>
+                              <button class="btn btn-success btn-xs" type="button" data-profile-action="approve" data-profile-id="<?php echo htmlspecialchars($rid); ?>">Approve</button>
+                              <button class="btn btn-error btn-xs" type="button" data-profile-action="reject" data-profile-id="<?php echo htmlspecialchars($rid); ?>">Reject</button>
+                              <button class="btn btn-info btn-xs" type="button" data-profile-action="compliance" data-profile-id="<?php echo htmlspecialchars($rid); ?>">For Compliance</button>
+                            <?php endif; ?>
+                          </div>
+                        </td>
+                      </tr>
+                    <?php endforeach; ?>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+          <?php else: ?>
+          <div class="mt-6 card bg-base-100 border border-base-200 shadow-sm">
+            <div class="card-body">
+              <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                <div class="flex items-center gap-2">
+                  <div class="p-2 rounded-xl bg-base-200">
+                    <i data-lucide="message-square-warning" class="w-5 h-5"></i>
+                  </div>
+                  <div>
+                    <h2 class="font-semibold text-gray-800">Complaints</h2>
+                    <p class="text-sm text-gray-500">Total: <?php echo (int)count($complaintRows); ?></p>
+                  </div>
+                </div>
+
+                <div class="flex flex-col sm:flex-row gap-2">
+                  <select id="complaintStatusFilter" class="select select-bordered w-full sm:w-56">
+                    <option value="all" <?php echo $complaintFilter === 'all' ? 'selected' : ''; ?>>All Status</option>
+                    <option value="for approval" <?php echo $complaintFilter === 'for approval' ? 'selected' : ''; ?>>For Approval</option>
+                    <option value="under review" <?php echo $complaintFilter === 'under review' ? 'selected' : ''; ?>>Under Review</option>
+                    <option value="returned" <?php echo $complaintFilter === 'returned' ? 'selected' : ''; ?>>Returned</option>
+                    <option value="assigned" <?php echo $complaintFilter === 'assigned' ? 'selected' : ''; ?>>Assigned</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="mt-4 overflow-x-auto">
+                <table class="table">
+                  <thead>
+                    <tr>
+                      <th>Employee</th>
+                      <th>Category</th>
+                      <th>Incident Date</th>
+                      <th>Submitted</th>
+                      <th>Status</th>
+                      <th>Attachment</th>
+                      <th class="text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <?php if (count($complaintRows) === 0): ?>
+                      <tr>
+                        <td colspan="7" class="text-center text-gray-500 py-10">No complaints found.</td>
+                      </tr>
+                    <?php endif; ?>
+
+                    <?php foreach ($complaintRows as $r): ?>
+                      <?php
+                        $cid = (string)($r['id'] ?? '');
+                        $empNo = (string)($r['employee_no'] ?? '');
+                        $name = trim(((string)($r['first_name'] ?? '')) . ' ' . ((string)($r['last_name'] ?? '')));
+                        $subject = (string)($r['subject'] ?? '');
+                        $desc = (string)($r['description'] ?? '');
+                        $cat = (string)($r['category'] ?? '');
+                        $catOther = (string)($r['category_other'] ?? '');
+                        $incidentDate = (string)($r['incident_date'] ?? '');
+                        $created = (string)($r['created_at'] ?? '');
+                        $wfStatus = (string)($r['workflow_status'] ?? 'For Approval');
+                        $wfLower = strtolower(trim($wfStatus));
+                        $returnedReason = (string)($r['returned_reason'] ?? '');
+                        $attachmentPath = (string)($r['attachment_path'] ?? '');
+                        $categoryDisplay = $cat;
+                        if (strtolower(trim($cat)) === 'other' && $catOther !== '') {
+                            $categoryDisplay = 'Other - ' . $catOther;
+                        }
+                        $employeeLabel = ($empNo !== '' ? $empNo : 'Employee') . ($name !== '' ? (' - ' . $name) : '');
+                        $hasAttachment = trim($attachmentPath) !== '';
+                        $canAccept = $wfLower === 'for approval';
+                        $canReturn = in_array($wfLower, ['for approval', 'under review'], true);
+                        $canAssign = $wfLower === 'under review';
+                      ?>
+                      <tr>
+                        <td class="text-gray-800 font-medium"><?php echo htmlspecialchars($employeeLabel); ?></td>
+                        <td class="text-gray-700"><?php echo htmlspecialchars($categoryDisplay); ?></td>
+                        <td class="text-gray-700"><?php echo htmlspecialchars($incidentDate); ?></td>
+                        <td class="text-gray-700"><?php echo htmlspecialchars(safeDateTime($created)); ?></td>
+                        <td>
+                          <span class="badge badge-sm <?php echo ess_complaint_badge_class($wfStatus); ?>"><?php echo htmlspecialchars($wfStatus); ?></span>
+                        </td>
+                        <td>
+                          <?php if ($hasAttachment): ?>
+                            <div class="flex items-center gap-2">
+                              <a class="btn btn-ghost btn-xs" href="?section=complaints&complaint_attachment_view=<?php echo urlencode($cid); ?>&cstatus=<?php echo urlencode($complaintFilter); ?>" target="_blank" rel="noopener">Open</a>
+                              <a class="btn btn-ghost btn-xs" href="?section=complaints&complaint_attachment_download=<?php echo urlencode($cid); ?>&cstatus=<?php echo urlencode($complaintFilter); ?>">Download</a>
+                            </div>
+                          <?php else: ?>
+                            <span class="text-gray-500">N/A</span>
+                          <?php endif; ?>
+                        </td>
+                        <td class="text-right">
+                          <div class="flex justify-end gap-2">
+                            <button
+                              class="btn btn-ghost btn-xs"
+                              type="button"
+                              data-complaint-view-id="<?php echo htmlspecialchars($cid); ?>"
+                              data-complaint-view-employee="<?php echo htmlspecialchars($employeeLabel); ?>"
+                              data-complaint-view-subject="<?php echo htmlspecialchars($subject); ?>"
+                              data-complaint-view-category="<?php echo htmlspecialchars($categoryDisplay); ?>"
+                              data-complaint-view-incident="<?php echo htmlspecialchars($incidentDate); ?>"
+                              data-complaint-view-status="<?php echo htmlspecialchars($wfStatus); ?>"
+                              data-complaint-view-returned="<?php echo htmlspecialchars($returnedReason); ?>"
+                              data-complaint-view-desc="<?php echo htmlspecialchars($desc); ?>"
+                              data-complaint-view-has-attachment="<?php echo $hasAttachment ? '1' : '0'; ?>"
+                            >
+                              <i data-lucide="eye" class="w-4 h-4"></i>
+                              <span class="hidden sm:inline ml-1">View</span>
+                            </button>
+
+                            <?php if ($canAccept): ?>
+                              <form method="POST" action="<?php echo htmlspecialchars((string)$_SERVER['REQUEST_URI']); ?>" class="inline">
+                                <input type="hidden" name="update_complaint_workflow" value="1" />
+                                <input type="hidden" name="action" value="accept" />
+                                <input type="hidden" name="complaint_id" value="<?php echo htmlspecialchars($cid); ?>" />
+                                <input type="hidden" name="redirect_cstatus" value="<?php echo htmlspecialchars($complaintFilter); ?>" />
+                                <button class="btn btn-success btn-xs" type="submit">Accept</button>
+                              </form>
+                            <?php endif; ?>
+
+                            <?php if ($canReturn): ?>
+                              <button class="btn btn-error btn-xs" type="button" data-complaint-return-id="<?php echo htmlspecialchars($cid); ?>" data-complaint-return-employee="<?php echo htmlspecialchars($employeeLabel); ?>">Return</button>
+                            <?php endif; ?>
+
+                            <?php if ($canAssign): ?>
+                              <button class="btn btn-primary btn-xs" type="button" data-complaint-assign-id="<?php echo htmlspecialchars($cid); ?>" data-complaint-assign-employee="<?php echo htmlspecialchars($employeeLabel); ?>">Assign</button>
+                            <?php endif; ?>
                           </div>
                         </td>
                       </tr>
@@ -810,6 +1231,145 @@ if ($conn) {
     <form method="dialog" class="modal-backdrop"><button>close</button></form>
   </dialog>
 
+  <dialog id="complaintViewModal" class="modal">
+    <div class="modal-box w-11/12 max-w-2xl">
+      <div class="flex items-start justify-between gap-3">
+        <div>
+          <h3 class="font-bold text-lg">Complaint Details</h3>
+          <p id="complaintViewEmployee" class="text-sm text-gray-500"></p>
+        </div>
+        <form method="dialog">
+          <button class="btn btn-sm btn-ghost" aria-label="Close">
+            <i data-lucide="x" class="w-4 h-4"></i>
+          </button>
+        </form>
+      </div>
+
+      <div class="mt-4 space-y-3">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <div class="text-xs font-semibold text-gray-500">SUBJECT</div>
+            <div id="complaintViewSubject" class="mt-1 text-gray-800"></div>
+          </div>
+          <div>
+            <div class="text-xs font-semibold text-gray-500">STATUS</div>
+            <div id="complaintViewStatus" class="mt-1 text-gray-800"></div>
+          </div>
+          <div>
+            <div class="text-xs font-semibold text-gray-500">CATEGORY</div>
+            <div id="complaintViewCategory" class="mt-1 text-gray-800"></div>
+          </div>
+          <div>
+            <div class="text-xs font-semibold text-gray-500">INCIDENT DATE</div>
+            <div id="complaintViewIncident" class="mt-1 text-gray-800"></div>
+          </div>
+        </div>
+
+        <div id="complaintViewReturnedWrap" class="hidden">
+          <div class="text-xs font-semibold text-gray-500">RETURNED REASON</div>
+          <div id="complaintViewReturned" class="mt-1 whitespace-pre-line text-gray-800"></div>
+        </div>
+
+        <div>
+          <div class="text-xs font-semibold text-gray-500">DETAILS</div>
+          <div id="complaintViewDesc" class="mt-1 whitespace-pre-line text-gray-800"></div>
+        </div>
+
+        <div>
+          <div class="text-xs font-semibold text-gray-500">ATTACHMENT</div>
+          <div class="mt-2 flex items-center gap-2">
+            <a id="complaintViewAttachmentOpen" class="btn btn-outline btn-sm" href="#" target="_blank" rel="noopener">Open</a>
+            <a id="complaintViewAttachmentDownload" class="btn btn-primary btn-sm" href="#">Download</a>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-action">
+        <form method="dialog"><button class="btn">Close</button></form>
+      </div>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+  </dialog>
+
+  <dialog id="complaintReturnModal" class="modal">
+    <div class="modal-box">
+      <div class="flex items-start justify-between gap-3">
+        <div>
+          <h3 class="font-bold text-lg">Return Complaint</h3>
+          <p id="complaintReturnEmployee" class="text-sm text-gray-500"></p>
+        </div>
+        <form method="dialog">
+          <button class="btn btn-sm btn-ghost" aria-label="Close">
+            <i data-lucide="x" class="w-4 h-4"></i>
+          </button>
+        </form>
+      </div>
+
+      <form method="POST" class="mt-4 space-y-3">
+        <input type="hidden" name="update_complaint_workflow" value="1" />
+        <input type="hidden" name="action" value="return" />
+        <input type="hidden" name="complaint_id" id="complaintReturnId" value="" />
+        <input type="hidden" name="redirect_cstatus" id="complaintReturnRedirect" value="" />
+
+        <div class="form-control">
+          <label class="label"><span class="label-text">Remarks</span></label>
+          <textarea name="reason" id="complaintReturnReason" class="textarea textarea-bordered" placeholder="Enter clarification/return remarks..." required></textarea>
+        </div>
+
+        <div class="modal-action">
+          <button class="btn btn-error" type="submit">Return</button>
+          <form method="dialog"><button class="btn" type="submit">Cancel</button></form>
+        </div>
+      </form>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+  </dialog>
+
+  <dialog id="complaintAssignModal" class="modal">
+    <div class="modal-box">
+      <div class="flex items-start justify-between gap-3">
+        <div>
+          <h3 class="font-bold text-lg">Assign Complaint</h3>
+          <p id="complaintAssignEmployee" class="text-sm text-gray-500"></p>
+        </div>
+        <form method="dialog">
+          <button class="btn btn-sm btn-ghost" aria-label="Close">
+            <i data-lucide="x" class="w-4 h-4"></i>
+          </button>
+        </form>
+      </div>
+
+      <form method="POST" class="mt-4 space-y-3">
+        <input type="hidden" name="update_complaint_workflow" value="1" />
+        <input type="hidden" name="action" value="assign" />
+        <input type="hidden" name="complaint_id" id="complaintAssignId" value="" />
+        <input type="hidden" name="redirect_cstatus" id="complaintAssignRedirect" value="" />
+
+        <div class="form-control">
+          <label class="label"><span class="label-text">Role</span></label>
+          <select name="assign_role" id="complaintAssignRole" class="select select-bordered" required>
+            <option value="">Select role</option>
+            <option value="Department Head">Department Head</option>
+            <option value="Supervisor / Manager">Supervisor / Manager</option>
+          </select>
+        </div>
+
+        <div class="form-control">
+          <label class="label"><span class="label-text">Assignee</span></label>
+          <select name="assign_to_employee_no" id="complaintAssignTo" class="select select-bordered" required>
+            <option value="">Select assignee</option>
+          </select>
+        </div>
+
+        <div class="modal-action">
+          <button class="btn btn-primary" type="submit">Assign</button>
+          <form method="dialog"><button class="btn" type="submit">Cancel</button></form>
+        </div>
+      </form>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+  </dialog>
+
   <dialog id="profileViewModal" class="modal">
     <div class="modal-box w-11/12 max-w-2xl">
       <div class="flex items-start justify-between gap-3">
@@ -833,6 +1393,7 @@ if ($conn) {
           <div>
             <div class="text-xs font-semibold text-gray-500">PROOF</div>
             <div class="mt-1 flex items-center gap-2">
+              <a id="profileViewProofOpen" class="btn btn-outline btn-sm" href="#" target="_blank" rel="noopener">Open</a>
               <a id="profileViewProofDownload" class="btn btn-primary btn-sm" href="#">Download</a>
             </div>
           </div>
@@ -858,6 +1419,36 @@ if ($conn) {
 
       <div class="modal-action">
         <form method="dialog"><button class="btn">Close</button></form>
+      </div>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+  </dialog>
+
+  <dialog id="profileActionModal" class="modal">
+    <div class="modal-box">
+      <div class="flex items-start justify-between gap-3">
+        <div>
+          <h3 id="profileActionTitle" class="font-bold text-lg">Update Profile Request</h3>
+          <p id="profileActionEmployee" class="text-sm text-gray-500"></p>
+        </div>
+        <form method="dialog">
+          <button class="btn btn-sm btn-ghost" aria-label="Close">
+            <i data-lucide="x" class="w-4 h-4"></i>
+          </button>
+        </form>
+      </div>
+
+      <div class="mt-4 space-y-3">
+        <div class="form-control">
+          <label class="label"><span id="profileActionLabel" class="label-text">Remarks</span></label>
+          <textarea id="profileActionRemarks" class="textarea textarea-bordered" placeholder="Enter remarks..."></textarea>
+          <div id="profileActionHint" class="text-xs text-gray-500 mt-2"></div>
+        </div>
+
+        <div class="modal-action">
+          <button id="profileActionSubmit" class="btn btn-primary" type="button">Submit</button>
+          <form method="dialog"><button class="btn" type="submit">Cancel</button></form>
+        </div>
       </div>
     </div>
     <form method="dialog" class="modal-backdrop"><button>close</button></form>
@@ -947,6 +1538,7 @@ if ($conn) {
   </dialog>
 
   <script>
+    const complaintAssignOptions = <?php echo json_encode($assignOptions, JSON_UNESCAPED_SLASHES); ?>;
     function getExt(name) {
       return (name || '').split('.').pop().toLowerCase();
     }
@@ -980,15 +1572,29 @@ if ($conn) {
       resetPreview(opts);
 
       const ext = getExt(fileName);
-      const isImage = ['png', 'jpg', 'jpeg', 'gif', 'webp'].includes(ext);
-      const isPdf = ext === 'pdf';
-      const isText = ['txt', 'csv'].includes(ext);
-      const isVideo = ['mp4', 'webm'].includes(ext);
-      const isAudio = ['mp3', 'wav', 'ogg'].includes(ext);
-      const isDocx = ext === 'docx';
-      const isXlsx = ext === 'xlsx' || ext === 'xls';
+      let isImage = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg', 'jfif'].includes(ext);
+      let isPdf = ext === 'pdf';
+      let isText = ['txt', 'csv'].includes(ext);
+      let isVideo = ['mp4', 'webm'].includes(ext);
+      let isAudio = ['mp3', 'wav', 'ogg'].includes(ext);
+      let isDocx = ext === 'docx';
+      let isXlsx = ext === 'xlsx' || ext === 'xls';
 
       try {
+        if (!isImage && !isPdf && !isText && !isVideo && !isAudio && !isDocx && !isXlsx) {
+          try {
+            const head = await fetch(viewUrl, { method: 'HEAD' });
+            const ct = (head && head.ok) ? String(head.headers.get('content-type') || '').toLowerCase() : '';
+            if (ct.startsWith('image/')) isImage = true;
+            else if (ct.includes('pdf')) isPdf = true;
+            else if (ct.startsWith('video/')) isVideo = true;
+            else if (ct.startsWith('audio/')) isAudio = true;
+            else if (ct.startsWith('text/')) isText = true;
+            else if (ct.includes('spreadsheet') || ct.includes('excel')) isXlsx = true;
+            else if (ct.includes('word') || ct.includes('officedocument.wordprocessingml')) isDocx = true;
+          } catch (e0) {}
+        }
+
         if (isImage && opts.img) {
           setHidden(opts.img, false);
           opts.img.onerror = function () {
@@ -1092,6 +1698,20 @@ if ($conn) {
           url.searchParams.set('section', 'profiles');
           url.searchParams.set('pstatus', v);
           url.searchParams.delete('status');
+          url.searchParams.delete('cstatus');
+          window.location.href = url.toString();
+        });
+      }
+
+      const cFilter = document.getElementById('complaintStatusFilter');
+      if (cFilter) {
+        cFilter.addEventListener('change', function () {
+          const v = this.value;
+          const url = new URL(window.location.href);
+          url.searchParams.set('section', 'complaints');
+          url.searchParams.set('cstatus', v);
+          url.searchParams.delete('status');
+          url.searchParams.delete('pstatus');
           window.location.href = url.toString();
         });
       }
@@ -1148,6 +1768,7 @@ if ($conn) {
       const profileViewReason = document.getElementById('profileViewReason');
       const profileViewReasonText = document.getElementById('profileViewReasonText');
       const profileViewProofDownload = document.getElementById('profileViewProofDownload');
+      const profileViewProofOpen = document.getElementById('profileViewProofOpen');
       const profileProofImage = document.getElementById('profileProofImage');
       const profileProofFrame = document.getElementById('profileProofFrame');
       const profileProofFallback = document.getElementById('profileProofFallback');
@@ -1162,17 +1783,30 @@ if ($conn) {
           if (id === '') return;
 
           const proofPath = this.getAttribute('data-profile-view-proof') || '';
-          const proofName = proofPath ? proofPath.split(/[\\/]/).pop() : '';
+          const proofName = proofPath ? proofPath.split(/[\\/]/).pop() : 'Proof';
 
           if (profileViewEmployee) profileViewEmployee.textContent = this.getAttribute('data-profile-view-emp') || 'Employee';
           if (profileViewReason) profileViewReason.textContent = this.getAttribute('data-profile-view-reason') || '-';
           if (profileViewReasonText) profileViewReasonText.textContent = this.getAttribute('data-profile-view-reason-text') || '-';
 
-          if (profileViewProofDownload) profileViewProofDownload.setAttribute('href', '?section=profiles&profile_proof_download=' + encodeURIComponent(id) + '&pstatus=<?php echo urlencode($profileFilter); ?>');
-
+          const dlUrl = '?section=profiles&profile_proof_download=' + encodeURIComponent(id) + '&pstatus=<?php echo urlencode($profileFilter); ?>';
           const viewUrl = '?section=profiles&profile_proof_view=' + encodeURIComponent(id) + '&pstatus=<?php echo urlencode($profileFilter); ?>';
 
-          await renderPreview(proofName || 'Proof', viewUrl, {
+          let previewUrl = viewUrl;
+          try {
+            const p = String(proofPath || '').trim();
+            const isAbsoluteDisk = /^[A-Za-z]:\\/.test(p);
+            const isAbsoluteUrl = /^https?:\/\//i.test(p);
+            const isAbsPath = p.startsWith('/') || p.startsWith('\\');
+            if (p !== '' && !isAbsoluteDisk && !isAbsoluteUrl && !isAbsPath) {
+              previewUrl = p + (p.includes('?') ? '&' : '?') + '_ts=' + Date.now();
+            }
+          } catch (e2) {}
+
+          if (profileViewProofDownload) profileViewProofDownload.setAttribute('href', dlUrl);
+          if (profileViewProofOpen) profileViewProofOpen.setAttribute('href', viewUrl);
+
+          await renderPreview(proofName || 'Proof', previewUrl, {
             fallback: profileProofFallback,
             img: profileProofImage,
             frame: profileProofFrame,
@@ -1203,6 +1837,139 @@ if ($conn) {
           });
         });
       }
+
+      const complaintViewModal = document.getElementById('complaintViewModal');
+      const complaintViewEmployee = document.getElementById('complaintViewEmployee');
+      const complaintViewSubject = document.getElementById('complaintViewSubject');
+      const complaintViewStatus = document.getElementById('complaintViewStatus');
+      const complaintViewCategory = document.getElementById('complaintViewCategory');
+      const complaintViewIncident = document.getElementById('complaintViewIncident');
+      const complaintViewDesc = document.getElementById('complaintViewDesc');
+      const complaintViewReturnedWrap = document.getElementById('complaintViewReturnedWrap');
+      const complaintViewReturned = document.getElementById('complaintViewReturned');
+      const complaintViewAttachmentOpen = document.getElementById('complaintViewAttachmentOpen');
+      const complaintViewAttachmentDownload = document.getElementById('complaintViewAttachmentDownload');
+
+      document.querySelectorAll('[data-complaint-view-id]').forEach((btn) => {
+        btn.addEventListener('click', function () {
+          const id = this.getAttribute('data-complaint-view-id') || '';
+          if (!complaintViewModal || id === '') return;
+
+          const employee = this.getAttribute('data-complaint-view-employee') || '';
+          const subject = this.getAttribute('data-complaint-view-subject') || '';
+          const category = this.getAttribute('data-complaint-view-category') || '';
+          const incident = this.getAttribute('data-complaint-view-incident') || '';
+          const status = this.getAttribute('data-complaint-view-status') || '';
+          const returned = this.getAttribute('data-complaint-view-returned') || '';
+          const desc = this.getAttribute('data-complaint-view-desc') || '';
+          const hasAttachment = (this.getAttribute('data-complaint-view-has-attachment') || '0') === '1';
+
+          if (complaintViewEmployee) complaintViewEmployee.textContent = employee;
+          if (complaintViewSubject) complaintViewSubject.textContent = subject;
+          if (complaintViewStatus) complaintViewStatus.textContent = status;
+          if (complaintViewCategory) complaintViewCategory.textContent = category;
+          if (complaintViewIncident) complaintViewIncident.textContent = incident;
+          if (complaintViewDesc) complaintViewDesc.textContent = desc;
+
+          if (complaintViewReturnedWrap && complaintViewReturned) {
+            if (returned && returned.trim() !== '') {
+              complaintViewReturned.textContent = returned;
+              setHidden(complaintViewReturnedWrap, false);
+            } else {
+              complaintViewReturned.textContent = '';
+              setHidden(complaintViewReturnedWrap, true);
+            }
+          }
+
+          const cur = document.getElementById('complaintStatusFilter');
+          const st = cur && cur.value ? cur.value : 'all';
+          const openUrl = '?section=complaints&complaint_attachment_view=' + encodeURIComponent(id) + '&cstatus=' + encodeURIComponent(st);
+          const dlUrl = '?section=complaints&complaint_attachment_download=' + encodeURIComponent(id) + '&cstatus=' + encodeURIComponent(st);
+
+          if (complaintViewAttachmentOpen) {
+            complaintViewAttachmentOpen.setAttribute('href', openUrl);
+            complaintViewAttachmentOpen.classList.toggle('btn-disabled', !hasAttachment);
+            complaintViewAttachmentOpen.setAttribute('aria-disabled', (!hasAttachment).toString());
+          }
+          if (complaintViewAttachmentDownload) {
+            complaintViewAttachmentDownload.setAttribute('href', dlUrl);
+            complaintViewAttachmentDownload.classList.toggle('btn-disabled', !hasAttachment);
+            complaintViewAttachmentDownload.setAttribute('aria-disabled', (!hasAttachment).toString());
+          }
+
+          complaintViewModal.showModal();
+        });
+      });
+
+      const complaintReturnModal = document.getElementById('complaintReturnModal');
+      const complaintReturnId = document.getElementById('complaintReturnId');
+      const complaintReturnEmployee = document.getElementById('complaintReturnEmployee');
+      const complaintReturnRedirect = document.getElementById('complaintReturnRedirect');
+      const complaintReturnReason = document.getElementById('complaintReturnReason');
+
+      document.querySelectorAll('[data-complaint-return-id]').forEach((btn) => {
+        btn.addEventListener('click', function () {
+          const id = this.getAttribute('data-complaint-return-id') || '';
+          if (!complaintReturnModal || !complaintReturnId) return;
+
+          const employee = this.getAttribute('data-complaint-return-employee') || '';
+          const cur = document.getElementById('complaintStatusFilter');
+          const st = cur && cur.value ? cur.value : 'all';
+
+          complaintReturnId.value = id;
+          if (complaintReturnEmployee) complaintReturnEmployee.textContent = employee;
+          if (complaintReturnRedirect) complaintReturnRedirect.value = st;
+          if (complaintReturnReason) complaintReturnReason.value = '';
+
+          complaintReturnModal.showModal();
+        });
+      });
+
+      const complaintAssignModal = document.getElementById('complaintAssignModal');
+      const complaintAssignId = document.getElementById('complaintAssignId');
+      const complaintAssignEmployee = document.getElementById('complaintAssignEmployee');
+      const complaintAssignRedirect = document.getElementById('complaintAssignRedirect');
+      const complaintAssignRole = document.getElementById('complaintAssignRole');
+      const complaintAssignTo = document.getElementById('complaintAssignTo');
+
+      function populateComplaintAssignees(role) {
+        if (!complaintAssignTo) return;
+        const r = String(role || '').trim();
+        const opts = (complaintAssignOptions && complaintAssignOptions[r]) ? complaintAssignOptions[r] : [];
+
+        complaintAssignTo.innerHTML = '<option value="">Select assignee</option>';
+        opts.forEach((o) => {
+          const opt = document.createElement('option');
+          opt.value = o.employee_no || '';
+          opt.textContent = o.label || o.employee_no || '';
+          complaintAssignTo.appendChild(opt);
+        });
+      }
+
+      if (complaintAssignRole) {
+        complaintAssignRole.addEventListener('change', function () {
+          populateComplaintAssignees(this.value);
+        });
+      }
+
+      document.querySelectorAll('[data-complaint-assign-id]').forEach((btn) => {
+        btn.addEventListener('click', function () {
+          const id = this.getAttribute('data-complaint-assign-id') || '';
+          if (!complaintAssignModal || !complaintAssignId) return;
+
+          const employee = this.getAttribute('data-complaint-assign-employee') || '';
+          const cur = document.getElementById('complaintStatusFilter');
+          const st = cur && cur.value ? cur.value : 'all';
+
+          complaintAssignId.value = id;
+          if (complaintAssignEmployee) complaintAssignEmployee.textContent = employee;
+          if (complaintAssignRedirect) complaintAssignRedirect.value = st;
+
+          if (complaintAssignRole) complaintAssignRole.value = '';
+          populateComplaintAssignees('');
+          complaintAssignModal.showModal();
+        });
+      });
 
       viewModal.addEventListener('close', function () {
         resetPreview({
@@ -1257,6 +2024,118 @@ if ($conn) {
           }
         });
       });
+
+      const profileActionModal = document.getElementById('profileActionModal');
+      const profileActionTitle = document.getElementById('profileActionTitle');
+      const profileActionEmployee = document.getElementById('profileActionEmployee');
+      const profileActionLabel = document.getElementById('profileActionLabel');
+      const profileActionRemarks = document.getElementById('profileActionRemarks');
+      const profileActionSubmit = document.getElementById('profileActionSubmit');
+      const profileActionHint = document.getElementById('profileActionHint');
+
+      let pendingProfileAction = { id: '', action: '', row: null, emp: '' };
+
+      function removeProfileRow(id) {
+        if (!id) return;
+        const row = document.querySelector(`tr[data-profile-row="${CSS.escape(String(id))}"]`);
+        if (row) row.remove();
+      }
+
+      async function postProfileUpdate(id, uiStatus, remarks) {
+        const url = new URL(window.location.href);
+        url.searchParams.set('section', 'profiles');
+
+        const body = new URLSearchParams();
+        body.append('ajax', '1');
+        body.append('update_profile_request', '1');
+        body.append('request_id', String(id));
+        body.append('status', String(uiStatus));
+        body.append('remarks', String(remarks || ''));
+
+        const res = await fetch(url.toString(), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: body.toString()
+        });
+
+        const data = await res.json().catch(() => null);
+        if (!data || !data.success) {
+          throw new Error((data && data.message) ? data.message : 'Failed to update request');
+        }
+        return data;
+      }
+
+      document.querySelectorAll('[data-profile-action]').forEach((btn) => {
+        btn.addEventListener('click', async function () {
+          const action = this.getAttribute('data-profile-action') || '';
+          const id = this.getAttribute('data-profile-id') || '';
+          if (!action || !id) return;
+
+          const row = this.closest('tr');
+          const emp = row ? (row.querySelector('td')?.textContent || '') : '';
+
+          if (action === 'approve') {
+            try {
+              await postProfileUpdate(id, 'Approved', '');
+              removeProfileRow(id);
+            } catch (e) {
+              alert(e.message || 'Failed to approve request');
+            }
+            return;
+          }
+
+          pendingProfileAction = { id, action, row, emp };
+
+          if (profileActionTitle) {
+            profileActionTitle.textContent = action === 'reject' ? 'Reject Profile Request' : 'For Compliance';
+          }
+          if (profileActionEmployee) {
+            profileActionEmployee.textContent = emp || 'Employee';
+          }
+          if (profileActionLabel) {
+            profileActionLabel.textContent = action === 'reject' ? 'Reason for Rejection' : 'Compliance Remarks';
+          }
+          if (profileActionHint) {
+            profileActionHint.textContent = action === 'reject'
+              ? 'This field is required. Please provide a clear reason for rejection.'
+              : 'This field is required. State the compliance requirements or missing items.';
+          }
+          if (profileActionRemarks) {
+            profileActionRemarks.value = '';
+          }
+
+          if (profileActionSubmit) {
+            profileActionSubmit.textContent = action === 'reject' ? 'Reject' : 'Send for Compliance';
+          }
+
+          if (profileActionModal && typeof profileActionModal.showModal === 'function') {
+            profileActionModal.showModal();
+          }
+        });
+      });
+
+      if (profileActionSubmit) {
+        profileActionSubmit.addEventListener('click', async function () {
+          const id = pendingProfileAction.id;
+          const action = pendingProfileAction.action;
+          const remarks = (profileActionRemarks ? profileActionRemarks.value : '').trim();
+
+          if (!id || !action) return;
+          if (!remarks) {
+            alert(action === 'reject' ? 'Rejection reason is required.' : 'Compliance remarks are required.');
+            return;
+          }
+
+          const status = action === 'reject' ? 'Rejected' : 'For Compliance';
+          try {
+            await postProfileUpdate(id, status, remarks);
+            if (profileActionModal) profileActionModal.close();
+            removeProfileRow(id);
+          } catch (e) {
+            alert(e.message || 'Failed to update request');
+          }
+        });
+      }
     });
   </script>
 </body>

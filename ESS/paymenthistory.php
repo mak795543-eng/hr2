@@ -73,7 +73,7 @@ function statusBadgeClass($status) {
             <div class="card-body">
               <div class="flex items-start justify-between">
                 <div>
-                  <h1 class="text-2xl font-bold text-gray-800">Payment History</h1>
+                  <h1 class="text-2xl font-bold text-gray-800">Payroll</h1>
                   <p class="text-gray-600">View and download your past pay stubs and statements.</p>
                 </div>
                 <div class="flex items-center gap-2">

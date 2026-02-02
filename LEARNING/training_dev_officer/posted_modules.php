@@ -1,7 +1,7 @@
 ﻿<?php
 session_start();
 // Database connection
-require_once __DIR__ . '../../db.php';
+require_once __DIR__ . '/../db.php';
 
 // Create connection
 $conn = usm_db_connect('hr2_learning_db');
@@ -13,6 +13,7 @@ if ($conn->connect_error) {
 
 // Handle POST request to update module status
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['module_id']) && isset($_POST['new_status'])) {
+    header('Content-Type: application/json; charset=utf-8');
     $module_id = $_POST['module_id'];
     $new_status = $_POST['new_status'];
     $remarks = $_POST['remarks'] ?? '';
@@ -31,6 +32,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['module_id']) && isset
 
 // Handle GET request to fetch module data
 if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['module_id'])) {
+    header('Content-Type: application/json; charset=utf-8');
     $module_id = $_GET['module_id'];
     
     $sql = "SELECT * FROM learning_modules WHERE id = ?";
@@ -74,6 +76,7 @@ $conn->close();
   <!-- SweetAlert2 CSS -->
    <script src="https://unpkg.com/lucide@latest"></script>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
   <link rel="stylesheet" href="../../CSS/learning_module_repository.css">
   <style>
     /* Custom styles for border-only buttons */
@@ -629,6 +632,7 @@ $conn->close();
         <form method="dialog">
           <button class="btn btn-border">Close</button>
         </form>
+        <button class="btn btn-border" id="posted-hold-btn" type="button">Hold</button>
       </div>
     </div>
   </dialog>
@@ -800,14 +804,14 @@ $conn->close();
         title: 'Put Module on Hold?',
         html: `
           <div class="text-left">
-            <p class="text-gray-600 mb-3">Please provide a reason for putting this module on hold:</p>
+            <p class="text-gray-600 mb-3">Hold reason is required. Please provide a reason for putting this module on hold:</p>
             <textarea id="hold-reason" class="w-full border border-gray-300 rounded-md p-3 h-32 text-sm" 
                       placeholder="Enter your reason here... (e.g., Content needs updating, Pending approval, etc.)"></textarea>
           </div>
         `,
         icon: 'warning',
         showCancelButton: true,
-        confirmButtonText: 'Confirm Hold',
+        confirmButtonText: 'PUT ON HOLD',
         cancelButtonText: 'Cancel',
         confirmButtonColor: '#3b82f6',
         cancelButtonColor: '#6b7280',
@@ -815,7 +819,7 @@ $conn->close();
         preConfirm: () => {
           const reason = document.getElementById('hold-reason').value;
           if (!reason.trim()) {
-            Swal.showValidationMessage('Please provide a reason for putting the module on hold');
+            Swal.showValidationMessage('Hold reason is required');
             return false;
           }
           return updateModuleStatus(currentModuleId, 'hold', reason)
@@ -836,8 +840,9 @@ $conn->close();
             confirmButtonText: 'OK',
             confirmButtonColor: '#3b82f6'
           }).then(() => {
-            // Reload the page to reflect changes
-            window.location.reload();
+            removePostedModuleCard(currentModuleId);
+            currentModuleId = null;
+            currentModuleData = null;
           });
         }
       }).catch(error => {
@@ -975,6 +980,23 @@ $conn->close();
     // Helper Functions
     function formatDepartment(department) {
       return department.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+    }
+
+    function removePostedModuleCard(moduleId) {
+      const card = document.querySelector(`.module-card[data-id="${moduleId}"]`);
+      if (card) {
+        card.remove();
+      }
+
+      const container = document.getElementById('moduleCards');
+      if (container && container.querySelectorAll('.module-card').length === 0) {
+        container.innerHTML = `
+          <div class="col-span-full text-center py-8">
+            <i class="fas fa-file-alt text-4xl text-gray-400 mb-4"></i>
+            <p class="text-gray-500">No posted learning modules found.</p>
+          </div>
+        `;
+      }
     }
 
     // AJAX function to update module status
