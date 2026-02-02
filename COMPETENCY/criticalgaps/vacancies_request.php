@@ -770,6 +770,20 @@
  require('../../partials/header.php');
  ?>
 <body class="bg-base-100 min-h-screen bg-white">
+    <style>
+        textarea.autogrow-textarea {
+            resize: vertical;
+            overflow: hidden;
+        }
+
+        textarea.autogrow-lg {
+            min-height: 8rem;
+        }
+
+        textarea.autogrow-sm {
+            min-height: 2.75rem;
+        }
+    </style>
     <div class="flex h-screen">
         <!-- Sidebar -->
         <?php include '../../USM/sidebarr.php'; ?>
@@ -954,7 +968,7 @@
                                 <label class="label">
                                     <span class="label-text">Job Description</span>
                                 </label>
-                                <textarea name="job_description" id="jobDescriptionInput" class="textarea textarea-bordered w-full" rows="5" required></textarea>
+                                <textarea name="job_description" id="jobDescriptionInput" class="textarea textarea-bordered w-full autogrow-textarea autogrow-lg" data-autogrow="1" rows="5" required></textarea>
                             </div>
 
                             <div>
@@ -1022,6 +1036,25 @@
                             return t;
                         }
 
+                        function autogrowTextarea(el) {
+                            if (!el) return;
+                            el.style.height = 'auto';
+                            el.style.height = (el.scrollHeight || 0) + 'px';
+                        }
+
+                        function initAutogrowTextarea(el) {
+                            if (!el) return;
+                            if (el.dataset && el.dataset.autogrowInit === '1') {
+                                autogrowTextarea(el);
+                                return;
+                            }
+                            if (el.dataset) {
+                                el.dataset.autogrowInit = '1';
+                            }
+                            autogrowTextarea(el);
+                            el.addEventListener('input', () => autogrowTextarea(el));
+                        }
+
                         function createArrayRow({
                             container,
                             nameField,
@@ -1034,20 +1067,22 @@
 
                             const nameWrap = document.createElement('div');
                             nameWrap.className = 'md:col-span-5';
-                            const nameInput = document.createElement('input');
-                            nameInput.type = 'text';
+                            const nameInput = document.createElement('textarea');
                             nameInput.name = nameField;
-                            nameInput.className = 'input input-bordered w-full';
+                            nameInput.className = 'textarea textarea-bordered w-full autogrow-textarea autogrow-sm';
+                            nameInput.setAttribute('data-autogrow', '1');
+                            nameInput.rows = 1;
                             nameInput.placeholder = 'Name';
                             nameInput.value = safeText(nameValue);
                             nameWrap.appendChild(nameInput);
 
                             const descWrap = document.createElement('div');
                             descWrap.className = 'md:col-span-6';
-                            const descInput = document.createElement('input');
-                            descInput.type = 'text';
+                            const descInput = document.createElement('textarea');
                             descInput.name = descField;
-                            descInput.className = 'input input-bordered w-full';
+                            descInput.className = 'textarea textarea-bordered w-full autogrow-textarea autogrow-sm';
+                            descInput.setAttribute('data-autogrow', '1');
+                            descInput.rows = 1;
                             descInput.placeholder = 'Description (optional)';
                             descInput.value = safeText(descValue);
                             descWrap.appendChild(descInput);
@@ -1071,6 +1106,9 @@
                             row.appendChild(descWrap);
                             row.appendChild(btnWrap);
                             container.appendChild(row);
+
+                            initAutogrowTextarea(nameInput);
+                            initAutogrowTextarea(descInput);
 
                             if (typeof lucide !== 'undefined') {
                                 lucide.createIcons();
@@ -1408,10 +1446,12 @@
                         document.getElementById('jobDetailsRequestIdDisplay').value = requestId;
                         document.getElementById('jobDetailsJobTitleDisplay').value = safeText(vacancy.title);
                         document.getElementById('jobDescriptionInput').value = '';
+                        initAutogrowTextarea(document.getElementById('jobDescriptionInput'));
                         const qualsList = document.getElementById('qualificationsList');
                         const reqsList = document.getElementById('requirementsList');
                         resetArrayList(qualsList);
                         resetArrayList(reqsList);
+
                         createArrayRow({
                             container: qualsList,
                             nameField: 'qualifications_name[]',
@@ -1419,6 +1459,7 @@
                             nameValue: '',
                             descValue: ''
                         });
+
                         createArrayRow({
                             container: reqsList,
                             nameField: 'requirements_name[]',
@@ -1431,6 +1472,8 @@
 
                         fetchJobDetails(requestId).then(d => {
                             document.getElementById('jobDescriptionInput').value = safeText(d.description);
+
+                            autogrowTextarea(document.getElementById('jobDescriptionInput'));
                             const quals = Array.isArray(d.qualifications) ? d.qualifications : [];
                             const reqs = Array.isArray(d.requirements) ? d.requirements : [];
 
@@ -1476,6 +1519,8 @@
                                     descValue: ''
                                 });
                             }
+
+                            document.querySelectorAll('#jobDetailsModal textarea[data-autogrow]').forEach(autogrowTextarea);
                         }).catch(() => {
                         });
                     };
