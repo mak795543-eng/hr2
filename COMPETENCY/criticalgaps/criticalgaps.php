@@ -21,9 +21,43 @@ $allowedStatuses = ['Retrain', 'Reskilling', 'Refresher Training', 'Upskilling',
 $filterStatus = ($statusFilter !== 'all' && in_array($statusFilter, $allowedStatuses, true)) ? $statusFilter : 'all';
 
 $employees = getEmployees($filterStatus, $search, $departmentFilter);
+
+$employeesForCounts = getEmployees('all', $search, $departmentFilter);
+$statusCounts = [
+    'Retrain' => 0,
+    'Reskilling' => 0,
+    'Refresher Training' => 0,
+    'Upskilling' => 0,
+    'Succession Ready' => 0,
+];
+foreach (($employeesForCounts ?? []) as $e) {
+    $st = (string)($e['status'] ?? '');
+    if (isset($statusCounts[$st])) {
+        $statusCounts[$st]++;
+    }
+}
+
+$recentLogs = [];
+try {
+    $stmtLogs = $pdo->prepare(
+        "SELECT employee_id, actor_employee_id, actor_role, module, action, details, created_at
+         FROM action_logs
+         ORDER BY created_at DESC
+         LIMIT 30"
+    );
+    $stmtLogs->execute();
+    $recentLogs = $stmtLogs->fetchAll(PDO::FETCH_ASSOC) ?: [];
+} catch (Throwable $e) {
+    $recentLogs = [];
+}
+
+$notice = (string)($_GET['notice'] ?? '');
+$noticeEmployeeId = (string)($_GET['employee_id'] ?? '');
+$noticeEmployeeName = (string)($_GET['employee_name'] ?? '');
 require('../../partials/header.php');
 ?>
 <body class="bg-base-200 min-h-screen">
+
     <div class="flex h-screen">
     <!-- Sidebar -->
     <?php 
@@ -36,6 +70,21 @@ require('../../partials/header.php');
       <!-- Navbar -->
       <?php include '../../USM/navbar.php'; ?>
     <div class="max-w-7xl mx-auto p-6">
+        <?php if ($notice === 'idp_deleted'): ?>
+            <div class="alert alert-info mb-6">
+                <div>
+                    <div class="font-semibold">IDP deleted</div>
+                    <div class="text-sm">
+                        <?php if ($noticeEmployeeName !== '' || $noticeEmployeeId !== ''): ?>
+                            <?php echo h(trim($noticeEmployeeName . ' ' . ($noticeEmployeeId !== '' ? ('(' . $noticeEmployeeId . ')') : ''))); ?> was returned to Critical Roles because the IDP was deleted.
+                        <?php else: ?>
+                            The employee was returned to Critical Roles because the IDP was deleted.
+                        <?php endif; ?>
+                    </div>
+                </div>
+            </div>
+        <?php endif; ?>
+
         <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-6">
             <div>
                 <h1 class="text-2xl font-bold">Critical Roles</h1>
@@ -45,6 +94,48 @@ require('../../partials/header.php');
                 <a href="gap_analysis.php" class="btn btn-outline btn-sm">Gap Analysis</a>
                 <a href="../../kpi_eval_dummy.php" class="btn btn-primary btn-sm">KPI Evaluation</a>
                 <button type="button" id="push-all-to-succession" class="btn btn-outline btn-sm">Push All to Succession</button>
+            </div>
+        </div>
+
+        <div class="mb-6">
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+                <div class="card bg-base-100 shadow">
+                    <div class="card-body p-5">
+                        <div class="text-xs opacity-70">Retrain</div>
+                        <div class="text-3xl font-bold"><?php echo (int)($statusCounts['Retrain'] ?? 0); ?></div>
+                    </div>
+                </div>
+                <div class="card bg-base-100 shadow">
+                    <div class="card-body p-5">
+                        <div class="text-xs opacity-70">Reskilling</div>
+                        <div class="text-3xl font-bold"><?php echo (int)($statusCounts['Reskilling'] ?? 0); ?></div>
+                    </div>
+                </div>
+                <div class="card bg-base-100 shadow">
+                    <div class="card-body p-5">
+                        <div class="text-xs opacity-70">Refresher Training</div>
+                        <div class="text-3xl font-bold"><?php echo (int)($statusCounts['Refresher Training'] ?? 0); ?></div>
+                    </div>
+                </div>
+                <div class="card bg-base-100 shadow">
+                    <div class="card-body p-5">
+                        <div class="text-xs opacity-70">Upskilling</div>
+                        <div class="text-3xl font-bold"><?php echo (int)($statusCounts['Upskilling'] ?? 0); ?></div>
+                    </div>
+                </div>
+                <div class="card bg-base-100 shadow">
+                    <div class="card-body p-5">
+                        <div class="text-xs opacity-70">Succession Ready</div>
+                        <div class="text-3xl font-bold"><?php echo (int)($statusCounts['Succession Ready'] ?? 0); ?></div>
+                    </div>
+                </div>
+                <button type="button" class="card bg-base-100 shadow text-left hover:shadow-md transition" onclick="openRecentActivityModal();">
+                    <div class="card-body p-5">
+                        <div class="text-xs opacity-70">Recent Activities</div>
+                        <div class="text-3xl font-bold"><?php echo (int)count($recentLogs); ?></div>
+                        <div class="text-xs opacity-60 mt-1">Click to view</div>
+                    </div>
+                </button>
             </div>
         </div>
 
@@ -84,11 +175,13 @@ require('../../partials/header.php');
             </div>
         </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+        <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
             <?php if (count($employees) > 0): ?>
                 <?php foreach ($employees as $emp): ?>
                     <?php
                         $status = (string)($emp['status'] ?? 'Retrain');
+                        $idpReqStatus = (string)($emp['idp_request_status'] ?? '');
+                        $idpAlreadyRequested = ($idpReqStatus === 'Requested' || $idpReqStatus === 'Pending' || $idpReqStatus === 'Created');
                         $statusClass = 'badge-neutral';
                         if ($status === 'Reskilling') $statusClass = 'badge-error';
                         if ($status === 'Refresher Training') $statusClass = 'badge-warning';
@@ -117,7 +210,7 @@ require('../../partials/header.php');
                     <div class="employee-card bg-white border border-gray-300 rounded-xl shadow-sm" data-employee-id="<?php echo h($emp['employee_id'] ?? ''); ?>">
                         <div class="p-6">
                             <div class="flex items-start justify-between mb-6">
-                                <div class="flex items-start gap-4">
+                                <div class="flex items-start gap-3">
                                     <div class="employee-avatar bg-gray-100">
                                         <i data-lucide="user" class="w-8 h-8 text-gray-400"></i>
                                     </div>
@@ -126,7 +219,14 @@ require('../../partials/header.php');
                                         <p class="text-sm text-gray-600 mt-1"><?php echo h($emp['employee_id'] ?? ''); ?></p>
                                     </div>
                                 </div>
-                                <span class="badge badge-sm <?php echo h($statusClass); ?>"><?php echo h($status); ?></span>
+                                <div class="flex flex-col items-end gap-1">
+                                    <span class="badge badge-sm <?php echo h($statusClass); ?>"><?php echo h($status); ?></span>
+                                    <?php if ($idpReqStatus !== ''): ?>
+                                        <span class="badge badge-outline badge-xs">
+                                            <?php echo h($idpReqStatus); ?>
+                                        </span>
+                                    <?php endif; ?>
+                                </div>
                             </div>
 
                             <div class="flex items-center justify-center mb-6">
@@ -178,11 +278,12 @@ require('../../partials/header.php');
                                     View
                                 </button>
                                 <button class="btn flex-1 bg-gray-900 text-white hover:bg-gray-800 border-0 idp-btn" 
+                                        <?php echo $idpAlreadyRequested ? 'disabled' : ''; ?>
                                         data-employee-id="<?php echo $emp['employee_id']; ?>"
                                         data-employee-name="<?php echo htmlspecialchars($emp['full_name']); ?>"
                                         title="Create Individual Development Plan">
                                     <i data-lucide="clipboard-list" class="w-4 h-4 mr-2"></i>
-                                    IDP
+                                    <?php echo $idpAlreadyRequested ? ($idpReqStatus === 'Created' ? 'Created' : 'Requested') : 'IDP'; ?>
                                 </button>
                             </div>
                         </div>
@@ -204,7 +305,52 @@ require('../../partials/header.php');
         <div class="text-right mt-4 text-sm text-gray-600">
             Total: <span class="font-medium"><?php echo count($employees); ?></span> employees
         </div>
+
     </div>
+
+    <dialog id="recent-activity-modal" class="modal">
+        <div class="modal-box max-w-5xl">
+            <div class="flex items-start justify-between gap-3">
+                <div>
+                    <h3 class="font-bold text-lg">Recent Activities</h3>
+                    <div class="text-xs opacity-70 mt-1">Latest <?php echo (int)count($recentLogs); ?> records</div>
+                </div>
+                <form method="dialog"><button class="btn btn-sm">Close</button></form>
+            </div>
+
+            <div class="overflow-x-auto mt-4">
+                <table class="table table-zebra">
+                    <thead>
+                        <tr>
+                            <th>When</th>
+                            <th>Employee</th>
+                            <th>Module</th>
+                            <th>Action</th>
+                            <th>Details</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php if (count($recentLogs) === 0): ?>
+                            <tr>
+                                <td colspan="5" class="text-center py-6 opacity-70">No activity yet.</td>
+                            </tr>
+                        <?php else: ?>
+                            <?php foreach ($recentLogs as $lg): ?>
+                                <tr>
+                                    <td class="text-sm"><?php echo h($lg['created_at'] ?? ''); ?></td>
+                                    <td class="text-sm"><?php echo h($lg['employee_id'] ?? ''); ?></td>
+                                    <td class="text-sm"><?php echo h($lg['module'] ?? ''); ?></td>
+                                    <td class="text-sm"><?php echo h($lg['action'] ?? ''); ?></td>
+                                    <td class="text-sm"><?php echo h($lg['details'] ?? ''); ?></td>
+                                </tr>
+                            <?php endforeach; ?>
+                        <?php endif; ?>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <form method="dialog" class="modal-backdrop"><button>close</button></form>
+    </dialog>
 
     <!-- ============================================
          MODALS SECTION
@@ -382,29 +528,33 @@ require('../../partials/header.php');
         const modal = document.getElementById('view-modal');
         const content = document.getElementById('employee-details-content');
         const subtitle = document.getElementById('employee-subtitle');
-        
-        // Show loading state
+
         content.innerHTML = `
             <div class="text-center py-12">
                 <div class="loading loading-spinner loading-lg text-gray-600"></div>
                 <p class="mt-4 text-gray-600">Loading competency assessment...</p>
             </div>
         `;
-        
-        modal.showModal();
-        
+
+        if (modal && typeof modal.showModal === 'function') {
+            modal.showModal();
+        }
+
         try {
-            // Fetch employee data
             const response = await fetch(`get_employee_details.php?id=${encodeURIComponent(employeeId)}`);
             const employee = await response.json();
-            
+
             if (employee.error) {
                 throw new Error(employee.error);
             }
-            
-            // Set subtitle
+
             subtitle.textContent = `${employee.full_name} | ${employee.position} | ${employee.department}`;
-            
+
+            const meta = (Array.isArray(employeesForBulkPush) ? employeesForBulkPush : []).find((e) => String(e.employee_id) === String(employee.employee_id));
+            const reqStatus = meta && meta.idp_request_status ? String(meta.idp_request_status) : '';
+            const alreadyRequested = reqStatus === 'Requested' || reqStatus === 'Pending' || reqStatus === 'Created';
+            const requestLabel = alreadyRequested ? (reqStatus === 'Created' ? 'Created' : 'Requested') : 'Request IDP';
+
             const overall = parseFloat(employee.competency) || 0;
             const maxScore = 5;
             const kpis = Array.isArray(employee.kpis) ? employee.kpis : [];
@@ -465,6 +615,7 @@ require('../../partials/header.php');
                     <p class="text-lg font-medium">No KPI evaluations available</p>
                 </div>
             `;
+
             content.innerHTML = `
                 <div class="space-y-6">
                     <div class="bg-gray-50 p-5 rounded-lg border border-gray-300">
@@ -516,9 +667,9 @@ require('../../partials/header.php');
                         </div>
                         <div class="flex gap-2">
                             <button onclick="showIDPConfirmation('${employee.employee_id}', '${employee.full_name}')" 
-                                    class="btn bg-gray-900 text-white hover:bg-gray-800 border-0">
+                                    class="btn bg-gray-900 text-white hover:bg-gray-800 border-0" ${alreadyRequested ? 'disabled' : ''}>
                                 <i data-lucide="clipboard-list" class="w-4 h-4 mr-2"></i>
-                                Create IDP
+                                ${requestLabel}
                             </button>
                             <button onclick="document.getElementById('view-modal').close()" 
                                     class="btn bg-white border border-gray-300 hover:bg-gray-50 text-gray-800">
@@ -528,7 +679,6 @@ require('../../partials/header.php');
                     </div>
                 </div>
             `;
-            
         } catch (error) {
             content.innerHTML = `
                 <div class="text-center py-12">
@@ -536,7 +686,7 @@ require('../../partials/header.php');
                         <i data-lucide="alert-circle" class="w-8 h-8 text-red-400"></i>
                     </div>
                     <h3 class="text-lg font-medium text-gray-700 mb-2">Unable to Load Assessment</h3>
-                    <p class="text-gray-500">${error.message}</p>
+                    <p class="text-gray-500">${escapeHtml(error && error.message ? error.message : 'Server error')}</p>
                     <button onclick="document.getElementById('view-modal').close()" 
                             class="btn bg-white border border-gray-300 hover:bg-gray-50 text-gray-800 mt-4">
                         Close
@@ -544,36 +694,16 @@ require('../../partials/header.php');
                 </div>
             `;
         }
-        
+
         setTimeout(() => lucide.createIcons(), 100);
     }
     
-    function calculateCompetencyBreakdown(skills) {
-        let technical = { total: 0, count: 0 };
-        let soft = { total: 0, count: 0 };
-        let other = { total: 0, count: 0 };
-        
-        skills.forEach(skill => {
-            if (skill.category === 'Technical' || skill.category === 'Safety') {
-                technical.total += parseFloat(skill.skill_score) || 0;
-                technical.count++;
-            } else if (skill.category === 'Soft Skills') {
-                soft.total += parseFloat(skill.skill_score) || 0;
-                soft.count++;
-            } else {
-                other.total += parseFloat(skill.skill_score) || 0;
-                other.count++;
-            }
-        });
-        
-        return {
-            technical: technical.count > 0 ? Math.round(technical.total / technical.count) : 0,
-            soft: soft.count > 0 ? Math.round(soft.total / soft.count) : 0,
-            other: other.count > 0 ? Math.round(other.total / other.count) : 0,
-            technicalDetails: technical,
-            softDetails: soft,
-            otherDetails: other
-        };
+    // Function to open recent activity modal
+    function openRecentActivityModal() {
+        var dlg = document.getElementById('recent-activity-modal');
+        if (dlg && typeof dlg.showModal === 'function') {
+            dlg.showModal();
+        }
     }
     
     // ============================================
@@ -682,7 +812,7 @@ require('../../partials/header.php');
             html: `Do you want to create an Individual Development Plan for <strong>${employeeName}</strong>?`,
             icon: 'question',
             showCancelButton: true,
-            confirmButtonText: 'Create IDP',
+            confirmButtonText: 'Request IDP',
             cancelButtonText: 'Cancel',
             confirmButtonColor: '#1f2937',
             cancelButtonColor: '#6b7280',
@@ -697,8 +827,13 @@ require('../../partials/header.php');
                     title: 'Success!',
                     text: `Sent to Succession Dashboard for ${employeeName}`,
                     icon: 'success',
-                    confirmButtonColor: '#1f2937'
+                    confirmButtonColor: '#1f2937',
+                    timer: 1100,
+                    showConfirmButton: false
                 });
+                setTimeout(function () {
+                    window.location.reload();
+                }, 1150);
             }
         });
     }

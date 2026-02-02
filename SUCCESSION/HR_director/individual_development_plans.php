@@ -71,10 +71,43 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         if ($action === 'delete_idp' && $idpId > 0) {
+            $empId = '';
+            $empName = '';
+            try {
+                $stmtEmp = $pdo->prepare("SELECT employee_id, employee_name FROM individual_development_plans WHERE id = ? LIMIT 1");
+                $stmtEmp->execute([$idpId]);
+                $empRow = $stmtEmp->fetch(PDO::FETCH_ASSOC);
+                $empId = (string)($empRow['employee_id'] ?? '');
+                $empName = (string)($empRow['employee_name'] ?? '');
+            } catch (Throwable $e) {
+                $empId = '';
+                $empName = '';
+            }
+
             $stmt = $pdo->prepare("DELETE FROM individual_development_plans WHERE id = ?");
             $stmt->execute([$idpId]);
 
-            header('Location: individual_development_plans.php?ok=deleted');
+            if ($empId !== '') {
+                try {
+                    $pdo->prepare("DELETE FROM requested_to_idp WHERE employee_id = ?")->execute([$empId]);
+                } catch (Throwable $e) {
+                }
+
+                try {
+                    $pdo->prepare("UPDATE succession_submissions SET idp_status = 'Pending', updated_at = CURRENT_TIMESTAMP WHERE employee_id = ?")->execute([$empId]);
+                } catch (Throwable $e) {
+                }
+            }
+
+            $qs = 'notice=idp_deleted';
+            if ($empId !== '') {
+                $qs .= '&employee_id=' . urlencode($empId);
+            }
+            if ($empName !== '') {
+                $qs .= '&employee_name=' . urlencode($empName);
+            }
+
+            header('Location: ../../COMPETENCY/criticalgaps/criticalgaps.php?' . $qs);
             exit;
         }
 

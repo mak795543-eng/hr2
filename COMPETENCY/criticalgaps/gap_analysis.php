@@ -21,114 +21,135 @@
                  </div>
  
                  <div class="card bg-base-100 shadow">
-                    <div class="card-body">
-                        <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-3">
-                            <div class="w-full md:w-72">
-                                <label class="label"><span class="label-text">Evaluation Period</span></label>
-                                <input id="periodInput" type="text" class="input input-bordered w-full" placeholder="YYYY-Qn" />
+                   <div class="card-body">
+                        <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                            <div>
+                                <div class="font-semibold">Employees Pending KPI Gap Computation</div>
+                                <div class="text-sm opacity-70">Employees with KPI evaluation scores but not yet calculated/formulated.</div>
                             </div>
                             <div class="flex gap-2">
                                 <button type="button" id="refreshBtn" class="btn btn-primary">Refresh</button>
                             </div>
                         </div>
 
-                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4">
-                            <div class="card bg-base-100 border border-base-300">
-                                <div class="card-body">
-                                    <h2 class="card-title text-base">Employees Missing KPI / Gap Formulation</h2>
-                                    <div class="text-sm opacity-70">These employees either have no KPI evaluations for the period or have not been formulated.</div>
-                                    <div class="overflow-x-auto">
-                                        <table class="table table-zebra table-sm">
-                                            <thead>
-                                                <tr>
-                                                    <th>Employee</th>
-                                                    <th>Dept</th>
-                                                    <th class="text-right">KPI</th>
-                                                    <th class="text-right">Formulation</th>
-                                                    <th></th>
-                                                </tr>
-                                            </thead>
-                                            <tbody id="missingRows"></tbody>
-                                        </table>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div class="card bg-base-100 border border-base-300">
-                                <div class="card-body">
-                                    <h2 class="card-title text-base">Processed Employees (Formulated)</h2>
-                                    <div class="text-sm opacity-70">Employees with saved KPI gap formulation for the period.</div>
-                                    <div class="overflow-x-auto">
-                                        <table class="table table-zebra table-sm">
-                                            <thead>
-                                                <tr>
-                                                    <th>Employee</th>
-                                                    <th>Dept</th>
-                                                    <th class="text-right">Competency</th>
-                                                    <th>Status</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody id="processedRows"></tbody>
-                                        </table>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="card bg-base-100 border border-base-300 mt-4">
-                            <div class="card-body">
-                                <div class="flex items-center justify-between gap-3">
-                                    <div>
-                                        <h2 class="card-title text-base">Selected Employee KPI Gap Computation</h2>
-                                        <div class="text-sm opacity-70" id="selectedMeta">Select an employee to compute KPI % and gaps.</div>
-                                    </div>
-                                    <button type="button" id="saveBtn" class="btn btn-outline" disabled>Save Formulation</button>
-                                </div>
-
-                                <div class="overflow-x-auto mt-3">
-                                    <table class="table table-zebra">
-                                        <thead>
-                                            <tr>
-                                                <th>KPI</th>
-                                                <th class="text-right">Avg</th>
-                                                <th class="text-right">KPI %</th>
-                                                <th class="text-right">Required %</th>
-                                                <th class="text-right">Gap %</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody id="resultRows"></tbody>
-                                    </table>
-                                </div>
-                            </div>
+                        <div class="overflow-x-auto mt-4">
+                            <table class="table table-zebra">
+                                <thead>
+                                    <tr>
+                                        <th>Employee</th>
+                                        <th>Dept</th>
+                                        <th>Position</th>
+                                        <th class="text-right">Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="pendingRows"></tbody>
+                            </table>
                         </div>
                     </div>
                 </div>
-             </div>
-         </div>
-     </div>
+
+                <dialog id="analyzeModal" class="modal">
+                    <div class="modal-box max-w-5xl">
+                        <form method="dialog">
+                            <button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">
+                                <i data-lucide="x" class="w-5 h-5"></i>
+                            </button>
+                        </form>
+                        <h3 class="font-bold text-lg mb-4">KPI Computation</h3>
+                        <div class="text-sm opacity-70" id="analyzeMeta">Loading...</div>
+
+                        <div class="overflow-x-auto mt-4">
+                            <table class="table table-zebra">
+                                <thead>
+                                    <tr>
+                                        <th>KPI</th>
+                                        <th>Scores</th>
+                                        <th class="text-right">Avg</th>
+                                        <th class="text-right">KPI %</th>
+                                        <th class="text-right">Required %</th>
+                                        <th class="text-right">Gap %</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="analyzeRows"></tbody>
+                            </table>
+                        </div>
+
+                        <div class="flex justify-end gap-2 mt-4">
+                            <button type="button" id="saveBtn" class="btn btn-primary" disabled>Continue</button>
+                        </div>
+                    </div>
+                    <form method="dialog" class="modal-backdrop">
+                        <button>close</button>
+                    </form>
+                </dialog>
+
+                <dialog id="forwardModal" class="modal">
+                    <div class="modal-box max-w-xl">
+                        <form method="dialog">
+                            <button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">
+                                <i data-lucide="x" class="w-5 h-5"></i>
+                            </button>
+                        </form>
+                        <h3 class="font-bold text-lg mb-2">Forward to Critical Roles</h3>
+                        <div class="text-sm opacity-70" id="forwardMeta">Loading...</div>
+
+                        <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <div class="card bg-base-200">
+                                <div class="card-body p-4">
+                                    <div class="text-xs opacity-70">Overall Average</div>
+                                    <div class="text-2xl font-bold" id="forwardOverallAvg">—</div>
+                                </div>
+                            </div>
+                            <div class="card bg-base-200">
+                                <div class="card-body p-4">
+                                    <div class="text-xs opacity-70">Overall KPI %</div>
+                                    <div class="text-2xl font-bold" id="forwardOverallPct">—</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mt-3">
+                            <div class="text-xs opacity-70">Status</div>
+                            <div class="font-semibold" id="forwardStatus">—</div>
+                        </div>
+
+                        <div class="flex justify-end gap-2 mt-5">
+                            <button type="button" id="applyBtn" class="btn btn-primary" disabled>Forward Employee</button>
+                        </div>
+                    </div>
+                    <form method="dialog" class="modal-backdrop">
+                        <button>close</button>
+                    </form>
+                </dialog>
+            </div>
+        </div>
+    </div>
  
      <script>
         lucide.createIcons();
     </script>
     <script>
         (function () {
-            const apiBase = window.location.origin;
-            const apiUrl = `${apiBase}/api/gap_analysis.php`;
+            const apiUrl = '../../api/gap_analysis.php';
 
             const els = {
-                periodInput: document.getElementById('periodInput'),
                 refreshBtn: document.getElementById('refreshBtn'),
-                missingRows: document.getElementById('missingRows'),
-                processedRows: document.getElementById('processedRows'),
-                resultRows: document.getElementById('resultRows'),
-                selectedMeta: document.getElementById('selectedMeta'),
+                pendingRows: document.getElementById('pendingRows'),
+                analyzeModal: document.getElementById('analyzeModal'),
+                analyzeMeta: document.getElementById('analyzeMeta'),
+                analyzeRows: document.getElementById('analyzeRows'),
                 saveBtn: document.getElementById('saveBtn'),
+                forwardModal: document.getElementById('forwardModal'),
+                forwardMeta: document.getElementById('forwardMeta'),
+                forwardOverallAvg: document.getElementById('forwardOverallAvg'),
+                forwardOverallPct: document.getElementById('forwardOverallPct'),
+                forwardStatus: document.getElementById('forwardStatus'),
+                applyBtn: document.getElementById('applyBtn'),
             };
 
             let selectedEmployeeId = '';
             let selectedComputed = null;
             let selectedOverall = null;
-            let currentPeriod = '';
 
             function esc(s) {
                 return String(s ?? '')
@@ -139,112 +160,110 @@
                     .replace(/'/g, '&#039;');
             }
 
-            function getDefaultPeriod() {
-                const y = new Date().getFullYear();
-                const q = Math.ceil((new Date().getMonth() + 1) / 3);
-                return `${y}-Q${q}`;
-            }
-
             async function fetchJson(url, opts) {
                 const res = await fetch(url, opts || { method: 'GET' });
-                const data = await res.json();
+                const raw = await res.text();
+                let data = null;
+                try {
+                    data = raw ? JSON.parse(raw) : null;
+                } catch (e) {
+                    data = null;
+                }
                 if (!res.ok || (data && data.success === false)) {
-                    throw new Error((data && data.message) ? data.message : `Request failed (${res.status})`);
+                    const msg = (data && data.message)
+                        ? data.message
+                        : (raw ? raw.slice(0, 180) : `Request failed (${res.status})`);
+                    throw new Error(msg);
                 }
                 return data;
             }
 
             async function loadLists() {
-                currentPeriod = String(els.periodInput.value || '').trim() || getDefaultPeriod();
-                els.periodInput.value = currentPeriod;
+                try {
+                    const pending = await fetchJson(`${apiUrl}?action=pending`);
 
-                const missing = await fetchJson(`${apiUrl}?action=missing&evaluation_period=${encodeURIComponent(currentPeriod)}`);
-                const processed = await fetchJson(`${apiUrl}?action=processed&evaluation_period=${encodeURIComponent(currentPeriod)}`);
+                    const rows = Array.isArray(pending && pending.data) ? pending.data : [];
 
-                const missRows = Array.isArray(missing.data) ? missing.data : [];
-                const procRows = Array.isArray(processed.data) ? processed.data : [];
-
-                els.missingRows.innerHTML = missRows.map(r => {
-                    const mk = Number(r.missing_kpi) === 1 ? 'Yes' : 'No';
-                    const mf = Number(r.missing_formulation) === 1 ? 'Yes' : 'No';
-                    return `
+                    els.pendingRows.innerHTML = rows.map(r => {
+                        return `
+                            <tr>
+                                <td>
+                                    <div class="font-semibold">${esc(r.full_name)}</div>
+                                    <div class="text-xs opacity-70">${esc(r.employee_id)}</div>
+                                </td>
+                                <td>${esc(r.department)}</td>
+                                <td>${esc(r.position)}</td>
+                                <td class="text-right">
+                                    <button class="btn btn-xs btn-outline" data-analyze="${esc(r.employee_id)}">Analyze</button>
+                                </td>
+                            </tr>
+                        `;
+                    }).join('') || `
                         <tr>
-                            <td>
-                                <div class="font-semibold">${esc(r.full_name)}</div>
-                                <div class="text-xs opacity-70">${esc(r.employee_id)}</div>
-                            </td>
-                            <td>${esc(r.department)}</td>
-                            <td class="text-right">${esc(mk)}</td>
-                            <td class="text-right">${esc(mf)}</td>
-                            <td class="text-right">
-                                <button class="btn btn-xs btn-outline" data-emp="${esc(r.employee_id)}">Select</button>
-                            </td>
+                            <td colspan="4" class="text-center py-10 opacity-70">No pending employees.</td>
                         </tr>
                     `;
-                }).join('') || `
-                    <tr>
-                        <td colspan="5" class="text-center py-10 opacity-70">No missing employees.</td>
-                    </tr>
-                `;
 
-                els.processedRows.innerHTML = procRows.map(r => {
-                    return `
-                        <tr>
-                            <td>
-                                <div class="font-semibold">${esc(r.full_name)}</div>
-                                <div class="text-xs opacity-70">${esc(r.employee_id)}</div>
-                            </td>
-                            <td>${esc(r.department)}</td>
-                            <td class="text-right font-semibold">${Number(r.overall_competency || 0).toFixed(1)}%</td>
-                            <td>${esc(r.status || '')}</td>
-                        </tr>
-                    `;
-                }).join('') || `
-                    <tr>
-                        <td colspan="4" class="text-center py-10 opacity-70">No processed employees yet.</td>
-                    </tr>
-                `;
-
-                els.missingRows.querySelectorAll('button[data-emp]').forEach(btn => {
-                    btn.addEventListener('click', async () => {
-                        await selectEmployee(btn.getAttribute('data-emp') || '');
+                    els.pendingRows.querySelectorAll('button[data-analyze]').forEach(btn => {
+                        btn.addEventListener('click', async () => {
+                            await analyzeEmployee(btn.getAttribute('data-analyze') || '');
+                        });
                     });
-                });
 
-                lucide.createIcons();
+                    lucide.createIcons();
+                } catch (err) {
+                    console.error(err);
+                    els.pendingRows.innerHTML = `
+                        <tr>
+                            <td colspan="4" class="text-center py-10 text-error">
+                                Failed to load employees. Please refresh and check the server/console.
+                            </td>
+                        </tr>
+                    `;
+                }
             }
 
-            async function selectEmployee(employeeId) {
+            async function analyzeEmployee(employeeId) {
                 selectedEmployeeId = String(employeeId || '').trim();
                 if (!selectedEmployeeId) return;
 
-                const data = await fetchJson(`${apiUrl}?action=employee&employee_id=${encodeURIComponent(selectedEmployeeId)}&evaluation_period=${encodeURIComponent(currentPeriod)}`);
+                const data = await fetchJson(`${apiUrl}?action=employee&employee_id=${encodeURIComponent(selectedEmployeeId)}`);
                 const emp = data.employee || {};
                 selectedComputed = Array.isArray(data.computed) ? data.computed : [];
                 selectedOverall = data.overall || null;
 
-                els.selectedMeta.textContent = `${emp.full_name || ''} (${emp.employee_id || ''}) • ${emp.department || ''} • ${data.evaluation_period || ''}`;
+                els.analyzeMeta.textContent = `${emp.full_name || ''} (${emp.employee_id || ''}) • ${emp.department || ''} • ${data.evaluation_period || ''}`;
 
-                els.resultRows.innerHTML = (selectedComputed || []).map(r => {
+                els.analyzeRows.innerHTML = (selectedComputed || []).map(r => {
+                    const evals = Array.isArray(r.evaluations) ? r.evaluations : [];
+                    const scores = evals.map(e => Number(e.score || 0));
+                    const scoreText = scores.length ? scores.join(', ') : '';
+                    const avg = Number(r.avg || 0);
+                    const kpiPct = Number(r.kpi_pct || 0);
+                    const reqPct = Number(r.required_pct || 0);
                     const gap = Number(r.gap_pct || 0);
                     const gapClass = gap > 0 ? 'text-error font-semibold' : 'text-success font-semibold';
+
                     return `
                         <tr>
                             <td class="font-medium">${esc(r.kpi_name)}</td>
-                            <td class="text-right">${Number(r.avg || 0).toFixed(2)}</td>
-                            <td class="text-right">${Number(r.kpi_pct || 0).toFixed(1)}%</td>
-                            <td class="text-right">${Number(r.required_pct || 0).toFixed(1)}%</td>
-                            <td class="text-right ${gapClass}">${Number(r.gap_pct || 0).toFixed(1)}%</td>
+                            <td class="text-sm">${esc(scoreText)}</td>
+                            <td class="text-right">${avg.toFixed(2)}</td>
+                            <td class="text-right">${kpiPct.toFixed(1)}%</td>
+                            <td class="text-right">${reqPct.toFixed(1)}%</td>
+                            <td class="text-right ${gapClass}">${gap.toFixed(1)}%</td>
                         </tr>
                     `;
                 }).join('') || `
                     <tr>
-                        <td colspan="5" class="text-center py-10 opacity-70">No KPI data found.</td>
+                        <td colspan="6" class="text-center py-10 opacity-70">No KPI data found.</td>
                     </tr>
                 `;
 
                 els.saveBtn.disabled = !(selectedOverall && Number.isFinite(Number(selectedOverall.pct)));
                 lucide.createIcons();
+
+                els.analyzeModal.showModal();
             }
 
             async function saveFormulation() {
@@ -260,23 +279,80 @@
                     }
                 };
 
-                await fetchJson(`${apiUrl}?action=save&evaluation_period=${encodeURIComponent(currentPeriod)}`, {
+                await fetchJson(`${apiUrl}?action=save`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload),
                 });
 
-                await loadLists();
+                els.forwardMeta.textContent = els.analyzeMeta.textContent || '—';
+                els.forwardOverallAvg.textContent = Number(selectedOverall.avg || 0).toFixed(2);
+                els.forwardOverallPct.textContent = `${Number(selectedOverall.pct || 0).toFixed(1)}%`;
+                els.forwardStatus.textContent = String(selectedOverall.status || '');
+                els.applyBtn.disabled = false;
+
+                try {
+                    if (els.analyzeModal && typeof els.analyzeModal.close === 'function') {
+                        els.analyzeModal.close();
+                    }
+                } catch (e) {
+                }
+
+                els.forwardModal.showModal();
             }
 
-            els.periodInput.value = getDefaultPeriod();
+            async function applyEmployeeForward() {
+                if (!selectedEmployeeId) return;
+                els.applyBtn.disabled = true;
+                try {
+                    await fetchJson(`${apiUrl}?action=apply_employee&employee_id=${encodeURIComponent(selectedEmployeeId)}`, { method: 'POST' });
+
+                    try {
+                        if (els.forwardModal && typeof els.forwardModal.close === 'function') {
+                            els.forwardModal.close();
+                        }
+                    } catch (e) {
+                    }
+
+                    if (typeof Swal !== 'undefined' && Swal && typeof Swal.fire === 'function') {
+                        await Swal.fire({
+                            icon: 'success',
+                            title: 'Forwarded',
+                            text: 'Employee has been forwarded to Critical Roles.',
+                            confirmButtonColor: '#1f2937'
+                        });
+                    } else {
+                        alert('Employee has been forwarded to Critical Roles.');
+                    }
+
+                    selectedEmployeeId = '';
+                    selectedComputed = null;
+                    selectedOverall = null;
+
+                    await loadLists();
+                } catch (err) {
+                    els.applyBtn.disabled = false;
+                    if (typeof Swal !== 'undefined' && Swal && typeof Swal.fire === 'function') {
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Forward failed',
+                            text: (err && err.message) ? err.message : 'Failed to forward employee.',
+                            confirmButtonColor: '#1f2937'
+                        });
+                    } else {
+                        alert((err && err.message) ? err.message : 'Failed to forward employee.');
+                    }
+                }
+            }
+
             els.refreshBtn.addEventListener('click', () => loadLists());
             els.saveBtn.addEventListener('click', () => saveFormulation());
+            els.applyBtn.addEventListener('click', () => applyEmployeeForward());
 
-            loadLists().catch(() => {});
+            loadLists();
         })();
     </script>
-     <script src="../../soliera.js"></script>
-     <script src="../../sidebar.js"></script>
+    <script src="../../soliera.js"></script>
+    <script src="../../sidebar.js"></script>
  </body>
  </html>
