@@ -224,6 +224,7 @@ if ($conn && is_int($employeeId)) {
             $lastName = trim((string)($_POST['last_name'] ?? ''));
             $emergencyName = trim((string)($_POST['emergency_name'] ?? ''));
             $emergencyRelationship = trim((string)($_POST['emergency_relationship'] ?? ''));
+            $emergencyPhone = trim((string)($_POST['emergency_phone'] ?? ''));
 
             $birthdateParam = '';
             $ageParam = '';
@@ -383,6 +384,9 @@ if ($conn && is_int($employeeId)) {
                         $profSet[] = 'emergency_relationship = NULLIF(?, \'\')';
                         $profTypes .= 's';
                         $profVals[] = $emergencyRelationship;
+                        $profSet[] = 'emergency_phone = NULLIF(?, \'\')';
+                        $profTypes .= 's';
+                        $profVals[] = $emergencyPhone;
                     }
                     if ($canEdit('birthdate')) {
                         $profSet[] = 'birthdate = NULLIF(?, \'\')';
@@ -455,7 +459,8 @@ if (!is_dir($photoDir)) {
     @mkdir($photoDir, 0775, true);
 }
 
-$avatarUrl = 'https://api.dicebear.com/7.x/adventurer/svg?seed=Alex';
+$seed = (string)($_SESSION['employee_id'] ?? $_SESSION['employee_name'] ?? $_SESSION['fullname'] ?? $_SESSION['username'] ?? 'Employee');
+$avatarUrl = 'https://api.dicebear.com/7.x/adventurer/svg?seed=' . rawurlencode($seed);
 if (is_int($employeeId)) {
     $existing = glob($photoDir . DIRECTORY_SEPARATOR . 'employee_' . $employeeId . '.*');
     if (is_array($existing) && count($existing) > 0) {
@@ -566,7 +571,8 @@ $user = [
     'department_no' => (string)($_SESSION['Dept_id'] ?? ''),
     'status' => (string)($_SESSION['status'] ?? 'Active'),
     'emergency_name' => '',
-    'emergency_relationship' => ''
+    'emergency_relationship' => '',
+    'emergency_phone' => ''
 ];
 
 if (is_array($emp)) {
@@ -606,7 +612,7 @@ if (is_array($emp)) {
 }
 
 if ($conn && is_int($employeeId)) {
-    $stmt = mysqli_prepare($conn, 'SELECT phone, work_location, gender, age, birthdate, civil_status, nationality, emergency_name, emergency_relationship FROM employee_profiles WHERE employee_id = ? LIMIT 1');
+    $stmt = mysqli_prepare($conn, 'SELECT phone, work_location, gender, age, birthdate, civil_status, nationality, emergency_name, emergency_relationship, emergency_phone FROM employee_profiles WHERE employee_id = ? LIMIT 1');
     if ($stmt) {
         mysqli_stmt_bind_param($stmt, 'i', $employeeId);
         mysqli_stmt_execute($stmt);
@@ -623,6 +629,7 @@ if ($conn && is_int($employeeId)) {
             $user['nationality'] = (string)($row['nationality'] ?? $user['nationality']);
             $user['emergency_name'] = (string)($row['emergency_name'] ?? $user['emergency_name']);
             $user['emergency_relationship'] = (string)($row['emergency_relationship'] ?? $user['emergency_relationship']);
+            $user['emergency_phone'] = (string)($row['emergency_phone'] ?? $user['emergency_phone']);
         }
     }
 }
@@ -1025,7 +1032,7 @@ if ((string)$user['birthdate'] !== '') {
                 <div class="card-body">
                   <h2 class="card-title">Emergency Contact</h2>
 
-                  <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                  <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
                     <div class="form-control">
                       <label class="label"><span class="label-text text-xs font-semibold text-gray-500">NAME</span></label>
                       <input
@@ -1042,6 +1049,16 @@ if ((string)$user['birthdate'] !== '') {
                         name="emergency_relationship"
                         class="profile-edit-field input input-bordered"
                         value="<?php echo htmlspecialchars($user['emergency_relationship']); ?>"
+                        data-editable="<?php echo $canEditEmergency ? '1' : '0'; ?>"
+                        <?php echo $canEditEmergency ? '' : 'disabled'; ?>
+                      />
+                    </div>
+                    <div class="form-control">
+                      <label class="label"><span class="label-text text-xs font-semibold text-gray-500">CONTACT NUMBER</span></label>
+                      <input
+                        name="emergency_phone"
+                        class="profile-edit-field input input-bordered"
+                        value="<?php echo htmlspecialchars($user['emergency_phone']); ?>"
                         data-editable="<?php echo $canEditEmergency ? '1' : '0'; ?>"
                         <?php echo $canEditEmergency ? '' : 'disabled'; ?>
                       />

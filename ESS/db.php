@@ -3,6 +3,59 @@ if (session_status() !== PHP_SESSION_ACTIVE) {
     session_start();
 }
 
+function ess_ensure_notification_state_tables($conn): void
+{
+    if (!$conn) {
+        return;
+    }
+
+    $dbResult = @mysqli_query($conn, 'SELECT DATABASE() AS db');
+    $dbRow = $dbResult ? mysqli_fetch_assoc($dbResult) : null;
+    $dbName = (string)($dbRow['db'] ?? '');
+
+    $columnExists = static function ($table, $column) use ($conn, $dbName): bool {
+        if ($dbName === '') return false;
+        $stmt = mysqli_prepare($conn, 'SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ? LIMIT 1');
+        if (!$stmt) return false;
+        mysqli_stmt_bind_param($stmt, 'sss', $dbName, $table, $column);
+        mysqli_stmt_execute($stmt);
+        $res = mysqli_stmt_get_result($stmt);
+        $row = $res ? mysqli_fetch_assoc($res) : null;
+        mysqli_stmt_close($stmt);
+        return is_array($row);
+    };
+
+    @mysqli_query(
+        $conn,
+        "CREATE TABLE IF NOT EXISTS notification_states (\n" .
+            "  id INT AUTO_INCREMENT PRIMARY KEY,\n" .
+            "  employee_id INT NOT NULL,\n" .
+            "  notif_key CHAR(40) NOT NULL,\n" .
+            "  status ENUM('unread','read','archived') NOT NULL DEFAULT 'unread',\n" .
+            "  deleted TINYINT(1) NOT NULL DEFAULT 0,\n" .
+            "  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,\n" .
+            "  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,\n" .
+            "  UNIQUE KEY uniq_emp_notif (employee_id, notif_key),\n" .
+            "  INDEX idx_emp_status (employee_id, status),\n" .
+            "  INDEX idx_emp_deleted (employee_id, deleted)\n" .
+            ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
+    );
+
+    if ($dbName !== '') {
+        $cols = [
+            ['status', "ALTER TABLE notification_states ADD COLUMN status ENUM('unread','read','archived') NOT NULL DEFAULT 'unread'"],
+            ['deleted', "ALTER TABLE notification_states ADD COLUMN deleted TINYINT(1) NOT NULL DEFAULT 0"],
+            ['created_at', "ALTER TABLE notification_states ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"],
+            ['updated_at', "ALTER TABLE notification_states ADD COLUMN updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"],
+        ];
+        foreach ($cols as [$col, $sql]) {
+            if (!$columnExists('notification_states', $col)) {
+                @mysqli_query($conn, $sql);
+            }
+        }
+    }
+}
+
 function ess_ensure_complaint_tables($conn): void
 {
     if (!$conn) {
@@ -147,6 +200,7 @@ function ess_ensure_profile_tables($conn): void
             "  nationality VARCHAR(100) NULL,\n" .
             "  emergency_name VARCHAR(150) NULL,\n" .
             "  emergency_relationship VARCHAR(100) NULL,\n" .
+            "  emergency_phone VARCHAR(50) NULL,\n" .
             "  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,\n" .
             "  FOREIGN KEY (employee_id) REFERENCES employees(id)\n" .
             ")"
@@ -178,6 +232,7 @@ function ess_ensure_profile_tables($conn): void
             ['birthdate', "ALTER TABLE employee_profiles ADD COLUMN birthdate DATE NULL"],
             ['civil_status', "ALTER TABLE employee_profiles ADD COLUMN civil_status VARCHAR(50) NULL"],
             ['nationality', "ALTER TABLE employee_profiles ADD COLUMN nationality VARCHAR(100) NULL"],
+            ['emergency_phone', "ALTER TABLE employee_profiles ADD COLUMN emergency_phone VARCHAR(50) NULL"],
         ];
 
         foreach ($profileCols as [$col, $sql]) {
@@ -218,6 +273,7 @@ function ess_ensure_profile_tables($conn): void
 if ($conn) {
     ess_ensure_profile_tables($conn);
     ess_ensure_complaint_tables($conn);
+    ess_ensure_notification_state_tables($conn);
 }
 
 function ess_current_employee_no(): string
