@@ -1500,17 +1500,8 @@ $conn->close();
                     timer: 3000,
                     timerProgressBar: true
                 });
-                
-                // Remove the module card from UI
+
                 removeModuleCard(moduleId);
-                
-                // Check if there are any modules left
-                setTimeout(() => {
-                    const remainingModules = document.querySelectorAll('.module-card');
-                    if (remainingModules.length === 0) {
-                        window.location.reload();
-                    }
-                }, 1500);
             } else {
                 showSweetAlert({
                     title: 'Error!',

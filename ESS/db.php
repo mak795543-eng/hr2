@@ -3,6 +3,82 @@ if (session_status() !== PHP_SESSION_ACTIVE) {
     session_start();
 }
 
+function ess_ensure_complaint_tables($conn): void
+{
+    if (!$conn) {
+        return;
+    }
+
+    $dbResult = @mysqli_query($conn, 'SELECT DATABASE() AS db');
+    $dbRow = $dbResult ? mysqli_fetch_assoc($dbResult) : null;
+    $dbName = (string)($dbRow['db'] ?? '');
+
+    $columnExists = static function ($table, $column) use ($conn, $dbName): bool {
+        if ($dbName === '') return false;
+        $stmt = mysqli_prepare($conn, 'SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ? LIMIT 1');
+        if (!$stmt) return false;
+        mysqli_stmt_bind_param($stmt, 'sss', $dbName, $table, $column);
+        mysqli_stmt_execute($stmt);
+        $res = mysqli_stmt_get_result($stmt);
+        $row = $res ? mysqli_fetch_assoc($res) : null;
+        mysqli_stmt_close($stmt);
+        return is_array($row);
+    };
+
+    @mysqli_query(
+        $conn,
+        "CREATE TABLE IF NOT EXISTS complaints (\n" .
+            "  id INT AUTO_INCREMENT PRIMARY KEY,\n" .
+            "  employee_id INT NOT NULL,\n" .
+            "  subject VARCHAR(255) NOT NULL,\n" .
+            "  description TEXT NOT NULL,\n" .
+            "  status ENUM('Open','In Review','Resolved','Closed') DEFAULT 'Open',\n" .
+            "  handled_by INT NULL,\n" .
+            "  resolution TEXT NULL,\n" .
+            "  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,\n" .
+            "  resolved_at TIMESTAMP NULL,\n" .
+            "  category VARCHAR(100) NULL,\n" .
+            "  category_other VARCHAR(255) NULL,\n" .
+            "  incident_date DATE NULL,\n" .
+            "  attachment_path VARCHAR(255) NULL,\n" .
+            "  workflow_status VARCHAR(30) DEFAULT 'Submitted',\n" .
+            "  returned_reason TEXT NULL,\n" .
+            "  accepted_by INT NULL,\n" .
+            "  accepted_at TIMESTAMP NULL,\n" .
+            "  assigned_role VARCHAR(50) NULL,\n" .
+            "  assigned_to_employee_no VARCHAR(50) NULL,\n" .
+            "  assigned_at TIMESTAMP NULL,\n" .
+            "  seen_by_assignee TINYINT(1) DEFAULT 0,\n" .
+            "  seen_by_employee TINYINT(1) DEFAULT 0,\n" .
+            "  FOREIGN KEY (employee_id) REFERENCES employees(id)\n" .
+            ")"
+    );
+
+    if ($dbName !== '') {
+        $cols = [
+            ['category', "ALTER TABLE complaints ADD COLUMN category VARCHAR(100) NULL"],
+            ['category_other', "ALTER TABLE complaints ADD COLUMN category_other VARCHAR(255) NULL"],
+            ['incident_date', "ALTER TABLE complaints ADD COLUMN incident_date DATE NULL"],
+            ['attachment_path', "ALTER TABLE complaints ADD COLUMN attachment_path VARCHAR(255) NULL"],
+            ['workflow_status', "ALTER TABLE complaints ADD COLUMN workflow_status VARCHAR(30) DEFAULT 'Submitted'"],
+            ['returned_reason', "ALTER TABLE complaints ADD COLUMN returned_reason TEXT NULL"],
+            ['accepted_by', "ALTER TABLE complaints ADD COLUMN accepted_by INT NULL"],
+            ['accepted_at', "ALTER TABLE complaints ADD COLUMN accepted_at TIMESTAMP NULL"],
+            ['assigned_role', "ALTER TABLE complaints ADD COLUMN assigned_role VARCHAR(50) NULL"],
+            ['assigned_to_employee_no', "ALTER TABLE complaints ADD COLUMN assigned_to_employee_no VARCHAR(50) NULL"],
+            ['assigned_at', "ALTER TABLE complaints ADD COLUMN assigned_at TIMESTAMP NULL"],
+            ['seen_by_assignee', "ALTER TABLE complaints ADD COLUMN seen_by_assignee TINYINT(1) DEFAULT 0"],
+            ['seen_by_employee', "ALTER TABLE complaints ADD COLUMN seen_by_employee TINYINT(1) DEFAULT 0"],
+        ];
+
+        foreach ($cols as [$col, $sql]) {
+            if (!$columnExists('complaints', $col)) {
+                @mysqli_query($conn, $sql);
+            }
+        }
+    }
+}
+
 $dbHost = getenv('ESS_DB_HOST');
 if ($dbHost === false || $dbHost === '') {
     $dbHost = getenv('DB_HOST') ?: '127.0.0.1';
@@ -141,6 +217,7 @@ function ess_ensure_profile_tables($conn): void
 
 if ($conn) {
     ess_ensure_profile_tables($conn);
+    ess_ensure_complaint_tables($conn);
 }
 
 function ess_current_employee_no(): string

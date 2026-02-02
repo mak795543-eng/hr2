@@ -10,6 +10,11 @@ $error_message = '';
 
 $employeeId = $conn ? ess_employee_id($conn) : null;
 
+if (!is_int($employeeId) || $employeeId <= 0) {
+    header('Location: ../USM/index.php');
+    exit;
+}
+
 $hasPendingProfileEditRequest = false;
 $decisionRequest = null;
 
@@ -537,31 +542,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['upload_photo'])) {
 }
 
 $user = [
-    'name' => 'Alex Johnson',
-    'first_name' => 'Alex',
+    'name' => (string)($_SESSION['employee_name'] ?? $_SESSION['fullname'] ?? $_SESSION['username'] ?? 'Employee'),
+    'first_name' => '',
     'middle_name' => '',
-    'last_name' => 'Johnson',
+    'last_name' => '',
     'suffix' => '',
-    'position' => 'Design & Product Team',
-    'role' => 'Senior UX Designer',
-    'access_role' => '',
-    'location' => 'San Francisco, CA',
-    'joined' => 'Joined Jan 12, 2023',
-    'email' => 'alex.j@company.com',
-    'phone' => '+1 (555) 123-4567',
-    'work_email' => 'alex.j@company.com',
-    'work_location' => 'San Francisco, USA',
+    'position' => '',
+    'role' => '',
+    'access_role' => (string)($_SESSION['role'] ?? ''),
+    'location' => '',
+    'joined' => '',
+    'email' => (string)($_SESSION['email'] ?? ''),
+    'phone' => '',
+    'work_email' => (string)($_SESSION['email'] ?? ''),
+    'work_location' => '',
     'gender' => '',
     'age' => '',
     'birthdate' => '',
     'civil_status' => '',
     'nationality' => '',
-    'emp_id' => '#99214-B',
-    'department' => 'Product Eng.',
-    'department_no' => '',
-    'status' => 'Full-Time',
-    'emergency_name' => 'Jamie Johnson',
-    'emergency_relationship' => 'Spouse'
+    'emp_id' => (string)($_SESSION['employee_id'] ?? ''),
+    'department' => (string)($_SESSION['department'] ?? $_SESSION['Dept_id'] ?? ''),
+    'department_no' => (string)($_SESSION['Dept_id'] ?? ''),
+    'status' => (string)($_SESSION['status'] ?? 'Active'),
+    'emergency_name' => '',
+    'emergency_relationship' => ''
 ];
 
 if (is_array($emp)) {

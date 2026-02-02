@@ -383,7 +383,7 @@ require('../../partials/header.php');
                         </div>
                         <div class="form-control">
                             <label class="label"><span class="label-text">Purpose <span class="text-red-500">*</span></span></label>
-                            <input id="budget-purpose" type="text" class="input input-bordered w-full" required>
+                            <textarea id="budget-purpose" class="textarea textarea-bordered w-full" rows="2" required></textarea>
                         </div>
                         <div class="form-control">
                             <label class="label"><span class="label-text">Department <span class="text-red-500">*</span></span></label>
@@ -464,7 +464,7 @@ require('../../partials/header.php');
                         </div>
                         <div class="form-control">
                             <label class="label"><span class="label-text">Purpose <span class="text-red-500">*</span></span></label>
-                            <input id="logistics-purpose" type="text" class="input input-bordered w-full" required>
+                            <textarea id="logistics-purpose" class="textarea textarea-bordered w-full" rows="2" required></textarea>
                         </div>
                         <div class="form-control">
                             <label class="label"><span class="label-text">Department <span class="text-red-500">*</span></span></label>
@@ -549,7 +549,7 @@ require('../../partials/header.php');
                         </div>
                         <div class="form-control">
                             <label class="label"><span class="label-text">Purpose <span class="text-red-500">*</span></span></label>
-                            <input id="facility-purpose" type="text" class="input input-bordered w-full" required>
+                            <textarea id="facility-purpose" class="textarea textarea-bordered w-full" rows="2" required></textarea>
                         </div>
                         <div class="form-control">
                             <label class="label"><span class="label-text">Department <span class="text-red-500">*</span></span></label>
@@ -625,6 +625,98 @@ require('../../partials/header.php');
     </script>
     <script src="main.js"></script>
     <script src="maintwo.js"></script>
+    <script>
+        (function () {
+            function pad2(n) {
+                return String(n).padStart(2, '0');
+            }
+
+            function todayYmd() {
+                const d = new Date();
+                return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate());
+            }
+
+            function setMin(el, minValue) {
+                if (!el) return;
+                el.setAttribute('min', minValue);
+            }
+
+            function initDateRange(startId, endId) {
+                const start = document.getElementById(startId);
+                const end = document.getElementById(endId);
+                if (!start || !end) return;
+
+                const t = todayYmd();
+                setMin(start, t);
+                setMin(end, t);
+
+                const sync = function () {
+                    const s = String(start.value || t);
+                    setMin(end, s);
+                    if (end.value && end.value < s) {
+                        end.value = s;
+                    }
+                };
+
+                start.addEventListener('change', sync);
+                end.addEventListener('change', sync);
+                sync();
+            }
+
+            function autoGrow(el) {
+                if (!el) return;
+                let minH = 0;
+                try {
+                    minH = el.dataset ? parseFloat(el.dataset.autogrowMinHeight || '0') : 0;
+                } catch (_) {
+                    minH = 0;
+                }
+                if (!minH || isNaN(minH) || minH <= 0) {
+                    try {
+                        const cs = window.getComputedStyle ? window.getComputedStyle(el) : null;
+                        if (cs) {
+                            const mh = cs.minHeight ? parseFloat(cs.minHeight) : 0;
+                            if (mh && !isNaN(mh) && mh > 0) minH = mh;
+                            if (!minH) {
+                                const h = cs.height ? parseFloat(cs.height) : 0;
+                                if (h && !isNaN(h) && h > 0) minH = h;
+                            }
+                        }
+                    } catch (_) {
+                    }
+                    try {
+                        if (el.dataset) el.dataset.autogrowMinHeight = String(minH || 0);
+                        if (minH && !isNaN(minH) && minH > 0) el.style.minHeight = String(minH) + 'px';
+                    } catch (_) {
+                    }
+                }
+
+                try {
+                    el.style.height = 'auto';
+                    const next = Math.max(el.scrollHeight, minH || 0);
+                    el.style.height = String(next) + 'px';
+                } catch (_) {
+                }
+            }
+
+            document.addEventListener('DOMContentLoaded', function () {
+                initDateRange('start-date', 'end-date');
+
+                const t = todayYmd();
+                setMin(document.getElementById('logistics-needed-by-date'), t);
+
+                const areas = Array.from(document.querySelectorAll('textarea'));
+                areas.forEach((ta) => {
+                    ta.style.resize = 'vertical';
+                    ta.style.overflowY = 'hidden';
+                    autoGrow(ta);
+                    ta.addEventListener('input', function () {
+                        autoGrow(ta);
+                    });
+                });
+            });
+        })();
+    </script>
       <script src="../../soliera.js"></script>
   <script src="../../sidebar.js"></script>
 </body>

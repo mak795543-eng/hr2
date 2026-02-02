@@ -1617,7 +1617,7 @@ require('../../partials/header.php');
                         </div>
                         <div class="form-control">
                             <label class="label"><span class="label-text">Purpose <span class="text-red-500">*</span></span></label>
-                            <input id="budget-purpose" type="text" class="input input-bordered w-full" required>
+                            <textarea id="budget-purpose" class="textarea textarea-bordered w-full" rows="2" required></textarea>
                         </div>
                         <div class="form-control">
                             <label class="label"><span class="label-text">Department <span class="text-red-500">*</span></span></label>
@@ -1709,7 +1709,7 @@ require('../../partials/header.php');
                         </div>
                         <div class="form-control">
                             <label class="label"><span class="label-text">Purpose <span class="text-red-500">*</span></span></label>
-                            <input id="logistics-purpose" type="text" class="input input-bordered w-full" required>
+                            <textarea id="logistics-purpose" class="textarea textarea-bordered w-full" rows="2" required></textarea>
                         </div>
                         <div class="form-control">
                             <label class="label"><span class="label-text">Department <span class="text-red-500">*</span></span></label>
@@ -1809,7 +1809,7 @@ require('../../partials/header.php');
                         </div>
                         <div class="form-control">
                             <label class="label"><span class="label-text">Purpose <span class="text-red-500">*</span></span></label>
-                            <input id="facility-purpose" type="text" class="input input-bordered w-full" required>
+                            <textarea id="facility-purpose" class="textarea textarea-bordered w-full" rows="2" required></textarea>
                         </div>
                         <div class="form-control">
                             <label class="label"><span class="label-text">Department <span class="text-red-500">*</span></span></label>

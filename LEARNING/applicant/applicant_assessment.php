@@ -3,11 +3,23 @@ session_start();
 
 require_once __DIR__ . '/../db.php';
 
-$conn = usm_db_connect('learning_db');
+$conn = usm_db_connect('hr2_learning_db');
+if ($conn->connect_error) {
+    $conn = usm_db_connect('learning_db');
+}
 if ($conn->connect_error) {
     die('Database connection failed: ' . $conn->connect_error);
 }
 $conn->set_charset('utf8mb4');
+
+$requestedTakerType = strtolower(trim((string)($_GET['taker_type'] ?? '')));
+if ($requestedTakerType === 'applicant' || $requestedTakerType === 'employee') {
+    $_SESSION['assessment_taker_type'] = $requestedTakerType;
+}
+$takerType = strtolower(trim((string)($_SESSION['assessment_taker_type'] ?? 'applicant')));
+if ($takerType !== 'employee' && $takerType !== 'applicant') {
+    $takerType = 'applicant';
+}
 
 $conn->query("CREATE TABLE IF NOT EXISTS exam_violation_logs (
     id INT PRIMARY KEY AUTO_INCREMENT,
@@ -29,7 +41,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax']) && isset($_PO
     $details = trim((string)($_POST['details'] ?? ''));
 
     $taker_id = $_SESSION['employee_id'] ?? ($_SESSION['user_id'] ?? null);
-    $taker_type = 'applicant';
+    $taker_type = strtolower(trim((string)($_SESSION['assessment_taker_type'] ?? 'applicant')));
+    if ($taker_type !== 'employee' && $taker_type !== 'applicant') {
+        $taker_type = 'applicant';
+    }
 
     $ua = (string)($_SERVER['HTTP_USER_AGENT'] ?? '');
     $ip = (string)($_SERVER['REMOTE_ADDR'] ?? '');
@@ -264,6 +279,11 @@ $department_roles = [
 $selectedDepartment = isset($_GET['department']) ? trim((string)$_GET['department']) : '';
 $selectedRole = isset($_GET['role']) ? trim((string)$_GET['role']) : '';
 
+$employeeRole = '';
+if ($takerType === 'employee') {
+    $employeeRole = trim((string)($_SESSION['role'] ?? ''));
+}
+
 $secureMode = isset($_GET['secure']) && $_GET['secure'] === '1';
 $maxViolations = 5;
 
@@ -287,7 +307,19 @@ $exam = null;
 $questions = [];
 
 if ($examId > 0) {
-    if ($selectedDepartment !== '' && $selectedRole !== '') {
+    if ($takerType === 'employee') {
+        $employeeRoleLower = mb_strtolower($employeeRole);
+        $stmt = $conn->prepare("SELECT er.*
+            FROM exam_repository er
+            INNER JOIN exam_repository_assignments era
+              ON era.exam_id = er.id
+             AND era.audience = 'employee'
+             AND era.status = 'active'
+            WHERE er.id = ? AND er.status = 'posted'
+              AND LOWER(era.role) = ?
+            LIMIT 1");
+        $stmt->bind_param('is', $examId, $employeeRoleLower);
+    } elseif ($selectedDepartment !== '' && $selectedRole !== '') {
         $stmt = $conn->prepare("SELECT er.*
             FROM exam_repository er
             INNER JOIN exam_repository_assignments era
@@ -332,7 +364,19 @@ $resultSummary = null;
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $postedExamId = isset($_POST['exam_id']) ? (int)$_POST['exam_id'] : 0;
 
-    if ($selectedDepartment !== '' && $selectedRole !== '') {
+    if ($takerType === 'employee') {
+        $employeeRoleLower = mb_strtolower($employeeRole);
+        $stmt = $conn->prepare("SELECT er.*
+            FROM exam_repository er
+            INNER JOIN exam_repository_assignments era
+              ON era.exam_id = er.id
+             AND era.audience = 'employee'
+             AND era.status = 'active'
+            WHERE er.id = ? AND er.status = 'posted'
+              AND LOWER(era.role) = ?
+            LIMIT 1");
+        $stmt->bind_param('is', $postedExamId, $employeeRoleLower);
+    } elseif ($selectedDepartment !== '' && $selectedRole !== '') {
         $stmt = $conn->prepare("SELECT er.*
             FROM exam_repository er
             INNER JOIN exam_repository_assignments era
@@ -460,9 +504,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $passedInt = $passed ? 1 : 0;
 
         $attemptNumber = 1;
-        $takerType = 'applicant';
+        $takerTypeForStore = $takerType;
         $attemptStmt = $conn->prepare('SELECT COALESCE(MAX(attempt_number), 0) + 1 AS next_attempt FROM exam_results WHERE employee_id = ? AND exam_id = ? AND taker_type = ?');
-        $attemptStmt->bind_param('sis', $applicantId, $examId, $takerType);
+        $attemptStmt->bind_param('sis', $applicantId, $examId, $takerTypeForStore);
         $attemptStmt->execute();
         $attemptRes = $attemptStmt->get_result();
         $attemptNumber = (int)(($attemptRes ? $attemptRes->fetch_assoc()['next_attempt'] ?? 1 : 1));
@@ -471,9 +515,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         $attemptStmt->close();
 
-        $takerName = $applicantName !== '' ? $applicantName : 'Applicant';
+        $takerName = $takerType === 'employee'
+            ? trim((string)($_SESSION['fullname'] ?? $_SESSION['name'] ?? $_SESSION['employee_name'] ?? 'Employee'))
+            : ($applicantName !== '' ? $applicantName : 'Applicant');
+
+        $takerDepartment = $takerType === 'employee'
+            ? trim((string)($_SESSION['department'] ?? $_SESSION['Dept_id'] ?? ($exam['department'] ?? '')))
+            : $selectedDepartment;
+        $takerRole = $takerType === 'employee'
+            ? trim((string)($_SESSION['role'] ?? ($exam['roles'] ?? '')))
+            : $selectedRole;
+
         $insertStmt = $conn->prepare('INSERT INTO exam_results (employee_id, exam_id, score, total_questions, passed, time_taken, completed_at, attempt_number, taker_type, taker_name, taker_department, taker_role) VALUES (?, ?, ?, ?, ?, ?, NOW(), ?, ?, ?, ?, ?)');
-        $insertStmt->bind_param('sidiiiissss', $applicantId, $examId, $percent, $total, $passedInt, $timeTaken, $attemptNumber, $takerType, $takerName, $selectedDepartment, $selectedRole);
+        $insertStmt->bind_param('sidiiiissss', $applicantId, $examId, $percent, $total, $passedInt, $timeTaken, $attemptNumber, $takerTypeForStore, $takerName, $takerDepartment, $takerRole);
         $insertStmt->execute();
         $resultId = (int)$conn->insert_id;
         $insertStmt->close();
@@ -1134,7 +1188,14 @@ $conn->close();
         allowOutsideClick: false,
         allowEscapeKey: false
       }).then(() => {
-        window.location.href = 'assessment_uploaded.php';
+        const takerType = <?php echo json_encode($takerType, JSON_UNESCAPED_UNICODE); ?>;
+        const examId = <?php echo (int)($resultSummary ? ($exam['id'] ?? 0) : 0); ?>;
+
+        if (takerType === 'employee') {
+          window.location.href = '../../ESS/myexamination.php?completed=1&exam_id=' + encodeURIComponent(String(examId));
+        } else {
+          window.location.href = 'applicant_assessment.php';
+        }
       });
     </script>
   <?php endif; ?>
