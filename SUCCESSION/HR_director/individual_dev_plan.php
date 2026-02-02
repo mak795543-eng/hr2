@@ -10,8 +10,7 @@ if (!function_exists('h')) {
 }
 
 $employeeId = trim((string)($_GET['employee_id'] ?? ''));
-$viewOnlyRequested = (string)($_GET['view'] ?? '') === '1';
-$viewOnly = $viewOnlyRequested;
+$viewOnly = (string)($_GET['view'] ?? '') === '1';
 
 $successMessage = '';
 $errorMessage = '';
@@ -19,17 +18,6 @@ $errorMessage = '';
 if ($employeeId === '') {
     http_response_code(400);
     $errorMessage = 'Missing employee_id.';
-}
-
-if ($employeeId !== '' && $viewOnlyRequested) {
-    try {
-        $stmtVO = $pdo->prepare("SELECT idp_status FROM succession_submissions WHERE employee_id = ? LIMIT 1");
-        $stmtVO->execute([$employeeId]);
-        $voRow = $stmtVO->fetch(PDO::FETCH_ASSOC);
-        $viewOnly = $viewOnlyRequested && ((string)($voRow['idp_status'] ?? '') === 'Created');
-    } catch (Throwable $ignored) {
-        $viewOnly = $viewOnlyRequested;
-    }
 }
 
 if ($errorMessage === '' && $_SERVER['REQUEST_METHOD'] === 'POST' && !$viewOnly) {
@@ -40,11 +28,37 @@ if ($errorMessage === '' && $_SERVER['REQUEST_METHOD'] === 'POST' && !$viewOnly)
     $succTargetRole = trim((string)($_POST['succ_target_role'] ?? ''));
     $succReadinessLevel = trim((string)($_POST['succ_readiness_level'] ?? ''));
     $targetDateRaw = trim((string)($_POST['target_date'] ?? ''));
+    $succLeadershipFocus = trim((string)($_POST['succ_leadership_focus'] ?? ''));
+    $succStretchAssignments = trim((string)($_POST['succ_stretch_assignments'] ?? ''));
     $succMentorCoach = trim((string)($_POST['succ_mentor_coach'] ?? ''));
+    $succCoachingPlan = trim((string)($_POST['succ_coaching_plan'] ?? ''));
+    $succAssessmentPlan = trim((string)($_POST['succ_assessment_plan'] ?? ''));
+    $succFinalOutcome = trim((string)($_POST['succ_final_outcome'] ?? ''));
 
+    $trainingType = trim((string)($_POST['training_type'] ?? ''));
+    $trainingMode = trim((string)($_POST['training_mode'] ?? ''));
     $idpDeliveryMode = trim((string)($_POST['idp_delivery_mode'] ?? ''));
+    $trainingStartDate = trim((string)($_POST['training_start_date'] ?? ''));
+    $trainingStartTime = trim((string)($_POST['training_start_time'] ?? ''));
+    $trainingEndDate = trim((string)($_POST['training_end_date'] ?? ''));
+    $trainingEndTime = trim((string)($_POST['training_end_time'] ?? ''));
+
+    if ($idpDeliveryMode === '') {
+        $idpDeliveryMode = $trainingMode;
+    }
     if ($idpDeliveryMode !== 'Online' && $idpDeliveryMode !== 'Onsite' && $idpDeliveryMode !== 'Hybrid') {
         $idpDeliveryMode = 'Onsite';
+    }
+
+    $requestedStartStr = null;
+    $requestedEndStr = null;
+    if ($trainingStartDate !== '' && $trainingStartTime !== '' && $trainingEndDate !== '' && $trainingEndTime !== '') {
+        $tmpStart = DateTime::createFromFormat('Y-m-d H:i', $trainingStartDate . ' ' . $trainingStartTime);
+        $tmpEnd = DateTime::createFromFormat('Y-m-d H:i', $trainingEndDate . ' ' . $trainingEndTime);
+        if ($tmpStart && $tmpEnd) {
+            $requestedStartStr = $tmpStart->format('Y-m-d H:i:s');
+            $requestedEndStr = $tmpEnd->format('Y-m-d H:i:s');
+        }
     }
 
     $targetScore = null;
@@ -85,6 +99,21 @@ if ($errorMessage === '' && $_SERVER['REQUEST_METHOD'] === 'POST' && !$viewOnly)
             if ($succMentorCoach !== '') {
                 $metaLines[] = 'Assigned Mentor/Coach: ' . $succMentorCoach;
             }
+            if ($succFinalOutcome !== '') {
+                $metaLines[] = 'Final Succession Validation Outcome: ' . $succFinalOutcome;
+            }
+            if ($succLeadershipFocus !== '') {
+                $metaLines[] = 'Leadership & Strategic Competencies: ' . $norm($succLeadershipFocus);
+            }
+            if ($succStretchAssignments !== '') {
+                $metaLines[] = 'Stretch Assignments & Exposure: ' . $norm($succStretchAssignments);
+            }
+            if ($succCoachingPlan !== '') {
+                $metaLines[] = 'Coaching & Knowledge Transfer: ' . $norm($succCoachingPlan);
+            }
+            if ($succAssessmentPlan !== '') {
+                $metaLines[] = 'Readiness Assessment & Evaluation: ' . $norm($succAssessmentPlan);
+            }
             $metaLines[] = '';
 
             $developmentPlan = implode("\n", $metaLines) . trim((string)$developmentPlan);
@@ -103,8 +132,6 @@ if ($errorMessage === '' && $_SERVER['REQUEST_METHOD'] === 'POST' && !$viewOnly)
         );
         $stmt->execute([$developmentPlan, $targetScore, $targetDate, $employeeId]);
 
-        logAction($employeeId, 'Succession', 'IDP Created/Updated', 'IDP saved from Succession');
-
         try {
             $pdo->prepare(
                 "UPDATE requested_to_idp
@@ -120,10 +147,28 @@ if ($errorMessage === '' && $_SERVER['REQUEST_METHOD'] === 'POST' && !$viewOnly)
                     ss.employee_name,
                     ss.position,
                     ss.department,
-                    COALESCE(e.competency, ss.competency, 0) AS competency,
-                    COALESCE(e.status, ss.status, 'Retrain') AS status
+                    COALESCE(gs.competency, 0) AS competency,
+                    CASE
+                        WHEN COALESCE(gs.competency, 0) <= 20 THEN 'Retrain'
+                        WHEN COALESCE(gs.competency, 0) <= 40 THEN 'Reskilling'
+                        WHEN COALESCE(gs.competency, 0) <= 60 THEN 'Refresher Training'
+                        WHEN COALESCE(gs.competency, 0) <= 80 THEN 'Upskilling'
+                        ELSE 'Succession Ready'
+                    END AS status
              FROM succession_submissions ss
-             LEFT JOIN employees e ON e.employee_id = ss.employee_id
+             LEFT JOIN (
+                 SELECT ss2.employee_id,
+                        ss2.department,
+                        AVG(COALESCE(es2.skill_score, 0)) AS competency
+                 FROM succession_submissions ss2
+                 JOIN skills s2
+                   ON s2.category = 'General Skills'
+                  AND s2.department = ss2.department
+                 LEFT JOIN employee_skills es2
+                   ON es2.employee_id = ss2.employee_id
+                  AND es2.skill_id = s2.id
+                 GROUP BY ss2.employee_id, ss2.department
+             ) gs ON gs.employee_id = ss.employee_id AND gs.department = ss.department
              WHERE ss.employee_id = ?"
         );
         $stmt2->execute([$employeeId]);
@@ -160,6 +205,224 @@ if ($errorMessage === '' && $_SERVER['REQUEST_METHOD'] === 'POST' && !$viewOnly)
                 $targetDate,
                 $idpDeliveryMode,
             ]);
+
+            $updReq = $pdo->prepare(
+                "UPDATE individual_development_plans
+                 SET requested_training_type = ?,
+                     requested_training_mode = ?,
+                     requested_start_datetime = ?,
+                     requested_end_datetime = ?
+                 WHERE employee_id = ?"
+            );
+            $updReq->execute([
+                $trainingType !== '' ? $trainingType : null,
+                $trainingMode !== '' ? $trainingMode : null,
+                $requestedStartStr,
+                $requestedEndStr,
+                $employeeId
+            ]);
+        }
+
+        if ($submitAction === 'request_training') {
+            if ($idpDeliveryMode === 'Online') {
+                try {
+                    $pdo->beginTransaction();
+
+                    $stmtFetch = $pdo->prepare(
+                        "SELECT *
+                         FROM individual_development_plans
+                         WHERE employee_id = ?
+                         LIMIT 1
+                         FOR UPDATE"
+                    );
+                    $stmtFetch->execute([$employeeId]);
+                    $idpRow = $stmtFetch->fetch(PDO::FETCH_ASSOC);
+
+                    if (!$idpRow) {
+                        $pdo->rollBack();
+                        $errorMessage = 'IDP record not found.';
+                    } else {
+                        $now = (new DateTime())->format('Y-m-d H:i:s');
+
+                        $stmtInsert = $pdo->prepare(
+                            "INSERT INTO requested_idps_repository
+                                (id, employee_id, employee_name, position, department, competency, succession_status,
+                                 development_plan, target_score, target_date, delivery_mode,
+                                 requested_training_type, requested_training_mode, requested_start_datetime, requested_end_datetime,
+                                 idp_status, training_requested_at, learning_requested_at, created_at, updated_at)
+                             VALUES
+                                (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'requested', ?, ?, ?, ?)"
+                        );
+                        $stmtInsert->execute([
+                            (int)$idpRow['id'],
+                            $idpRow['employee_id'],
+                            $idpRow['employee_name'],
+                            $idpRow['position'],
+                            $idpRow['department'],
+                            $idpRow['competency'],
+                            $idpRow['succession_status'],
+                            $idpRow['development_plan'],
+                            $idpRow['target_score'],
+                            $idpRow['target_date'],
+                            $idpRow['delivery_mode'],
+                            $idpRow['requested_training_type'],
+                            $idpRow['requested_training_mode'],
+                            $idpRow['requested_start_datetime'],
+                            $idpRow['requested_end_datetime'],
+                            $idpRow['training_requested_at'],
+                            $now,
+                            $idpRow['created_at'],
+                            $now,
+                        ]);
+
+                        $pdo->prepare("DELETE FROM individual_development_plans WHERE employee_id = ?")->execute([$employeeId]);
+                        $pdo->commit();
+
+                        header('Location: individual_development_plans.php?ok=learning_requested');
+                        exit;
+                    }
+                } catch (Throwable $e) {
+                    if ($pdo->inTransaction()) {
+                        $pdo->rollBack();
+                    }
+                    error_log('learning request move error: ' . $e->getMessage());
+                    $errorMessage = 'Failed to request learning.';
+                }
+            }
+
+            if ($trainingType === '' || $trainingMode === '' || $trainingStartDate === '' || $trainingStartTime === '' || $trainingEndDate === '' || $trainingEndTime === '') {
+                $errorMessage = 'Please complete the Training Request fields before requesting training.';
+            } else {
+                $startDT = DateTime::createFromFormat('Y-m-d H:i', $trainingStartDate . ' ' . $trainingStartTime);
+                $endDT = DateTime::createFromFormat('Y-m-d H:i', $trainingEndDate . ' ' . $trainingEndTime);
+
+                if (!$startDT || !$endDT) {
+                    $errorMessage = 'Invalid training schedule.';
+                } elseif ($endDT <= $startDT) {
+                    $errorMessage = 'End date/time must be later than start date/time.';
+                } else {
+                    try {
+                        require_once __DIR__ . '/../../TRAINING/TRAINING/db.php';
+
+                        $employeeNameForTitle = (string)($src['employee_name'] ?? ($employeeId !== '' ? $employeeId : ''));
+                        $trainingTitle = 'IDP Training Request - ' . $employeeNameForTitle;
+
+                        $desc = trim((string)$developmentPlan);
+                        if ($desc === '') {
+                            $desc = 'IDP Training Request';
+                        }
+
+                        $targetAudience = 'Specific Employee';
+                        $category = 'IDP';
+                        $participantsNeeded = 1;
+                        $status = 'Under Review';
+                        $needBudget = 0;
+                        $needItems = 0;
+                        $needFacility = 0;
+
+                        $stmtT = $conn->prepare(
+                            "INSERT INTO training_programs
+                                (training_title, training_type, training_mode, description, target_audience, category, participants_needed, start_datetime, end_datetime, status, need_budget, need_items, need_facility)
+                             VALUES
+                                (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                        );
+
+                        $startStr = $startDT->format('Y-m-d H:i:s');
+                        $endStr = $endDT->format('Y-m-d H:i:s');
+
+                        $stmtT->bind_param(
+                            'ssssssisssiii',
+                            $trainingTitle,
+                            $trainingType,
+                            $trainingMode,
+                            $desc,
+                            $targetAudience,
+                            $category,
+                            $participantsNeeded,
+                            $startStr,
+                            $endStr,
+                            $status,
+                            $needBudget,
+                            $needItems,
+                            $needFacility
+                        );
+                        $stmtT->execute();
+
+                        try {
+                            $pdo->beginTransaction();
+
+                            $stmtFetch = $pdo->prepare(
+                                "SELECT *
+                                 FROM individual_development_plans
+                                 WHERE employee_id = ?
+                                 LIMIT 1
+                                 FOR UPDATE"
+                            );
+                            $stmtFetch->execute([$employeeId]);
+                            $idpRow = $stmtFetch->fetch(PDO::FETCH_ASSOC);
+
+                            if (!$idpRow) {
+                                $pdo->rollBack();
+                                $errorMessage = 'IDP record not found.';
+                            } else {
+                                $now = (new DateTime())->format('Y-m-d H:i:s');
+                                $learningRequestedAt = $idpRow['learning_requested_at'];
+                                $trainingRequestedAt = $now;
+
+                                if ($idpDeliveryMode === 'Hybrid') {
+                                    $learningRequestedAt = $now;
+                                }
+
+                                $stmtInsert = $pdo->prepare(
+                                    "INSERT INTO requested_idps_repository
+                                        (id, employee_id, employee_name, position, department, competency, succession_status,
+                                         development_plan, target_score, target_date, delivery_mode,
+                                         requested_training_type, requested_training_mode, requested_start_datetime, requested_end_datetime,
+                                         idp_status, training_requested_at, learning_requested_at, created_at, updated_at)
+                                     VALUES
+                                        (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'requested', ?, ?, ?, ?)"
+                                );
+                                $stmtInsert->execute([
+                                    (int)$idpRow['id'],
+                                    $idpRow['employee_id'],
+                                    $idpRow['employee_name'],
+                                    $idpRow['position'],
+                                    $idpRow['department'],
+                                    $idpRow['competency'],
+                                    $idpRow['succession_status'],
+                                    $idpRow['development_plan'],
+                                    $idpRow['target_score'],
+                                    $idpRow['target_date'],
+                                    $idpRow['delivery_mode'],
+                                    $idpRow['requested_training_type'],
+                                    $idpRow['requested_training_mode'],
+                                    $idpRow['requested_start_datetime'],
+                                    $idpRow['requested_end_datetime'],
+                                    $trainingRequestedAt,
+                                    $learningRequestedAt,
+                                    $idpRow['created_at'],
+                                    $now,
+                                ]);
+
+                                $pdo->prepare("DELETE FROM individual_development_plans WHERE employee_id = ?")->execute([$employeeId]);
+                                $pdo->commit();
+
+                                header('Location: individual_development_plans.php?ok=training_requested');
+                                exit;
+                            }
+                        } catch (Throwable $e) {
+                            if ($pdo->inTransaction()) {
+                                $pdo->rollBack();
+                            }
+                            error_log('training request move error: ' . $e->getMessage());
+                            $errorMessage = 'Failed to create training request.';
+                        }
+                    } catch (Throwable $e) {
+                        error_log('training request insert error: ' . $e->getMessage());
+                        $errorMessage = 'Failed to create training request.';
+                    }
+                }
+            }
         }
 
         if ($errorMessage === '') {
@@ -180,8 +443,14 @@ if ($employeeId !== '') {
                 ss.employee_name,
                 ss.position,
                 ss.department,
-                COALESCE(e.competency, ss.competency, 0) AS competency,
-                COALESCE(e.status, ss.status, 'Retrain') AS status,
+                COALESCE(gs.competency, 0) AS competency,
+                CASE
+                    WHEN COALESCE(gs.competency, 0) <= 20 THEN 'Retrain'
+                    WHEN COALESCE(gs.competency, 0) <= 40 THEN 'Reskilling'
+                    WHEN COALESCE(gs.competency, 0) <= 60 THEN 'Refresher Training'
+                    WHEN COALESCE(gs.competency, 0) <= 80 THEN 'Upskilling'
+                    ELSE 'Succession Ready'
+                END AS status,
                 ss.development_plan,
                 ss.target_score,
                 ss.target_date,
@@ -189,7 +458,19 @@ if ($employeeId !== '') {
                 ss.idp_created_at,
                 ss.created_at
          FROM succession_submissions ss
-         LEFT JOIN employees e ON e.employee_id = ss.employee_id
+         LEFT JOIN (
+             SELECT ss2.employee_id,
+                    ss2.department,
+                    AVG(COALESCE(es2.skill_score, 0)) AS competency
+             FROM succession_submissions ss2
+             JOIN skills s2
+               ON s2.category = 'General Skills'
+              AND s2.department = ss2.department
+             LEFT JOIN employee_skills es2
+               ON es2.employee_id = ss2.employee_id
+              AND es2.skill_id = s2.id
+             GROUP BY ss2.employee_id, ss2.department
+         ) gs ON gs.employee_id = ss.employee_id AND gs.department = ss.department
          WHERE ss.employee_id = ?"
     );
     $stmt->execute([$employeeId]);
@@ -198,10 +479,6 @@ if ($employeeId !== '') {
 if (!$row) {
     http_response_code(404);
     $errorMessage = 'Employee record not found in Succession Submissions.';
-}
-
-if ($row && $viewOnlyRequested) {
-    $viewOnly = $viewOnlyRequested && ((string)($row['idp_status'] ?? '') === 'Created');
 }
 
 $employeeStatus = (string)($row['status'] ?? '');
@@ -220,80 +497,33 @@ $prefillPlan = (string)($row['development_plan'] ?? '');
 $succTargetRoleValue = $_SERVER['REQUEST_METHOD'] === 'POST' ? (string)($_POST['succ_target_role'] ?? '') : $extractMeta($prefillPlan, 'Target Succession Role');
 $succReadinessLevelValue = $_SERVER['REQUEST_METHOD'] === 'POST' ? (string)($_POST['succ_readiness_level'] ?? '') : $extractMeta($prefillPlan, 'Readiness Level');
 $succMentorCoachValue = $_SERVER['REQUEST_METHOD'] === 'POST' ? (string)($_POST['succ_mentor_coach'] ?? '') : $extractMeta($prefillPlan, 'Assigned Mentor/Coach');
+$succFinalOutcomeValue = $_SERVER['REQUEST_METHOD'] === 'POST' ? (string)($_POST['succ_final_outcome'] ?? '') : $extractMeta($prefillPlan, 'Final Succession Validation Outcome');
+
+$succLeadershipFocusValue = $_SERVER['REQUEST_METHOD'] === 'POST' ? (string)($_POST['succ_leadership_focus'] ?? '') : $extractMeta($prefillPlan, 'Leadership & Strategic Competencies');
+$succStretchAssignmentsValue = $_SERVER['REQUEST_METHOD'] === 'POST' ? (string)($_POST['succ_stretch_assignments'] ?? '') : $extractMeta($prefillPlan, 'Stretch Assignments & Exposure');
+$succCoachingPlanValue = $_SERVER['REQUEST_METHOD'] === 'POST' ? (string)($_POST['succ_coaching_plan'] ?? '') : $extractMeta($prefillPlan, 'Coaching & Knowledge Transfer');
+$succAssessmentPlanValue = $_SERVER['REQUEST_METHOD'] === 'POST' ? (string)($_POST['succ_assessment_plan'] ?? '') : $extractMeta($prefillPlan, 'Readiness Assessment & Evaluation');
 
 $targetDateValue = $_SERVER['REQUEST_METHOD'] === 'POST' ? (string)($_POST['target_date'] ?? '') : (string)($row['target_date'] ?? '');
 
-$kpiBreakdown = [];
-$kpiComputed = [];
-$kpiByName = [];
-$gapKpiNames = [];
-$kpiPeriod = '';
+$generalSkillsBreakdown = [];
 if ($row) {
     try {
-        ensureKpiSchema();
-        ensureCompetencyCriteriaSchema();
-        $kpiPeriod = date('Y') . '-Q' . (string)ceil((int)date('n') / 3);
-        seedMissingKpiEvaluations((string)($row['employee_id'] ?? ''), $kpiPeriod);
-
-        $criteriaReq = [];
-        try {
-            $stmtC = $pdo->query('SELECT name, required_level FROM competency_criteria');
-            $critRows = $stmtC ? $stmtC->fetchAll(PDO::FETCH_ASSOC) : [];
-            foreach (($critRows ?? []) as $c) {
-                $criteriaReq[(string)($c['name'] ?? '')] = (float)($c['required_level'] ?? 0);
-            }
-        } catch (Throwable $ignored) {
-            $criteriaReq = [];
-        }
-
-        $stmtK = $pdo->prepare(
-            "SELECT k.kpi_name,
-                    GROUP_CONCAT(CAST(s.score AS CHAR) ORDER BY s.id SEPARATOR ', ') AS scores_text,
-                    AVG(COALESCE(s.score, 0)) AS avg_score
-             FROM employee_kpi_scores s
-             JOIN kpis k ON k.id = s.kpi_id
-             WHERE s.employee_id = ? AND s.evaluation_period = ?
-             GROUP BY k.kpi_name
-             ORDER BY k.kpi_name ASC"
+        $stmtSkills = $pdo->prepare(
+            "SELECT s.skill_name,
+                    COALESCE(es.skill_score, 0) AS skill_score,
+                    es.assessment_date
+             FROM skills s
+             LEFT JOIN employee_skills es
+               ON es.skill_id = s.id AND es.employee_id = ?
+             WHERE s.category = 'General Skills'
+               AND s.department = ?
+             ORDER BY s.skill_name ASC"
         );
-        $stmtK->execute([(string)($row['employee_id'] ?? ''), $kpiPeriod]);
-        $kpiBreakdown = $stmtK->fetchAll(PDO::FETCH_ASSOC);
-
-        $maxScore = 5.0;
-        foreach (($kpiBreakdown ?? []) as $k) {
-            $kpiName = (string)($k['kpi_name'] ?? '');
-            $avgScore = is_numeric($k['avg_score'] ?? null) ? (float)$k['avg_score'] : 0.0;
-            $kpiPct = round(max(0.0, min(100.0, ($avgScore / $maxScore) * 100.0)), 1);
-            $reqPct = isset($criteriaReq[$kpiName]) ? (float)$criteriaReq[$kpiName] : 80.0;
-            if ($reqPct < 0) $reqPct = 0.0;
-            if ($reqPct > 100) $reqPct = 100.0;
-            $gapPct = round(max(0.0, $reqPct - $kpiPct), 1);
-
-            $kpiComputed[] = [
-                'kpi_name' => $kpiName,
-                'scores_text' => (string)($k['scores_text'] ?? ''),
-                'avg_score' => $avgScore,
-                'kpi_pct' => $kpiPct,
-                'required_pct' => round($reqPct, 1),
-                'gap_pct' => $gapPct,
-            ];
-
-            $kpiByName[$kpiName] = [
-                'kpi_pct' => $kpiPct,
-                'required_pct' => round($reqPct, 1),
-                'gap_pct' => $gapPct,
-            ];
-
-            if ($gapPct > 0) {
-                $gapKpiNames[$kpiName] = true;
-            }
-        }
+        $stmtSkills->execute([(string)($row['employee_id'] ?? ''), (string)($row['department'] ?? '')]);
+        $generalSkillsBreakdown = $stmtSkills->fetchAll(PDO::FETCH_ASSOC);
     } catch (Throwable $e) {
-        $kpiBreakdown = [];
-        $kpiComputed = [];
-        $kpiByName = [];
-        $gapKpiNames = [];
-        $kpiPeriod = '';
+        $generalSkillsBreakdown = [];
     }
 }
 
@@ -306,46 +536,32 @@ if ($row) {
     );
 }
 
-if ($row && count($suggestedPlans) === 0) {
-    try {
-        $st = (string)($row['status'] ?? '');
-        if ($st !== '') {
-            $stmtTpl = $pdo->prepare(
-                "SELECT c.name AS criteria_name, t.plan_text
-                 FROM development_plan_templates t
-                 JOIN development_plan_criteria c ON c.id = t.criteria_id
-                 WHERE t.status = ?
-                 ORDER BY c.name ASC"
-            );
-            $stmtTpl->execute([$st]);
-            $tplRows = $stmtTpl->fetchAll(PDO::FETCH_ASSOC) ?: [];
-            foreach ($tplRows as $tr) {
-                $critName = trim((string)($tr['criteria_name'] ?? ''));
-                $planText = (string)($tr['plan_text'] ?? '');
-                if ($critName === '' || trim($planText) === '') {
-                    continue;
-                }
-                $suggestedPlans[$critName] = [
-                    'plan_text' => $planText,
-                    'delivery_mode' => 'Onsite',
-                ];
-            }
-        }
-    } catch (Throwable $e) {
-        $suggestedPlans = $suggestedPlans;
-    }
-}
-
-$idpDeliveryModeValue = $_SERVER['REQUEST_METHOD'] === 'POST' ? (string)($_POST['idp_delivery_mode'] ?? 'Onsite') : 'Onsite';
+$trainingTypeValue = $_SERVER['REQUEST_METHOD'] === 'POST' ? (string)($_POST['training_type'] ?? '') : '';
+$trainingModeValue = $_SERVER['REQUEST_METHOD'] === 'POST' ? (string)($_POST['training_mode'] ?? 'Onsite') : 'Onsite';
+$idpDeliveryModeValue = $_SERVER['REQUEST_METHOD'] === 'POST' ? (string)($_POST['idp_delivery_mode'] ?? $trainingModeValue) : $trainingModeValue;
 $idpDeliveryModeValue = in_array($idpDeliveryModeValue, ['Online','Onsite','Hybrid'], true) ? $idpDeliveryModeValue : 'Onsite';
-
+$trainingStartDateValue = $_SERVER['REQUEST_METHOD'] === 'POST' ? (string)($_POST['training_start_date'] ?? '') : '';
+$trainingStartTimeValue = $_SERVER['REQUEST_METHOD'] === 'POST' ? (string)($_POST['training_start_time'] ?? '') : '';
+$trainingEndDateValue = $_SERVER['REQUEST_METHOD'] === 'POST' ? (string)($_POST['training_end_date'] ?? '') : '';
+$trainingEndTimeValue = $_SERVER['REQUEST_METHOD'] === 'POST' ? (string)($_POST['training_end_time'] ?? '') : '';
 require('../../partials/header.php');
 ?>
 
 <body class="bg-gray-50 min-h-screen">
 
-  <main class="p-6">
-    <div class="max-w-4xl mx-auto">
+  <div class="flex h-screen">
+    <!-- Sidebar -->
+    <?php 
+    // Use relative path or absolute path based on your directory structure
+    include '../../USM/sidebarr.php'; 
+    ?>
+    <!-- Content Area -->
+    <div class="flex flex-col flex-1 overflow-hidden">
+      <!-- Navbar -->
+      <?php include '../../USM/navbar.php'; ?>
+
+      <main class="flex-1 overflow-auto p-6">
+        <div class="max-w-4xl mx-auto">
             <div class="flex items-center justify-between mb-6">
                 <h1 class="text-2xl font-bold text-gray-900"><?php echo $isSuccessionReady ? 'Succession Ready IDP' : 'Individual Development Plan'; ?></h1>
                 <div class="flex items-center gap-4">
@@ -380,7 +596,7 @@ require('../../partials/header.php');
                         <input type="text" readonly value="<?php echo h($row['department']); ?>" class="mt-1 w-full border border-gray-300 rounded-md p-2 text-sm bg-gray-50 text-gray-900" />
                     </div>
                     <div>
-                        <label class="block text-xs font-semibold text-gray-500">KPI %</label>
+                        <label class="block text-xs font-semibold text-gray-500">General Skills %</label>
                         <input type="text" readonly value="<?php echo number_format((float)$row['competency'], 1); ?>%" class="mt-1 w-full border border-gray-300 rounded-md p-2 text-sm bg-gray-50 text-gray-900" />
                     </div>
                     <div>
@@ -396,40 +612,25 @@ require('../../partials/header.php');
 
             <div class="bg-white border border-gray-200 rounded-lg p-5 shadow-sm mb-6">
                 <div class="flex items-center justify-between">
-                    <div class="text-sm font-semibold text-gray-900">KPI Evaluation Summary</div>
-                    <div class="text-xs text-gray-500"><?php echo $kpiPeriod !== '' ? ('Period: ' . h($kpiPeriod)) : ''; ?></div>
+                    <div class="text-sm font-semibold text-gray-900">General Skills Breakdown</div>
+                    <div class="text-xs text-gray-500">Basis (Critical Roles)</div>
                 </div>
                 <div class="mt-3 overflow-auto">
                     <table class="min-w-full text-sm">
                         <thead>
                             <tr class="text-left text-xs font-semibold text-gray-500 border-b">
-                                <th class="py-2 pr-3">KPI</th>
-                                <th class="py-2 pr-3">Scores</th>
-                                <th class="py-2 text-right">Avg</th>
-                                <th class="py-2 text-right">KPI %</th>
-                                <th class="py-2 text-right">Required %</th>
-                                <th class="py-2 text-right">Gap %</th>
+                                <th class="py-2 pr-3">Skill</th>
+                                <th class="py-2 text-right">%</th>
                             </tr>
                         </thead>
                         <tbody>
-                            <?php if (empty($kpiComputed)): ?>
-                                <tr><td colspan="6" class="py-3 text-gray-500">No KPI evaluations found.</td></tr>
+                            <?php if (empty($generalSkillsBreakdown)): ?>
+                                <tr><td colspan="2" class="py-3 text-gray-500">No skills found.</td></tr>
                             <?php else: ?>
-                                <?php foreach ($kpiComputed as $k): ?>
-                                    <?php
-                                        $avgScore = is_numeric($k['avg_score'] ?? null) ? (float)$k['avg_score'] : 0.0;
-                                        $kpiPct = is_numeric($k['kpi_pct'] ?? null) ? (float)$k['kpi_pct'] : 0.0;
-                                        $reqPct = is_numeric($k['required_pct'] ?? null) ? (float)$k['required_pct'] : 0.0;
-                                        $gapPct = is_numeric($k['gap_pct'] ?? null) ? (float)$k['gap_pct'] : 0.0;
-                                        $gapClass = $gapPct > 0 ? 'text-red-600 font-semibold' : 'text-emerald-600 font-semibold';
-                                    ?>
+                                <?php foreach ($generalSkillsBreakdown as $gs): ?>
                                     <tr class="border-b">
-                                        <td class="py-2 pr-3"><?php echo h($k['kpi_name'] ?? ''); ?></td>
-                                        <td class="py-2 pr-3"><?php echo h($k['scores_text'] ?? ''); ?></td>
-                                        <td class="py-2 text-right"><?php echo number_format($avgScore, 2); ?></td>
-                                        <td class="py-2 text-right"><?php echo number_format($kpiPct, 1); ?>%</td>
-                                        <td class="py-2 text-right"><?php echo number_format($reqPct, 1); ?>%</td>
-                                        <td class="py-2 text-right <?php echo $gapClass; ?>"><?php echo number_format($gapPct, 1); ?>%</td>
+                                        <td class="py-2 pr-3"><?php echo h($gs['skill_name'] ?? ''); ?></td>
+                                        <td class="py-2 text-right"><?php echo number_format((float)($gs['skill_score'] ?? 0), 1); ?>%</td>
                                     </tr>
                                 <?php endforeach; ?>
                             <?php endif; ?>
@@ -474,20 +675,42 @@ require('../../partials/header.php');
                                 <input type="text" name="succ_mentor_coach" value="<?php echo h($succMentorCoachValue); ?>" class="w-full border border-gray-300 rounded-md p-3 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900" <?php echo $viewOnly ? 'readonly' : ''; ?> />
                             </div>
                         </div>
+
+                        <div class="grid grid-cols-1 gap-4 mt-4">
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-800 mb-2">Leadership &amp; Strategic Competencies</label>
+                                <textarea name="succ_leadership_focus" rows="3" class="w-full border border-gray-300 rounded-md p-3 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900" <?php echo $viewOnly ? 'readonly' : ''; ?>><?php echo h($succLeadershipFocusValue); ?></textarea>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-800 mb-2">Stretch Assignments &amp; Exposure (OIC, project leadership, strategic meetings)</label>
+                                <textarea name="succ_stretch_assignments" rows="3" class="w-full border border-gray-300 rounded-md p-3 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900" <?php echo $viewOnly ? 'readonly' : ''; ?>><?php echo h($succStretchAssignmentsValue); ?></textarea>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-800 mb-2">Coaching &amp; Knowledge Transfer Plan</label>
+                                <textarea name="succ_coaching_plan" rows="3" class="w-full border border-gray-300 rounded-md p-3 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900" <?php echo $viewOnly ? 'readonly' : ''; ?>><?php echo h($succCoachingPlanValue); ?></textarea>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-800 mb-2">Readiness Assessment &amp; Validation</label>
+                                <textarea name="succ_assessment_plan" rows="3" class="w-full border border-gray-300 rounded-md p-3 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900" <?php echo $viewOnly ? 'readonly' : ''; ?>><?php echo h($succAssessmentPlanValue); ?></textarea>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-800 mb-2">Final Succession Validation Outcome</label>
+                                <select name="succ_final_outcome" class="w-full border border-gray-300 rounded-md p-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-gray-900" <?php echo $viewOnly ? 'disabled' : ''; ?>>
+                                    <option value="" <?php echo $succFinalOutcomeValue === '' ? 'selected' : ''; ?>>Pending</option>
+                                    <option value="Validated" <?php echo $succFinalOutcomeValue === 'Validated' ? 'selected' : ''; ?>>Validated</option>
+                                    <option value="Not Validated" <?php echo $succFinalOutcomeValue === 'Not Validated' ? 'selected' : ''; ?>>Not Validated</option>
+                                </select>
+                            </div>
+                        </div>
                     </div>
                 <?php endif; ?>
-                <div class="mb-4">
-                    <label class="block text-sm font-semibold text-gray-800 mb-2"><?php echo $isSuccessionReady ? 'Strategic Development Activities' : 'Suggested Development Plans'; ?></label>
-                    <div id="suggested_plans" class="space-y-3">
-                        <?php if (count($suggestedPlans) === 0): ?>
-                            <div class="text-sm text-gray-500">No development plans available.</div>
-                        <?php else: ?>
+                <?php if (count($suggestedPlans) > 0): ?>
+                    <div class="mb-4">
+                        <label class="block text-sm font-semibold text-gray-800 mb-2"><?php echo $isSuccessionReady ? 'Strategic Development Activities' : 'Suggested Development Plans'; ?></label>
+                        <div id="suggested_plans" class="space-y-3">
                             <?php $skillIndex = 0; ?>
                             <?php foreach ($suggestedPlans as $skillName => $planData): ?>
                                 <?php
-                                    if (!isset($kpiByName[(string)$skillName])) {
-                                        continue;
-                                    }
                                     $skillIndex++;
                                     $skillId = 's' . $skillIndex;
                                     $planText = is_array($planData) ? (string)($planData['plan_text'] ?? '') : (string)$planData;
@@ -497,16 +720,11 @@ require('../../partials/header.php');
                                     }
                                     $items = function_exists('splitPlanItems') ? splitPlanItems($planText) : [trim((string)$planText)];
                                     $items = array_values(array_filter(array_map('trim', $items), function ($v) { return (string)$v !== ''; }));
-
-                                    $canSelect = isset($gapKpiNames[(string)$skillName]);
-                                    $kpiPct = (float)($kpiByName[(string)$skillName]['kpi_pct'] ?? 0);
-                                    $reqPct = (float)($kpiByName[(string)$skillName]['required_pct'] ?? 0);
                                 ?>
                                 <div class="border border-gray-200 rounded-md p-3">
                                     <label class="flex items-center gap-2 text-sm font-semibold text-gray-900">
-                                        <input type="checkbox" class="skill-checkbox" data-skill-id="<?php echo h($skillId); ?>" data-skill-name="<?php echo h($skillName); ?>" data-delivery-mode="<?php echo h($deliveryMode); ?>" <?php echo ($viewOnly || !$canSelect) ? 'disabled' : ''; ?> />
+                                        <input type="checkbox" class="skill-checkbox" data-skill-id="<?php echo h($skillId); ?>" data-skill-name="<?php echo h($skillName); ?>" data-delivery-mode="<?php echo h($deliveryMode); ?>" <?php echo $viewOnly ? 'disabled' : ''; ?> />
                                         <span><?php echo h($skillName); ?></span>
-                                        <span class="ml-auto text-xs font-semibold text-gray-600"><?php echo number_format($kpiPct, 1); ?>% / <?php echo number_format($reqPct, 1); ?>%</span>
                                     </label>
 
                                     <div class="mt-2 pl-6 space-y-1 hidden" data-skill-items="<?php echo h($skillId); ?>">
@@ -519,9 +737,9 @@ require('../../partials/header.php');
                                     </div>
                                 </div>
                             <?php endforeach; ?>
-                        <?php endif; ?>
+                        </div>
                     </div>
-                </div>
+                <?php endif; ?>
 
                 <div class="mb-4">
                     <label class="block text-sm font-semibold text-gray-800 mb-2"><?php echo $isSuccessionReady ? 'Strategic Development Activity Plan' : 'Development Plan'; ?></label>
@@ -536,6 +754,49 @@ require('../../partials/header.php');
                     <div>
                         <label class="block text-sm font-semibold text-gray-800 mb-2">Target Score (%)</label>
                         <input type="number" step="0.1" min="0" max="100" name="target_score" value="<?php echo h($row['target_score'] ?? ''); ?>" class="w-full border border-gray-300 rounded-md p-3 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900" <?php echo $viewOnly ? 'readonly' : ''; ?> />
+                    </div>
+                </div>
+
+                <div class="border-t border-gray-200 pt-6 mb-6">
+                    <div class="text-sm font-semibold text-gray-900 mb-4"><?php echo $isSuccessionReady ? 'Strategic Development Activity Request' : 'Training Request'; ?></div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-800 mb-2"><?php echo $isSuccessionReady ? 'Activity Type' : 'Training Type'; ?></label>
+                            <select name="training_type" class="w-full border border-gray-300 rounded-md p-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-gray-900" <?php echo $viewOnly ? 'disabled' : ''; ?>>
+                                <option value="" <?php echo $trainingTypeValue === '' ? 'selected' : ''; ?> disabled>Select training type</option>
+                                <option value="Orientation" <?php echo $trainingTypeValue === 'Orientation' ? 'selected' : ''; ?>>Orientation</option>
+                                <option value="Training" <?php echo $trainingTypeValue === 'Training' ? 'selected' : ''; ?>>Training</option>
+                                <option value="Seminar" <?php echo $trainingTypeValue === 'Seminar' ? 'selected' : ''; ?>>Seminar</option>
+                                <option value="Workshop" <?php echo $trainingTypeValue === 'Workshop' ? 'selected' : ''; ?>>Workshop</option>
+                                <option value="Refresher" <?php echo $trainingTypeValue === 'Refresher' ? 'selected' : ''; ?>>Refresher</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-800 mb-2"><?php echo $isSuccessionReady ? 'Activity Mode' : 'Training Mode'; ?></label>
+                            <select name="training_mode" class="w-full border border-gray-300 rounded-md p-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-gray-900" <?php echo $viewOnly ? 'disabled' : ''; ?>>
+                                <option value="Onsite" <?php echo $trainingModeValue === 'Onsite' ? 'selected' : ''; ?>>Onsite</option>
+                                <option value="Online" <?php echo $trainingModeValue === 'Online' ? 'selected' : ''; ?>>Online</option>
+                                <option value="Hybrid" <?php echo $trainingModeValue === 'Hybrid' ? 'selected' : ''; ?>>Hybrid</option>
+                            </select>
+                        </div>
+                        <div class="md:col-span-2">
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-sm font-semibold text-gray-800 mb-2">Start Date / Time</label>
+                                    <div class="grid grid-cols-2 gap-3">
+                                        <input type="date" name="training_start_date" value="<?php echo h($trainingStartDateValue); ?>" class="w-full border border-gray-300 rounded-md p-3 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900" <?php echo $viewOnly ? 'readonly' : ''; ?> />
+                                        <input type="time" name="training_start_time" value="<?php echo h($trainingStartTimeValue); ?>" class="w-full border border-gray-300 rounded-md p-3 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900" <?php echo $viewOnly ? 'readonly' : ''; ?> />
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-semibold text-gray-800 mb-2">End Date / Time</label>
+                                    <div class="grid grid-cols-2 gap-3">
+                                        <input type="date" name="training_end_date" value="<?php echo h($trainingEndDateValue); ?>" class="w-full border border-gray-300 rounded-md p-3 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900" <?php echo $viewOnly ? 'readonly' : ''; ?> />
+                                        <input type="time" name="training_end_time" value="<?php echo h($trainingEndTimeValue); ?>" class="w-full border border-gray-300 rounded-md p-3 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900" <?php echo $viewOnly ? 'readonly' : ''; ?> />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -559,6 +820,7 @@ require('../../partials/header.php');
             var bubblesInner = document.getElementById('development_plan_bubbles_inner');
             var bubblesEmpty = document.getElementById('development_plan_bubbles_empty');
             var deliveryModeHidden = document.getElementById('idp_delivery_mode');
+            var trainingModeSelect = document.querySelector('select[name="training_mode"]');
             if (!container || !planInput || !bubblesInner || !bubblesEmpty) return;
 
             var isViewOnly = planInput.hasAttribute('readonly');
@@ -639,6 +901,7 @@ require('../../partials/header.php');
                     selectedMode = 'Hybrid';
                 }
                 if (selectedMode !== '') {
+                    if (trainingModeSelect) trainingModeSelect.value = selectedMode;
                     if (deliveryModeHidden) deliveryModeHidden.value = selectedMode;
                 }
             }
@@ -677,8 +940,43 @@ require('../../partials/header.php');
         })();
     </script>
 
-    </div>
-  </main>
+    <script>
+        (function () {
+            var form = document.querySelector('form[method="post"]');
+            if (!form) return;
 
- </body>
- </html>
+            var deliveryModeHidden = document.getElementById('idp_delivery_mode');
+
+            var reqFields = [
+                'training_type',
+                'training_mode',
+                'training_start_date',
+                'training_start_time',
+                'training_end_date',
+                'training_end_time'
+            ];
+
+            function setTrainingRequired(on) {
+                reqFields.forEach(function (name) {
+                    var el = form.querySelector('[name="' + name + '"]');
+                    if (!el) return;
+                    if (on) {
+                        el.setAttribute('required', 'required');
+                    } else {
+                        el.removeAttribute('required');
+                    }
+                });
+            }
+
+            form.addEventListener('submit', function (e) {
+                var submitter = e.submitter;
+                var action = submitter ? String(submitter.value || '') : '';
+                var dm = deliveryModeHidden ? String(deliveryModeHidden.value || '') : '';
+                setTrainingRequired(action === 'request_training' && dm !== 'Online');
+            });
+        })();
+    </script>
+    </div>
+    </main>
+  </div>
+  <?php require('../../partials/footer.php') ?>

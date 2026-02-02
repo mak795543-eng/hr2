@@ -735,48 +735,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         $stmt->execute();
         $program = $stmt->get_result()->fetch_assoc();
 
-        $idpRequestId = (int)($_POST['idp_request_id'] ?? 0);
-        if ($idpRequestId > 0) {
-            try {
-                $dbPrefix = getenv('DB_PREFIX') ?: '';
-                $cgHost = getenv('CRITICAL_GAPS_DB_HOST') ?: (getenv('DB_HOST') ?: 'localhost');
-                $cgUser = getenv('CRITICAL_GAPS_DB_USER') ?: (getenv('DB_USER') ?: 'hr2_critical_gaps');
-                $cgPassEnv = getenv('CRITICAL_GAPS_DB_PASS');
-                $cgPassGlobal = getenv('DB_PASS');
-                $cgPassPassword = getenv('DB_PASSWORD');
-                $cgPass = $cgPassEnv !== false
-                    ? $cgPassEnv
-                    : ($cgPassPassword !== false
-                        ? $cgPassPassword
-                        : ($cgPassGlobal !== false
-                            ? $cgPassGlobal
-                            : (($cgUser === 'root' && ($cgHost === 'localhost' || $cgHost === '127.0.0.1')) ? '' : 'hr2.soliera')));
-                $cgName = getenv('CRITICAL_GAPS_DB_NAME') ?: 'hr2_critical_gaps';
-                if ($dbPrefix !== '' && strpos($cgName, $dbPrefix) !== 0) {
-                    $cgName = $dbPrefix . $cgName;
-                }
-                $cgPdo = new PDO(
-                    "mysql:host=" . $cgHost . ";dbname=" . $cgName . ";charset=utf8mb4",
-                    $cgUser,
-                    $cgPass,
-                    [
-                        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-                        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-                        PDO::ATTR_EMULATE_PREPARES => false
-                    ]
-                );
-
-                $stmtUpdIdp = $cgPdo->prepare(
-                    "UPDATE requested_idps_repository
-                     SET idp_status = 'approved',
-                         updated_at = CURRENT_TIMESTAMP
-                     WHERE id = ? AND idp_status = 'requested'"
-                );
-                $stmtUpdIdp->execute([$idpRequestId]);
-            } catch (Throwable $e) {
-            }
-        }
-
         echo json_encode(['success' => true, 'program' => $program, 'request_ids' => []]);
         exit;
     } catch (Throwable $e) {
