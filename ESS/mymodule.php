@@ -253,6 +253,14 @@ $conn->close();
         });
     }
 
+    document.addEventListener('DOMContentLoaded', () => {
+      const params = new URLSearchParams(window.location.search);
+      const viewId = parseInt(params.get('view') || '0', 10);
+      if (Number.isFinite(viewId) && viewId > 0) {
+        viewModule(viewId);
+      }
+    });
+
     lucide.createIcons();
   </script>
 </body>
