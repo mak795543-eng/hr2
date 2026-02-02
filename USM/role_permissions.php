@@ -69,17 +69,6 @@ return [
     ],
 
     // Admin - Full system access (super admin)
-    'admin' => [
-        'dashboard',
-        'user_management',
-        'training_management',
-        'competency_management',
-        'succession_planning',
-        'approvals',
-        'employee_self_service',
-        'learning_management',
-        'applicant_assessment' // Admin might need to view applicant assessments
-    ],
 
     // Applicant - External exam takers
     'applicant' => [

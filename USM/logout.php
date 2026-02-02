@@ -12,7 +12,7 @@ $role          = $_SESSION['role'] ?? null;
 if ($employee_id && $employee_name) {
     try {
         // Switch to rest_core_2_usm DB
-        $dbName = "hr2_usmhr2";
+        $dbName = "hr2_usm";
         $db = $connections[$dbName] ?? null;
 
         if ($db) {
@@ -59,5 +59,5 @@ if (ini_get("session.use_cookies")) {
 }
 
 // Redirect to login page
-header("Location: ../index.php");
+header("Location: /../index.php");
 exit;
