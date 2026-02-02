@@ -60,18 +60,15 @@ $cgPdo = null;
 try {
     $dbPrefix = getenv('DB_PREFIX') ?: '';
     $cgHost = getenv('CRITICAL_GAPS_DB_HOST') ?: (getenv('DB_HOST') ?: 'localhost');
-    $cgUser = getenv('CRITICAL_GAPS_DB_USER') ?: (getenv('DB_USER') ?: 'hr2_critical_gaps');
+    $cgUser = getenv('CRITICAL_GAPS_DB_USER') ?: (getenv('DB_USER') ?: 'root');
     $cgPassEnv = getenv('CRITICAL_GAPS_DB_PASS');
     $cgPassGlobal = getenv('DB_PASS');
-    $cgPassPassword = getenv('DB_PASSWORD');
     $cgPass = $cgPassEnv !== false
         ? $cgPassEnv
-        : ($cgPassPassword !== false
-            ? $cgPassPassword
-            : ($cgPassGlobal !== false
-                ? $cgPassGlobal
-                : (($cgUser === 'root' && ($cgHost === 'localhost' || $cgHost === '127.0.0.1')) ? '' : 'hr2.soliera')));
-    $cgName = getenv('CRITICAL_GAPS_DB_NAME') ?: 'hr2_critical_gaps';
+        : ($cgPassGlobal !== false
+            ? $cgPassGlobal
+            : (($cgUser === 'root' && ($cgHost === 'localhost' || $cgHost === '127.0.0.1')) ? '' : 'makmak01'));
+    $cgName = getenv('CRITICAL_GAPS_DB_NAME') ?: 'critical_gaps';
     if ($dbPrefix !== '' && strpos($cgName, $dbPrefix) !== 0) {
         $cgName = $dbPrefix . $cgName;
     }
@@ -112,8 +109,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     idp.succession_status,
                     development_plan, target_score, target_date,
                     requested_training_type, requested_training_mode, requested_start_datetime, requested_end_datetime,
-                    idp_status, delivery_mode, training_requested_at,
-                    COALESCE(idp.training_requested_at, idp.created_at) AS requested_at
+                    idp_status, delivery_mode, training_requested_at
              FROM requested_idps_repository idp
              LEFT JOIN (
                  SELECT idp2.employee_id,
@@ -266,8 +262,7 @@ try {
                     COALESCE(gs.competency, 0) AS competency,
                     idp.succession_status,
                     requested_training_type, requested_training_mode, requested_start_datetime, requested_end_datetime,
-                    idp_status, delivery_mode, training_requested_at,
-                    COALESCE(idp.training_requested_at, idp.created_at) AS requested_at
+                    idp_status, delivery_mode, training_requested_at
              FROM requested_idps_repository idp
              LEFT JOIN (
                  SELECT idp2.employee_id,
@@ -282,8 +277,10 @@ try {
                   AND es2.skill_id = s2.id
                  GROUP BY idp2.employee_id, idp2.department
              ) gs ON gs.employee_id = idp.employee_id AND gs.department = idp.department
-             WHERE idp.idp_status = 'requested'
-             ORDER BY COALESCE(idp.training_requested_at, idp.created_at) DESC"
+             WHERE idp.training_requested_at IS NOT NULL
+               AND idp.idp_status = 'requested'
+               AND idp.delivery_mode IN ('Onsite','Hybrid')
+             ORDER BY idp.training_requested_at DESC"
          );
          $idpRequests = $stmt->fetchAll(PDO::FETCH_ASSOC);
      } catch (Throwable $e) {
@@ -450,7 +447,7 @@ try {
                                     $idpEmployeeId = (string)($r['employee_id'] ?? '');
                                     $idpDept = (string)($r['department'] ?? '');
                                     $idpPos = (string)($r['position'] ?? '');
-                                    $idpReqAt = (string)($r['requested_at'] ?? '');
+                                    $idpReqAt = (string)($r['training_requested_at'] ?? '');
                                 ?>
                                 <tr>
                                     <td data-label="#"><?= (int)($i + 1) ?></td>
@@ -818,7 +815,7 @@ document.addEventListener('click', async (e) => {
       setText('idpm-competency', (typeof idp.competency !== 'undefined' && idp.competency !== null) ? String(idp.competency) : '');
       setText('idpm-target-score', (typeof idp.target_score !== 'undefined' && idp.target_score !== null) ? String(idp.target_score) : '');
       setText('idpm-target-date', (idp.target_date || '').toString());
-      setText('idpm-requested-at', (idp.requested_at || idp.training_requested_at || '').toString());
+      setText('idpm-requested-at', (idp.training_requested_at || '').toString());
       setText('idpm-req-type', (idp.requested_training_type || '').toString());
       setText('idpm-req-mode', (idp.requested_training_mode || '').toString());
       setText('idpm-req-start', (idp.requested_start_datetime || '').toString());
