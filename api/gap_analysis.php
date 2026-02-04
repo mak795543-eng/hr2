@@ -35,27 +35,6 @@ try {
         exit;
     }
 
-    if ($action === 'pending') {
-        $stmt = $pdo->prepare(
-            'SELECT e.employee_id, e.full_name, e.department, e.position,
-                    ? AS evaluation_period
-             FROM employees e
-             INNER JOIN (
-                SELECT employee_id
-                FROM employee_kpi_scores
-                WHERE evaluation_period = ?
-                GROUP BY employee_id
-             ) s ON s.employee_id = e.employee_id
-             LEFT JOIN kpi_gap_formulations g
-                ON g.employee_id = e.employee_id AND g.evaluation_period = ?
-             WHERE g.employee_id IS NULL
-             ORDER BY e.department ASC, e.full_name ASC'
-        );
-        $stmt->execute([$period, $period, $period]);
-        echo json_encode(['success' => true, 'evaluation_period' => $period, 'data' => $stmt->fetchAll()], JSON_UNESCAPED_SLASHES);
-        exit;
-    }
-
     if ($action === 'missing') {
         // Employees missing KPI scores for the period OR missing a saved formulation.
         $stmt = $pdo->prepare(
@@ -224,77 +203,6 @@ try {
         $stmt->execute([$employeeId, $period, $overallPct, $status, $detailsJson]);
 
         echo json_encode(['success' => true, 'evaluation_period' => $period], JSON_UNESCAPED_SLASHES);
-        exit;
-    }
-
-    if ($action === 'forward') {
-        $check = $pdo->prepare(
-            'SELECT COUNT(*)
-             FROM (
-                SELECT employee_id
-                FROM employee_kpi_scores
-                WHERE evaluation_period = ?
-                GROUP BY employee_id
-             ) s
-             LEFT JOIN kpi_gap_formulations g
-               ON g.employee_id = s.employee_id AND g.evaluation_period = ?
-             WHERE g.employee_id IS NULL'
-        );
-        $check->execute([$period, $period]);
-        $pending = (int)($check->fetchColumn() ?? 0);
-        if ($pending > 0) {
-            http_response_code(422);
-            echo json_encode(['success' => false, 'message' => 'Please process all employees first before forwarding.', 'evaluation_period' => $period], JSON_UNESCAPED_SLASHES);
-            exit;
-        }
-
-        $stmt = $pdo->prepare(
-            'UPDATE employees e
-             INNER JOIN kpi_gap_formulations g
-               ON g.employee_id = e.employee_id
-              AND g.evaluation_period = ?
-             SET e.competency = g.overall_competency,
-                 e.status = g.status,
-                 e.updated_at = CURRENT_TIMESTAMP'
-        );
-        $stmt->execute([$period]);
-        echo json_encode(['success' => true, 'evaluation_period' => $period, 'updated' => $stmt->rowCount()], JSON_UNESCAPED_SLASHES);
-        exit;
-    }
-
-    if ($action === 'apply_employee') {
-        $employeeId = isset($_GET['employee_id']) ? trim((string)$_GET['employee_id']) : '';
-        if ($employeeId === '') {
-            http_response_code(422);
-            echo json_encode(['success' => false, 'message' => 'employee_id is required', 'evaluation_period' => $period], JSON_UNESCAPED_SLASHES);
-            exit;
-        }
-
-        $exists = $pdo->prepare(
-            'SELECT COUNT(*)
-             FROM kpi_gap_formulations
-             WHERE employee_id = ? AND evaluation_period = ?'
-        );
-        $exists->execute([$employeeId, $period]);
-        $cnt = (int)($exists->fetchColumn() ?? 0);
-        if ($cnt <= 0) {
-            http_response_code(422);
-            echo json_encode(['success' => false, 'message' => 'Please process (save) this employee first.', 'evaluation_period' => $period], JSON_UNESCAPED_SLASHES);
-            exit;
-        }
-
-        $stmt = $pdo->prepare(
-            'UPDATE employees e
-             INNER JOIN kpi_gap_formulations g
-               ON g.employee_id = e.employee_id
-              AND g.evaluation_period = ?
-             SET e.competency = g.overall_competency,
-                 e.status = g.status,
-                 e.updated_at = CURRENT_TIMESTAMP
-             WHERE e.employee_id = ?'
-        );
-        $stmt->execute([$period, $employeeId]);
-        echo json_encode(['success' => true, 'evaluation_period' => $period, 'updated' => $stmt->rowCount()], JSON_UNESCAPED_SLASHES);
         exit;
     }
 

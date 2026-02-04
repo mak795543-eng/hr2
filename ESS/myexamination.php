@@ -385,6 +385,12 @@ $conn->close();
         });
       }
 
+      const params = new URLSearchParams(window.location.search);
+      const viewId = parseInt(params.get('view') || '0', 10);
+      if (Number.isFinite(viewId) && viewId > 0) {
+        viewExam(viewId);
+      }
+
       const cb = document.getElementById('terms_accept_checkbox');
       const btn = document.getElementById('accept_all_start_btn');
       const termsModal = document.getElementById('terms_modal');

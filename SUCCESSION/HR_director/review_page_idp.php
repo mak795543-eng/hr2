@@ -1,5 +1,5 @@
 ﻿<?php
-require_once __DIR__ . '/../../COMPETENCY/criticalgaps/config.php';
+require_once __DIR__ . '/../../COMPETENCY/criticalgaps/criticalgaps/config.php';
 
 $flashOk = (string)($_GET['ok'] ?? '');
 $flashErr = (string)($_GET['err'] ?? '');
@@ -123,75 +123,6 @@ $stmt = $pdo->query(
 );
 $rows = $stmt->fetchAll();
 
-$statusCounts = [
-    'under_review' => 0,
-    'approved' => 0,
-    'rejected' => 0,
-    'for_compliance' => 0,
-    'on_hold' => 0,
-    'cancelled' => 0,
-];
-try {
-    $stmtCounts = $pdo->query(
-        "SELECT idp_status, COUNT(*) AS c
-         FROM individual_development_plans
-         GROUP BY idp_status"
-    );
-    $countsRows = $stmtCounts->fetchAll(PDO::FETCH_ASSOC) ?: [];
-    foreach ($countsRows as $cr) {
-        $st = (string)($cr['idp_status'] ?? '');
-        $c = (int)($cr['c'] ?? 0);
-        if ($st !== '') {
-            $statusCounts[$st] = $c;
-        }
-    }
-} catch (Throwable $ignored) {
-}
-
-$requestedCount = 0;
-$requestedRows = [];
-try {
-    $stmtReqCount = $pdo->query("SELECT COUNT(*) FROM requested_idps_repository WHERE idp_status = 'requested'");
-    $requestedCount = (int)$stmtReqCount->fetchColumn();
-
-    $stmtReq = $pdo->query(
-        "SELECT id,
-                employee_id,
-                employee_name,
-                position,
-                department,
-                competency,
-                succession_status,
-                development_plan,
-                target_score,
-                target_date,
-                idp_status,
-                created_at,
-                updated_at
-         FROM requested_idps_repository
-         WHERE idp_status = 'requested'
-         ORDER BY updated_at DESC, created_at DESC"
-    );
-    $requestedRows = $stmtReq->fetchAll(PDO::FETCH_ASSOC) ?: [];
-} catch (Throwable $ignored) {
-    $requestedCount = 0;
-    $requestedRows = [];
-}
-
-$recentLogs = [];
-try {
-    $stmtLogs = $pdo->prepare(
-        "SELECT employee_id, actor_employee_id, actor_role, module, action, details, created_at
-         FROM action_logs
-         ORDER BY created_at DESC
-         LIMIT 30"
-    );
-    $stmtLogs->execute();
-    $recentLogs = $stmtLogs->fetchAll(PDO::FETCH_ASSOC) ?: [];
-} catch (Throwable $ignored) {
-    $recentLogs = [];
-}
-
 function h($v) {
     return htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
 }
@@ -236,29 +167,11 @@ require('../../partials/header.php');
         <div class="flex items-center justify-between mb-6">
             <div>
                 <h1 class="text-2xl font-bold">IDP Review</h1>
-                <div class="text-sm opacity-70">Under Review: <span class="font-semibold"><?php echo count($rows); ?></span> | Requested: <span class="font-semibold"><?php echo (int)$requestedCount; ?></span></div>
+                <div class="text-sm opacity-70">Under Review: <span class="font-semibold"><?php echo count($rows); ?></span></div>
             </div>
             <div class="flex items-center gap-2">
                 <a href="individual_development_plans.php" class="btn btn-outline btn-sm">IDP Repository</a>
                 <a href="succession_dashboard.php" class="btn btn-outline btn-sm">Dashboard</a>
-            </div>
-        </div>
-
-        <div>
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-7 gap-4">
-                <div class="card bg-base-100 shadow"><div class="card-body p-5"><div class="text-xs opacity-70">Under Review</div><div class="text-3xl font-bold"><?php echo (int)($statusCounts['under_review'] ?? 0); ?></div></div></div>
-                <div class="card bg-base-100 shadow"><div class="card-body p-5"><div class="text-xs opacity-70">Requested</div><div class="text-3xl font-bold"><?php echo (int)$requestedCount; ?></div></div></div>
-                <div class="card bg-base-100 shadow"><div class="card-body p-5"><div class="text-xs opacity-70">Approved</div><div class="text-3xl font-bold"><?php echo (int)($statusCounts['approved'] ?? 0); ?></div></div></div>
-                <div class="card bg-base-100 shadow"><div class="card-body p-5"><div class="text-xs opacity-70">Rejected</div><div class="text-3xl font-bold"><?php echo (int)($statusCounts['rejected'] ?? 0); ?></div></div></div>
-                <div class="card bg-base-100 shadow"><div class="card-body p-5"><div class="text-xs opacity-70">For Compliance</div><div class="text-3xl font-bold"><?php echo (int)($statusCounts['for_compliance'] ?? 0); ?></div></div></div>
-                <div class="card bg-base-100 shadow"><div class="card-body p-5"><div class="text-xs opacity-70">On Hold</div><div class="text-3xl font-bold"><?php echo (int)($statusCounts['on_hold'] ?? 0); ?></div></div></div>
-                <button type="button" class="card bg-base-100 shadow text-left hover:shadow-md transition" onclick="openRecentActivityModal();">
-                    <div class="card-body p-5">
-                        <div class="text-xs opacity-70">Recent Activities</div>
-                        <div class="text-3xl font-bold"><?php echo (int)count($recentLogs); ?></div>
-                        <div class="text-xs opacity-60 mt-1">Click to view</div>
-                    </div>
-                </button>
             </div>
         </div>
 
@@ -311,104 +224,7 @@ require('../../partials/header.php');
                 <?php endforeach; ?>
             </div>
         <?php endif; ?>
-
-        <div class="card bg-base-100 shadow">
-            <div class="card-body">
-                <div class="flex items-center justify-between">
-                    <div>
-                        <div class="text-lg font-bold">Requested IDPs</div>
-                        <div class="text-sm opacity-70">Total: <span class="font-semibold"><?php echo (int)$requestedCount; ?></span></div>
-                    </div>
-                </div>
-
-                <?php if (count($requestedRows) === 0): ?>
-                    <div class="mt-4 opacity-70">No requested IDPs.</div>
-                <?php else: ?>
-                    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 items-start mt-4">
-                        <?php foreach ($requestedRows as $r): ?>
-                            <div class="card bg-base-200 shadow card-bordered">
-                                <div class="card-body">
-                                    <div class="flex items-start justify-between gap-3">
-                                        <div>
-                                            <div class="font-bold text-lg"><?php echo h($r['employee_name'] ?? ''); ?></div>
-                                            <div class="text-xs opacity-70"><?php echo h($r['employee_id'] ?? ''); ?></div>
-                                        </div>
-                                        <span class="badge badge-sm badge-accent"><?php echo h('Requested'); ?></span>
-                                    </div>
-
-                                    <div class="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
-                                        <div class="rounded-lg bg-base-100 p-3">
-                                            <div class="text-xs opacity-70">Position</div>
-                                            <div class="font-semibold"><?php echo h($r['position'] ?? ''); ?></div>
-                                        </div>
-                                        <div class="rounded-lg bg-base-100 p-3">
-                                            <div class="text-xs opacity-70">Department</div>
-                                            <div class="font-semibold"><?php echo h($r['department'] ?? ''); ?></div>
-                                        </div>
-                                        <div class="rounded-lg bg-base-100 p-3">
-                                            <div class="text-xs opacity-70">General Skills %</div>
-                                            <div class="font-semibold"><?php echo number_format((float)($r['competency'] ?? 0), 1); ?>%</div>
-                                        </div>
-                                        <div class="rounded-lg bg-base-100 p-3">
-                                            <div class="text-xs opacity-70">Succession Status</div>
-                                            <div class="font-semibold"><?php echo h($r['succession_status'] ?? ''); ?></div>
-                                        </div>
-                                    </div>
-
-                                    <div class="mt-4 flex justify-end">
-                                        <button type="button" class="btn btn-outline btn-sm" data-view-idp="1" data-idp='<?php echo h(json_encode($r)); ?>'>View</button>
-                                    </div>
-                                </div>
-                            </div>
-                        <?php endforeach; ?>
-                    </div>
-                <?php endif; ?>
-            </div>
-        </div>
     </div>
-
-    <dialog id="recent-activity-modal" class="modal">
-        <div class="modal-box max-w-5xl">
-            <div class="flex items-start justify-between gap-3">
-                <div>
-                    <h3 class="font-bold text-lg">Recent Activities</h3>
-                    <div class="text-xs opacity-70 mt-1">Latest <?php echo (int)count($recentLogs); ?> records</div>
-                </div>
-                <form method="dialog"><button class="btn btn-sm">Close</button></form>
-            </div>
-            <div class="overflow-x-auto mt-4">
-                <table class="table table-zebra">
-                    <thead>
-                        <tr>
-                            <th>When</th>
-                            <th>Employee</th>
-                            <th>Module</th>
-                            <th>Action</th>
-                            <th>Details</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php if (count($recentLogs) === 0): ?>
-                            <tr>
-                                <td colspan="5" class="text-center py-6 opacity-70">No activity yet.</td>
-                            </tr>
-                        <?php else: ?>
-                            <?php foreach ($recentLogs as $lg): ?>
-                                <tr>
-                                    <td class="text-sm"><?php echo h($lg['created_at'] ?? ''); ?></td>
-                                    <td class="text-sm"><?php echo h($lg['employee_id'] ?? ''); ?></td>
-                                    <td class="text-sm"><?php echo h($lg['module'] ?? ''); ?></td>
-                                    <td class="text-sm"><?php echo h($lg['action'] ?? ''); ?></td>
-                                    <td class="text-sm"><?php echo h($lg['details'] ?? ''); ?></td>
-                                </tr>
-                            <?php endforeach; ?>
-                        <?php endif; ?>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-        <form method="dialog" class="modal-backdrop"><button>close</button></form>
-    </dialog>
 
     <input type="checkbox" id="idp_view_modal" class="modal-toggle" />
     <div class="modal" role="dialog">
@@ -427,17 +243,10 @@ require('../../partials/header.php');
                 </div>
             </div>
 
-            <div class="mt-4" id="idp_view_skills_wrap">
+            <div class="mt-4">
                 <div class="text-sm font-semibold">General Skills Breakdown</div>
                 <div id="idp_view_skills" class="max-h-60 overflow-auto rounded-lg bg-base-200 p-3 mt-2">
                     <div class="text-sm opacity-70" id="idp_view_skills_status">â€”</div>
-                </div>
-            </div>
-
-            <div class="mt-4">
-                <div class="text-sm font-semibold">KPI Computation</div>
-                <div id="idp_view_kpi" class="max-h-72 overflow-auto rounded-lg bg-base-200 p-3 mt-2">
-                    <div class="text-sm opacity-70" id="idp_view_kpi_status">â€”</div>
                 </div>
             </div>
 
@@ -520,11 +329,8 @@ require('../../partials/header.php');
             var viewBadge = document.getElementById('idp_view_status_badge');
             var body = document.getElementById('idp_view_body');
             var viewPlan = document.getElementById('idp_view_plan');
-            var viewSkillsWrap = document.getElementById('idp_view_skills_wrap');
             var viewSkills = document.getElementById('idp_view_skills');
             var viewSkillsStatus = document.getElementById('idp_view_skills_status');
-            var viewKpi = document.getElementById('idp_view_kpi');
-            var viewKpiStatus = document.getElementById('idp_view_kpi_status');
             var idApprove = document.getElementById('idp_view_id_approve');
             var idReject = document.getElementById('idp_view_id_reject');
             var idCompliance = document.getElementById('idp_view_id_compliance');
@@ -540,14 +346,11 @@ require('../../partials/header.php');
                 viewSkills.innerHTML = '';
 
                 if (!skills || !skills.length) {
-                    if (viewSkillsWrap) {
-                        viewSkillsWrap.classList.add('hidden');
-                    }
+                    var empty = document.createElement('div');
+                    empty.className = 'text-sm opacity-70';
+                    empty.textContent = 'No skills found.';
+                    viewSkills.appendChild(empty);
                     return;
-                }
-
-                if (viewSkillsWrap) {
-                    viewSkillsWrap.classList.remove('hidden');
                 }
 
                 var tbl = document.createElement('table');
@@ -564,9 +367,6 @@ require('../../partials/header.php');
             }
 
             function loadSkills(employeeId, department) {
-                if (viewSkillsWrap) {
-                    viewSkillsWrap.classList.remove('hidden');
-                }
                 if (viewSkillsStatus) {
                     viewSkillsStatus.textContent = 'Loading...';
                 }
@@ -600,83 +400,6 @@ require('../../partials/header.php');
                 });
             }
 
-            function renderKpiTable(payload) {
-                if (!viewKpi) return;
-
-                var computed = payload && payload.computed ? payload.computed : [];
-                var period = payload && payload.evaluation_period ? String(payload.evaluation_period) : '';
-
-                viewKpi.innerHTML = '';
-                if (!computed || !computed.length) {
-                    viewKpi.innerHTML = '<div class="text-sm opacity-70">No KPI computation found.</div>';
-                    return;
-                }
-
-                var head = document.createElement('div');
-                head.className = 'text-xs opacity-70 mb-2';
-                head.textContent = period ? ('Period: ' + period) : '';
-                if (head.textContent) viewKpi.appendChild(head);
-
-                var tbl = document.createElement('table');
-                tbl.className = 'table table-sm w-full';
-                tbl.innerHTML = '<thead><tr>' +
-                    '<th>KPI</th>' +
-                    '<th>Scores</th>' +
-                    '<th class="text-right">Avg</th>' +
-                    '<th class="text-right">KPI %</th>' +
-                    '<th class="text-right">Required %</th>' +
-                    '<th class="text-right">Gap %</th>' +
-                    '</tr></thead>';
-                var tb = document.createElement('tbody');
-
-                computed.forEach(function (r) {
-                    var evals = r && r.evaluations ? r.evaluations : [];
-                    var scores = Array.isArray(evals) ? evals.map(function (e) { return Number((e && e.score) ? e.score : 0); }) : [];
-                    var scoreText = scores.length ? scores.join(', ') : '';
-                    var avg = Number(r.avg || 0);
-                    var kpiPct = Number(r.kpi_pct || 0);
-                    var reqPct = Number(r.required_pct || 0);
-                    var gap = Number(r.gap_pct || 0);
-                    var gapClass = gap > 0 ? 'text-error font-semibold' : 'text-success font-semibold';
-
-                    var tr = document.createElement('tr');
-                    tr.innerHTML = '<td>' + esc(r.kpi_name || '') + '</td>' +
-                        '<td class="text-sm">' + esc(scoreText) + '</td>' +
-                        '<td class="text-right">' + esc(avg.toFixed(2)) + '</td>' +
-                        '<td class="text-right">' + esc(kpiPct.toFixed(1)) + '%</td>' +
-                        '<td class="text-right">' + esc(reqPct.toFixed(1)) + '%</td>' +
-                        '<td class="text-right ' + gapClass + '">' + esc(gap.toFixed(1)) + '%</td>';
-                    tb.appendChild(tr);
-                });
-                tbl.appendChild(tb);
-                viewKpi.appendChild(tbl);
-            }
-
-            function loadKpiComputation(employeeId) {
-                if (viewKpiStatus) {
-                    viewKpiStatus.textContent = 'Loading...';
-                }
-                if (viewKpi) {
-                    viewKpi.innerHTML = '<div class="text-sm opacity-70">Loading...</div>';
-                }
-
-                var url = '../../api/gap_analysis.php?action=employee&employee_id=' + encodeURIComponent(String(employeeId || ''));
-                fetch(url, { credentials: 'same-origin' })
-                    .then(function (r) { return r.json(); })
-                    .then(function (data) {
-                        if (data && data.success) {
-                            renderKpiTable(data);
-                        } else if (viewKpi) {
-                            viewKpi.innerHTML = '<div class="text-sm opacity-70">Failed to load KPI computation.</div>';
-                        }
-                    })
-                    .catch(function () {
-                        if (viewKpi) {
-                            viewKpi.innerHTML = '<div class="text-sm opacity-70">Failed to load KPI computation.</div>';
-                        }
-                    });
-            }
-
             function statusLabel(status) {
                 status = String(status || '');
                 return status.replace(/_/g, ' ').replace(/\b\w/g, function (m) { return m.toUpperCase(); });
@@ -685,8 +408,6 @@ require('../../partials/header.php');
             function badgeClass(status) {
                 status = String(status || '');
                 switch (status) {
-                    case 'requested':
-                        return 'badge-accent';
                     case 'approved':
                         return 'badge-success';
                     case 'on_hold':
@@ -701,23 +422,6 @@ require('../../partials/header.php');
                     default:
                         return 'badge-primary';
                 }
-            }
-
-            function toggleActions(status) {
-                var canAct = String(status || '') === 'under_review';
-                var forms = [
-                    document.getElementById('idp_view_form_approve'),
-                    document.getElementById('idp_view_form_reject'),
-                    document.getElementById('idp_view_form_compliance')
-                ];
-                forms.forEach(function (f) {
-                    if (!f) return;
-                    if (canAct) {
-                        f.classList.remove('hidden');
-                    } else {
-                        f.classList.add('hidden');
-                    }
-                });
             }
 
             function box(label, value) {
@@ -746,15 +450,12 @@ require('../../partials/header.php');
                         .filter(function (l) { return l !== ''; });
                 }
 
-                if (items.length === 1 && items[0].indexOf('|') !== -1) {
-                    items = items[0]
-                        .split('|')
-                        .map(function (l) { return String(l || '').trim(); })
-                        .filter(function (l) { return l !== ''; });
-                }
-
                 containerEl.innerHTML = '';
                 if (!items.length) {
+                    var empty = document.createElement('div');
+                    empty.className = 'text-sm opacity-70';
+                    empty.textContent = 'â€”';
+                    containerEl.appendChild(empty);
                     return;
                 }
 
@@ -797,14 +498,11 @@ require('../../partials/header.php');
                         }
 
                         loadSkills(String(r.employee_id || ''), String(r.department || ''));
-                        loadKpiComputation(String(r.employee_id || ''));
 
                         if (viewBadge) {
                             viewBadge.className = 'badge badge-sm ' + badgeClass(status);
                             viewBadge.textContent = statusLabel(status);
                         }
-
-                        toggleActions(status);
 
                         if (idApprove) idApprove.value = id;
                         if (idReject) idReject.value = id;
@@ -819,13 +517,6 @@ require('../../partials/header.php');
                     }
                 });
             });
-
-            window.openRecentActivityModal = function () {
-                var dlg = document.getElementById('recent-activity-modal');
-                if (dlg && typeof dlg.showModal === 'function') {
-                    dlg.showModal();
-                }
-            };
         })();
     </script>
     </div>

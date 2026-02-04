@@ -2332,10 +2332,6 @@
         } else {
           fd.append('action', 'create_program');
         }
-
-        if (isAddTrainingPage && !editProgramId && idpRequestId) {
-          fd.append('idp_request_id', String(idpRequestId));
-        }
         fd.append('training_title', (qs('#training-title') || {}).value || '');
         fd.append('training_type', (qs('#training-type') || {}).value || '');
         fd.append('training_mode', (qs('#training-mode') || {}).value || 'Onsite');
@@ -2731,7 +2727,7 @@
               requested_by: 'IDP',
               category: 'IDP',
               description: String(idp.development_plan || '').trim() || 'IDP Training Request',
-              target_audience: 'Specific Employee',
+              target_audience: 'By Department',
               department_id: deptId,
               sub_department: '',
               target_role: targetRole,
@@ -2792,18 +2788,6 @@
               roleSelect.appendChild(opt);
             }
             roleSelect.value = targetRole;
-          }
-
-          const empSelect = qs('#training-employee');
-          const empNo = String(idp.employee_id || '').trim();
-          if (empSelect && empNo) {
-            const opt = Array.from(empSelect.options || []).find((o) => {
-              const t = String((o && o.textContent) || '');
-              return t.indexOf(`(${empNo})`) !== -1 || String(o.value || '') === empNo;
-            });
-            if (opt) {
-              empSelect.value = String(opt.value || '');
-            }
           }
 
           const compSel = qs('#competency-level');
