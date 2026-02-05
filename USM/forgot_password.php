@@ -1,8 +1,8 @@
 <?php
 session_start();
-include("../db.php"); // your DB connection
+include("db.php"); // your DB connection
 
-$db_name = "hr2_sub-user_management"; 
+$db_name = "hr2usm"; 
 
 if (!isset($connections[$db_name])) {
     die("❌ Connection not found for $db_name");
@@ -82,18 +82,18 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $stmt->bind_param("sss", $user['employee_id'], $token, $expires);
         $stmt->execute();
 
-        $resetLink = "http://127.0.0.1/SOLIERA_RESTAURANT/USM/reset_password.php?token=" . urlencode($token);
+        $resetLink = "https://restaurant.soliera-hotel-restaurant.com/USM/reset_password.php?token=" . urlencode($token);
 
         if (sendResetLink($email, $resetLink)) {
             // ✅ Redirect with success message
-            header("Location: ../index.php.php?status=reset_link_sent");
+            header("Location: index.php?status=reset_link_sent");
             exit;
         } else {
-            header("Location: ../index.php.php?status=reset_failed");
+            header("Location: index.php.php?status=reset_failed");
             exit;
         }
     } else {
-        header("Location: ../index.php.php?status=no_account");
+        header("Location: index.php.php?status=no_account");
         exit;
     }
 }

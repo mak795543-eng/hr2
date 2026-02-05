@@ -1,8 +1,8 @@
 <?php
 session_start();
-include("../db.php");
+include("db.php");
 
-$db_name = "hr2_soliera_usm";
+$db_name = "hr2usm";
 $conn = $connections[$db_name] ?? die("❌ Connection not found for $db_name");
 
 // Pagination settings
@@ -32,28 +32,13 @@ if ($result) {
 ?>
 <!DOCTYPE html>
 <html lang="en">
+      <?php include '../header.php'; ?>
+
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
     <title>Department Logs | Soliera Restaurant</title>
-    <!-- Favicon -->
-    <link rel="icon" type="image/x-icon" href="../assets/favicon.ico">
-    
-    <!-- Fonts & Icons -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/daisyui@3.9.4/dist/full.css" rel="stylesheet" type="text/css" />
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/lucide@latest"></script>
-    
-    <!-- UI Libraries -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css"/>
-    
-    <!-- Custom Styles -->
-    <link rel="stylesheet" href="../CSS/sidebar.css">
+
     
     <style>
         :root {
@@ -148,12 +133,12 @@ if ($result) {
 <body class="min-h-screen">
   <div class="flex h-screen overflow-hidden">
     <!-- Sidebar -->
-    <?php include 'sidebarr.php'; ?>
+    <?php include '../sidebarr.php'; ?>
 
     <!-- Content Area -->
     <div class="flex flex-col flex-1 overflow-auto bg-gray-50">
       <!-- Navbar -->
-      <?php include 'navbar.php'; ?>
+      <?php include '../navbar.php'; ?>
 
       <!-- Main Content -->
       <main class="p-6">
@@ -355,7 +340,6 @@ if ($result) {
       });
     });
   </script>
-   <script src="../soliera.js"></script>
-  <script src="../sidebar.js"></script>
+  <script src="../JavaScript/sidebar.js"></script>
 </body>
 </html>

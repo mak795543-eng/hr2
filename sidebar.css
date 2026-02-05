@@ -105,3 +105,23 @@
   }
 }
 
+ #sidebar.w-20 .section-title {
+   display: none;
+ }
+
+ #sidebar.w-20 .dropdown-icon {
+   display: none;
+ }
+
+ #sidebar.w-20 .collapse-content {
+   display: none;
+ }
+
+ #sidebar.w-20 .collapse-title {
+   justify-content: center;
+ }
+
+ #sidebar.w-20 .collapse-title > div {
+   justify-content: center;
+ }
+

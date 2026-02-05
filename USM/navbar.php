@@ -17,13 +17,13 @@
 
   
   <!-- Button -->
-  <button id="notification-button" tabindex="0" class="btn btn-ghost btn-circle btn-sm relative">
+  <button id="notification-button" tabindex="0" class="btn btn-ghost btn-circle btn-sm relative text-gray-700 hover:text-gray-900">
     <i data-lucide="bell" class="w-5 h-5"></i>
-    <span class="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
+    <span id="notif-dot" class="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full hidden"></span>
   </button>
   
   <!-- Dropdown Content - Responsive -->
-  <ul tabindex="0" class="dropdown-content menu mt-3 z-[1] bg-[#001f54] rounded-lg shadow-xl overflow-hidden transform md:translate-x-0 sm:translate-x-1/2 sm:-translate-x-1/2">
+  <ul tabindex="0" class="dropdown-content menu mt-3 z-[9999] bg-[#001f54] rounded-lg shadow-xl overflow-hidden transform md:translate-x-0 sm:translate-x-1/2 sm:-translate-x-1/2">
     <!-- Header -->
     <li class="px-4 py-3 border-b  flex justify-between items-center sticky top-0 bg-[#001f54] backdrop-blur-sm z-10">
       <div class="flex items-center gap-2">
@@ -37,13 +37,13 @@
     </li>
     
     <!-- Notification Items Container - Scrollable -->
-    <div class="max-h-96 overflow-y-auto">
-      <!-- Notification items will be loaded here -->
+    <div id="notif-items" class="max-h-96 overflow-y-auto">
+      <li class="px-4 py-3 text-blue-200">Loading...</li>
     </div>
     
     <!-- Footer -->
     <li class="px-4 py-2 border-t  sticky bottom-0 bg-[#001f54] backdrop-blur-sm">
-      <a class="text-center text-blue-300 hover:text-white text-sm flex items-center justify-center gap-1">
+      <a href="/hr2/ESS/dashboard.php" class="text-center text-blue-300 hover:text-white text-sm flex items-center justify-center gap-1">
         <i data-lucide="list" class="w-4 h-4"></i>
         <span>View All Notifications</span>
       </a>
@@ -65,7 +65,7 @@
       <div class="bg-blue-700/50 rounded-md shadow-md flex items-center gap-3">
         <div class="avatar">
           <div class="w-10 rounded-full">
-            <img src="" alt="User Avatar" class="dark:brightness-90" />
+            <img src="<?php echo htmlspecialchars($avatarUrl); ?>" alt="User Avatar" class="dark:brightness-90" />
           </div>
         </div>
         <div>
@@ -106,7 +106,141 @@
   @media (max-width: 767px) {
     .dropdown-content {
       left: 50% !important;
-      transform: translateX(-80%) !important;
+      transform: translateX(-50%) !important;
     }
   }
 </style>
+
+<div id="notif-toast" class="fixed bottom-6 right-6 z-[99999] hidden">
+  <div class="bg-[#0b1220] border border-white/10 text-white rounded-xl shadow-xl px-4 py-3 w-80">
+    <div class="flex items-start gap-3">
+      <div class="mt-0.5 p-2 rounded-lg bg-blue-600/30">
+        <i data-lucide="bell" class="w-5 h-5 text-blue-200"></i>
+      </div>
+      <div class="flex-1 min-w-0">
+        <div class="font-semibold">New Notification Received</div>
+        <div id="notif-toast-text" class="text-sm text-blue-100 truncate">A new security alert has been triggered.</div>
+      </div>
+      <button type="button" id="notif-toast-close" class="text-blue-200 hover:text-white">×</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  (function () {
+    const itemsEl = document.getElementById('notif-items');
+    const dotEl = document.getElementById('notif-dot');
+    const bellBtnEl = document.getElementById('notification-button');
+    const toastEl = document.getElementById('notif-toast');
+    const toastTextEl = document.getElementById('notif-toast-text');
+    const toastCloseEl = document.getElementById('notif-toast-close');
+    if (!itemsEl || !dotEl) return;
+
+    const employeeKey = <?php echo json_encode((string)($_SESSION['employee_id'] ?? $_SESSION['user_id'] ?? '')); ?>;
+    const storageKey = 'hr2_notif_latest_key_' + (employeeKey || 'anon');
+    let lastLatestKey = '';
+
+    function relTime(dateStr) {
+      const s = String(dateStr || '').trim();
+      if (!s) return '';
+      const d = new Date(s.replace(' ', 'T'));
+      if (Number.isNaN(d.getTime())) return '';
+      const diffMs = Date.now() - d.getTime();
+      const diffMin = Math.floor(diffMs / 60000);
+      if (diffMin < 1) return 'just now';
+      if (diffMin < 60) return diffMin + ' min ago';
+      const diffHr = Math.floor(diffMin / 60);
+      if (diffHr < 24) return diffHr + ' hours ago';
+      const diffDay = Math.floor(diffHr / 24);
+      return diffDay + ' days ago';
+    }
+
+    function escapeHtml(str) {
+      return String(str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+
+    function showToast(text) {
+      if (!toastEl || !toastTextEl) return;
+      toastTextEl.textContent = text || 'You have a new notification.';
+      toastEl.classList.remove('hidden');
+      window.setTimeout(() => {
+        toastEl.classList.add('hidden');
+      }, 5000);
+    }
+
+    if (toastCloseEl && toastEl) {
+      toastCloseEl.addEventListener('click', () => toastEl.classList.add('hidden'));
+    }
+
+    async function loadNotifs() {
+      try {
+        const res = await fetch('/hr2/USM/notifications_feed.php', { credentials: 'same-origin' });
+        const data = await res.json();
+        if (!data || !data.success) throw new Error('Failed');
+
+        const latestKey = String(data.latest_key || '');
+        lastLatestKey = latestKey;
+        const prevKey = String(localStorage.getItem(storageKey) || '');
+        const hasNew = latestKey && latestKey !== prevKey;
+
+        const count = Number(data.count || 0);
+        if (!prevKey && latestKey) {
+          localStorage.setItem(storageKey, latestKey);
+          dotEl.classList.add('hidden');
+        } else {
+          dotEl.classList.toggle('hidden', !(count > 0 && hasNew));
+        }
+
+        const items = Array.isArray(data.items) ? data.items : [];
+        if (items.length === 0) {
+          itemsEl.innerHTML = '<li class="px-4 py-3 text-blue-200">No new notifications (last 24 hours).</li>';
+        } else {
+          itemsEl.innerHTML = items.map((n) => {
+            const t = escapeHtml(n.type);
+            const title = escapeHtml(n.title);
+            const meta = escapeHtml(n.meta);
+            const when = escapeHtml(relTime(n.date));
+            const link = escapeHtml(n.link);
+            return `
+              <li class="px-4 py-3 border-b border-white/10 hover:bg-blue-700/30">
+                <a href="${link}" class="block">
+                  <div class="flex items-center justify-between gap-2">
+                    <span class="text-xs text-blue-200">${t}</span>
+                    <span class="text-xs text-blue-300">${when}</span>
+                  </div>
+                  <div class="text-sm font-semibold text-white mt-1">${title}</div>
+                  ${meta ? `<div class="text-xs text-blue-200 mt-1">${meta}</div>` : ''}
+                </a>
+              </li>
+            `;
+          }).join('');
+        }
+
+        if (hasNew) {
+          localStorage.setItem(storageKey, latestKey);
+          if (items[0] && items[0].title) {
+            showToast(String(items[0].title));
+          } else {
+            showToast('You have a new notification.');
+          }
+        }
+      } catch (e) {
+        itemsEl.innerHTML = '<li class="px-4 py-3 text-blue-200">Unable to load notifications.</li>';
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      loadNotifs();
+      window.setInterval(loadNotifs, 60000);
+    });
+
+    if (bellBtnEl) {
+      bellBtnEl.addEventListener('click', () => {
+        if (lastLatestKey) {
+          localStorage.setItem(storageKey, lastLatestKey);
+        }
+        dotEl.classList.add('hidden');
+      });
+    }
+  })();
+</script>

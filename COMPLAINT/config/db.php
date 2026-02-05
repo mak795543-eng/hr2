@@ -14,10 +14,24 @@ class Database {
         $this->conn = null;
         
         try {
+            $dbPrefix = getenv('DB_PREFIX') ?: '';
+            $host = getenv('COMPLAINT_DB_HOST') ?: (getenv('DB_HOST') ?: $this->host);
+            $dbName = getenv('COMPLAINT_DB_NAME') ?: $this->db_name;
+            if ($dbPrefix !== '' && strpos($dbName, $dbPrefix) !== 0) {
+                $dbName = $dbPrefix . $dbName;
+            }
+            $user = getenv('COMPLAINT_DB_USER') ?: (getenv('DB_USER') ?: $this->username);
+            $passEnv = getenv('COMPLAINT_DB_PASS');
+            $passGlobal = getenv('DB_PASS');
+            $pass = $passEnv !== false
+                ? $passEnv
+                : ($passGlobal !== false
+                    ? $passGlobal
+                    : (($user === 'root' && ($host === 'localhost' || $host === '127.0.0.1')) ? '' : 'makmak01'));
             $this->conn = new PDO(
-                "mysql:host=" . $this->host . ";dbname=" . $this->db_name,
-                $this->username,
-                $this->password
+                "mysql:host=" . $host . ";dbname=" . $dbName,
+                $user,
+                $pass
             );
             $this->conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
             $this->conn->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);

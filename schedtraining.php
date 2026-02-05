@@ -70,17 +70,7 @@
         }
     </style>
 </head>
-<body class="bg-gray-50 min-h-screen">
-  <div class="flex h-screen">
-    <!-- Sidebar -->
-    <?php include '../USM/sidebarr.php'; ?>
 
-    <!-- Content Area -->
-    <div class="flex flex-col flex-1 overflow-auto">
-      <!-- Navbar -->
-      <?php include '../USM/navbar.php'; ?>
-      
-      <main class="container mx-auto px-4 py-6">
   <!-- Header Section -->
         <div class="mb-8">
             <h1 class="text-3xl font-bold text-gray-800">Training Management System</h1>

@@ -1,12 +1,17 @@
+<?php
+session_start();
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Luxury Stays - Employee Complaint Management</title>
-    <link href="https://cdn.jsdelivr.net/npm/daisyui@3.7.3/dist/full.css" rel="stylesheet" type="text/css" />
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
+   <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.6.0/dist/full.css" rel="stylesheet" type="text/css" />
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap');
         
@@ -180,7 +185,7 @@
         
         .status-badge.resolved {
             background-color: #dcfce7;
-            color: #16a34a;
+            color: #ffffffff;
         }
         
         .status-badge.closed {
@@ -310,8 +315,6 @@
       <?php include '../USM/navbar.php'; ?>
       
       <main class="container mx-auto px-4 py-6">
-        <!-- Main Content -->
-        <div class="bg-white rounded-xl shadow-sm p-4 mb-6">
         <!-- Main Content -->
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
             <!-- Left Column - Complaint Submission -->
@@ -459,29 +462,6 @@
                             View My Complaint History
                         </button>
                     </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Help Card -->
-        <div class="bg-white border border-gray-200 rounded-lg p-6 mt-6">
-            <h3 class="text-lg font-semibold text-primary mb-3">
-                <i class='bx bx-help-circle text-xl mr-2'></i>
-                Need Help?
-            </h3>
-            <p class="text-secondary text-sm mb-3">If you need immediate assistance or have questions about the complaint process, contact HR:</p>
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div class="flex items-center text-sm">
-                    <i class='bx bx-phone text-primary mr-2'></i>
-                    <span>HR Hotline: (555) 123-4567</span>
-                </div>
-                <div class="flex items-center text-sm">
-                    <i class='bx bx-envelope text-primary mr-2'></i>
-                    <span>hr@luxurystays.com</span>
-                </div>
-                <div class="flex items-center text-sm">
-                    <i class='bx bx-map text-primary mr-2'></i>
-                    <span>HR Office: Main Hotel, 2nd Floor</span>
                 </div>
             </div>
         </div>
@@ -1129,6 +1109,7 @@
             });
         }
     </script>
+     <script src="../soliera.js"></script>
+  <script src="../.sidebar.js"></script>
 </body>
-<script src="../sidebar.js"></script>
 </html>
