@@ -581,7 +581,7 @@ $total_audit_trails = $total_audit_row['total_audit'] ?? 0;
 <!-- Statistics Cards -->
 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
     <!-- Total Users -->
-    <div class="stat-card bg-white text-black shadow-xl p-5 rounded-lg">
+    <div class="stat-card hr2-summary-card shadow-xl p-5 rounded-lg">
         <div class="flex justify-between items-start">
             <div>
                 <p class="text-sm font-medium text-[#F7B32B]">Total Users</p>
@@ -595,7 +595,7 @@ $total_audit_trails = $total_audit_row['total_audit'] ?? 0;
     </div>
 
     <!-- Active Users -->
-    <div class="stat-card bg-white text-black shadow-xl p-5 rounded-lg">
+    <div class="stat-card hr2-summary-card shadow-xl p-5 rounded-lg">
         <div class="flex justify-between items-start">
             <div>
                 <p class="text-sm font-medium text-[#F7B32B]">Active Users</p>
@@ -609,7 +609,7 @@ $total_audit_trails = $total_audit_row['total_audit'] ?? 0;
     </div>
 
     <!-- Today's Logins -->
-    <div class="stat-card bg-white text-black shadow-xl p-5 rounded-lg">
+    <div class="stat-card hr2-summary-card shadow-xl p-5 rounded-lg">
         <div class="flex justify-between items-start">
             <div>
                 <p class="text-sm font-medium text-[#F7B32B]">Today's Logins</p>
@@ -623,7 +623,7 @@ $total_audit_trails = $total_audit_row['total_audit'] ?? 0;
     </div>
 
     <!-- Failed Logins -->
-    <div class="stat-card bg-white text-black shadow-xl p-5 rounded-lg">
+    <div class="stat-card hr2-summary-card shadow-xl p-5 rounded-lg">
         <div class="flex justify-between items-start">
             <div>
                 <p class="text-sm font-medium text-[#F7B32B]">Failed Logins</p>
@@ -637,7 +637,7 @@ $total_audit_trails = $total_audit_row['total_audit'] ?? 0;
     </div>
 
     <!-- Today's Activities -->
-    <div class="stat-card bg-white text-black shadow-xl p-5 rounded-lg">
+    <div class="stat-card hr2-summary-card shadow-xl p-5 rounded-lg">
         <div class="flex justify-between items-start">
             <div>
                 <p class="text-sm font-medium text-[#F7B32B]">Today's Activities</p>
@@ -651,7 +651,7 @@ $total_audit_trails = $total_audit_row['total_audit'] ?? 0;
     </div>
 
     <!-- Pending Users -->
-    <div class="stat-card bg-white text-black shadow-xl p-5 rounded-lg">
+    <div class="stat-card hr2-summary-card shadow-xl p-5 rounded-lg">
         <div class="flex justify-between items-start">
             <div>
                 <p class="text-sm font-medium text-[#F7B32B]">Pending Users</p>
@@ -665,7 +665,7 @@ $total_audit_trails = $total_audit_row['total_audit'] ?? 0;
     </div>
 
     <!-- Total Department Logs -->
-    <div class="stat-card bg-white text-black shadow-xl p-5 rounded-lg">
+    <div class="stat-card hr2-summary-card shadow-xl p-5 rounded-lg">
         <div class="flex justify-between items-start">
             <div>
                 <p class="text-sm font-medium text-[#F7B32B]">Department Logs</p>
@@ -679,7 +679,7 @@ $total_audit_trails = $total_audit_row['total_audit'] ?? 0;
     </div>
 
     <!-- Total Audit Trails -->
-    <div class="stat-card bg-white text-black shadow-xl p-5 rounded-lg">
+    <div class="stat-card hr2-summary-card shadow-xl p-5 rounded-lg">
         <div class="flex justify-between items-start">
             <div>
                 <p class="text-sm font-medium text-[#F7B32B]">Audit Trails</p>

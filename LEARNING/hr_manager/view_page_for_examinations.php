@@ -6,7 +6,7 @@
             <p class="text-gray-600">Review and approve pending examinations</p>
         </div>
         <div class="flex gap-4 items-center">
-            <div class="bg-white border border-gray-200 rounded-lg p-4">
+            <div class="hr2-summary-card rounded-lg p-4">
                 <div class="text-sm text-gray-500">Pending Exams</div>
                 <div class="text-2xl font-bold text-gray-800"><?php echo count($pending_examinations); ?></div>
                 <div class="text-xs text-gray-400">Awaiting review</div>

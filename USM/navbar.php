@@ -109,6 +109,99 @@
       transform: translateX(-50%) !important;
     }
   }
+
+  .hr2-summary-card {
+    background: linear-gradient(135deg, #001a44 0%, #002a66 60%, #001a44 100%) !important;
+    border: 1px solid rgba(255, 255, 255, 0.12) !important;
+    box-shadow: 0 12px 28px rgba(0, 26, 68, 0.35) !important;
+    color: rgba(255, 255, 255, 0.92) !important;
+    position: relative;
+    overflow: hidden;
+    transition: transform 160ms ease, box-shadow 160ms ease;
+  }
+
+  .hr2-summary-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 18px 40px rgba(0, 26, 68, 0.45) !important;
+  }
+
+  .hr2-summary-card::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(1200px 500px at 10% 10%, rgba(247, 179, 43, 0.16), transparent 60%);
+    pointer-events: none;
+  }
+
+  .hr2-summary-card .text-gray-900,
+  .hr2-summary-card .text-gray-800,
+  .hr2-summary-card .text-gray-700 {
+    color: rgba(255, 255, 255, 0.96) !important;
+  }
+
+  .hr2-summary-card .text-gray-600,
+  .hr2-summary-card .text-gray-500,
+  .hr2-summary-card .text-gray-400 {
+    color: rgba(234, 242, 255, 0.72) !important;
+  }
+
+  .hr2-summary-card .text-blue-600,
+  .hr2-summary-card .text-yellow-600,
+  .hr2-summary-card .text-green-600,
+  .hr2-summary-card .text-purple-600,
+  .hr2-summary-card .text-slate-600 {
+    color: #f7b32b !important;
+  }
+
+  .hr2-summary-card .bg-base-200,
+  .hr2-summary-card .bg-blue-100,
+  .hr2-summary-card .bg-yellow-100,
+  .hr2-summary-card .bg-green-100,
+  .hr2-summary-card .bg-purple-100,
+  .hr2-summary-card .bg-red-100,
+  .hr2-summary-card .bg-slate-100 {
+    background: rgba(255, 255, 255, 0.10) !important;
+  }
+
+  .hr2-summary-card .badge {
+    background: rgba(247, 179, 43, 0.12) !important;
+    border: 1px solid rgba(247, 179, 43, 0.55) !important;
+    color: #f7b32b !important;
+  }
+
+  .hr2-summary-card .badge-outline,
+  .hr2-summary-card .badge-ghost {
+    background: rgba(247, 179, 43, 0.12) !important;
+    border: 1px solid rgba(247, 179, 43, 0.55) !important;
+    color: #f7b32b !important;
+  }
+
+  .hr2-summary-card.stat-card {
+    border-left: none !important;
+  }
+
+  .hr2-primary-btn {
+    background: linear-gradient(135deg, #001a44 0%, #002a66 60%, #001a44 100%) !important;
+    border: 1px solid rgba(247, 179, 43, 0.65) !important;
+    color: rgba(255, 255, 255, 0.95) !important;
+  }
+
+  .hr2-primary-btn:hover {
+    background: linear-gradient(135deg, #001433 0%, #002357 60%, #001433 100%) !important;
+    border-color: rgba(247, 179, 43, 0.85) !important;
+  }
+
+  .hr2-outline-btn {
+    background: transparent !important;
+    border: 1px solid rgba(247, 179, 43, 0.65) !important;
+    color: #f7b32b !important;
+  }
+
+  .hr2-outline-btn:hover {
+    background: rgba(247, 179, 43, 0.12) !important;
+    border-color: rgba(247, 179, 43, 0.85) !important;
+    color: #f7b32b !important;
+  }
 </style>
 
 <div id="notif-toast" class="fixed bottom-6 right-6 z-[99999] hidden">

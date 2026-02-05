@@ -61,57 +61,30 @@ require('../../partials/header.php');
 <main class="container mx-auto px-4 py-6">
     <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
       <div>
-        <h1 class="text-2xl font-bold text-gray-900">Dashboard</h1>
-        <p class="text-gray-600">Training management overview</p>
+       
       </div>
       <div class="flex gap-2">
-        <a href="trainingprogram.php" class="btn btn-outline btn-sm">Training Programs</a>
-        <a href="drafts.php" class="btn btn-outline btn-sm">Drafts</a>
+       
       </div>
     </div>
 
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8 fade-in">
-      <div class="bg-white rounded-xl shadow-md p-6">
+      <div class="hr2-summary-card rounded-xl shadow-md p-6">
         <div class="flex items-center justify-between">
           <div>
-            <div class="text-sm text-gray-500">Total Trainings</div>
-            <div class="text-2xl font-bold text-gray-900" id="dash-total-trainings">0</div>
-            <div class="text-xs text-gray-500 mt-1">This Month: <span id="dash-total-month">0</span> / Year: <span id="dash-total-year">0</span></div>
+            <div class="text-sm text-gray-500">My Trainings</div>
+            <div class="text-2xl font-bold text-gray-900" id="dash-my-trainings">0</div>
           </div>
           <div class="p-3 bg-blue-100 rounded-full">
-            <i data-lucide="book-open" class="h-6 w-6 text-blue-600"></i>
+            <i data-lucide="graduation-cap" class="h-6 w-6 text-blue-600"></i>
           </div>
         </div>
       </div>
 
-      <div class="bg-white rounded-xl shadow-md p-6">
+      <div class="hr2-summary-card rounded-xl shadow-md p-6">
         <div class="flex items-center justify-between">
           <div>
-            <div class="text-sm text-gray-500">Upcoming Trainings</div>
-            <div class="text-2xl font-bold text-gray-900" id="dash-upcoming">0</div>
-          </div>
-          <div class="p-3 bg-yellow-100 rounded-full">
-            <i data-lucide="calendar" class="h-6 w-6 text-yellow-600"></i>
-          </div>
-        </div>
-      </div>
-
-      <div class="bg-white rounded-xl shadow-md p-6">
-        <div class="flex items-center justify-between">
-          <div>
-            <div class="text-sm text-gray-500">Ongoing Trainings</div>
-            <div class="text-2xl font-bold text-gray-900" id="dash-ongoing">0</div>
-          </div>
-          <div class="p-3 bg-green-100 rounded-full">
-            <i data-lucide="activity" class="h-6 w-6 text-green-600"></i>
-          </div>
-        </div>
-      </div>
-
-      <div class="bg-white rounded-xl shadow-md p-6">
-        <div class="flex items-center justify-between">
-          <div>
-            <div class="text-sm text-gray-500">Completed Trainings</div>
+            <div class="text-sm text-gray-500">Completed</div>
             <div class="text-2xl font-bold text-gray-900" id="dash-completed">0</div>
           </div>
           <div class="p-3 bg-purple-100 rounded-full">
@@ -120,89 +93,21 @@ require('../../partials/header.php');
         </div>
       </div>
 
-      <div class="bg-white rounded-xl shadow-md p-6">
+      <div class="hr2-summary-card rounded-xl shadow-md p-6">
         <div class="flex items-center justify-between">
           <div>
-            <div class="text-sm text-gray-500">Cancelled / Postponed</div>
-            <div class="text-2xl font-bold text-gray-900" id="dash-cancelled">0</div>
+            <div class="text-sm text-gray-500">Due Soon</div>
+            <div class="text-2xl font-bold text-gray-900" id="dash-due-soon">0</div>
           </div>
-          <div class="p-3 bg-red-100 rounded-full">
-            <i data-lucide="x-circle" class="h-6 w-6 text-red-600"></i>
+          <div class="p-3 bg-yellow-100 rounded-full">
+            <i data-lucide="calendar" class="h-6 w-6 text-yellow-600"></i>
           </div>
-        </div>
-      </div>
-
-      <div class="bg-white rounded-xl shadow-md p-6">
-        <div class="flex items-center justify-between">
-          <div>
-            <div class="text-sm text-gray-500">Employees</div>
-            <div class="text-2xl font-bold text-gray-900" id="dash-employees"><?= (int)$employeesCount ?></div>
-          </div>
-          <div class="p-3 bg-slate-100 rounded-full">
-            <i data-lucide="users" class="h-6 w-6 text-slate-600"></i>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6 fade-in">
-      <div class="bg-white rounded-xl shadow-md p-6">
-        <div class="flex items-center justify-between mb-4">
-          <div>
-            <div class="text-lg font-semibold text-gray-800">Status Distribution</div>
-            <div class="text-sm text-gray-500">Planned / Pending Approval / Approved / Ongoing / Completed</div>
-          </div>
-        </div>
-        <div class="h-72">
-          <canvas id="statusDonut"></canvas>
-        </div>
-      </div>
-
-      <div class="bg-white rounded-xl shadow-md p-6">
-        <div class="flex items-center justify-between mb-4">
-          <div>
-            <div class="text-lg font-semibold text-gray-800">Monthly Trends</div>
-            <div class="text-sm text-gray-500">Trainings and participants per month</div>
-          </div>
-        </div>
-        <div class="h-72">
-          <canvas id="monthlyBar"></canvas>
-        </div>
-      </div>
-    </div>
-
-    <div class="bg-white rounded-xl shadow-md p-6 fade-in">
-      <div class="flex items-center justify-between mb-4">
-        <div>
-          <div class="text-lg font-semibold text-gray-800">Participation Metrics</div>
-          <div class="text-sm text-gray-500">Rollup based on posted assignments</div>
-        </div>
-      </div>
-
-      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div class="bg-base-200 rounded-lg p-4">
-          <div class="text-sm text-gray-500">Total Employees Enrolled</div>
-          <div class="text-2xl font-bold text-gray-900" id="pm-enrolled"><?= (int)$enrolledCount ?></div>
-        </div>
-        <div class="bg-base-200 rounded-lg p-4">
-          <div class="text-sm text-gray-500">Employees Attended</div>
-          <div class="text-2xl font-bold text-gray-900" id="pm-attended">0</div>
-        </div>
-        <div class="bg-base-200 rounded-lg p-4">
-          <div class="text-sm text-gray-500">Employees Completed</div>
-          <div class="text-2xl font-bold text-gray-900" id="pm-completed">0</div>
-        </div>
-        <div class="bg-base-200 rounded-lg p-4">
-          <div class="text-sm text-gray-500">No-Shows / Absentees</div>
-          <div class="text-2xl font-bold text-gray-900" id="pm-noshow">0</div>
         </div>
       </div>
     </div>
   </main>
 
   <script>
-    const monthLabels = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-
     const parseDate = (s) => {
       try {
         const d = new Date(String(s || ''));
@@ -212,16 +117,6 @@ require('../../partials/header.php');
       }
     };
 
-    const normalizeStatusBucket = (status) => {
-      const st = String(status || '').trim();
-      if (st === 'Planned') return 'Planned';
-      if (st === 'Approved') return 'Approved';
-      if (st === 'Ongoing') return 'Ongoing';
-      if (st === 'Completed') return 'Completed';
-      if (st === 'Pending' || st === 'Under Review' || st === 'For Compliance') return 'Pending Approval';
-      return 'Pending Approval';
-    };
-
     const isCancelledOrPostponed = (status) => {
       const st = String(status || '').trim();
       return st === 'Cancelled' || st === 'Postponed';
@@ -229,7 +124,7 @@ require('../../partials/header.php');
 
     const fetchPrograms = async () => {
       const url = new URL('trainingprogram.php', window.location.href);
-      url.searchParams.set('action', 'list_programs');
+      url.searchParams.set('action', 'list_all_programs');
       const res = await fetch(url.toString(), { credentials: 'same-origin' });
       return await res.json();
     };
@@ -244,115 +139,27 @@ require('../../partials/header.php');
       }
 
       const now = new Date();
-      const curYear = now.getFullYear();
-      const curMonth = now.getMonth();
 
       const total = programs.length;
-      const totalThisYear = programs.filter((p) => {
-        const d = parseDate(p.created_at || p.start_datetime);
-        return d && d.getFullYear() === curYear;
-      }).length;
-      const totalThisMonth = programs.filter((p) => {
-        const d = parseDate(p.created_at || p.start_datetime);
-        return d && d.getFullYear() === curYear && d.getMonth() === curMonth;
-      }).length;
+      const completed = programs.filter((p) => String(p.status || '') === 'Completed').length;
 
-      const upcoming = programs.filter((p) => {
+      const dueSoon = programs.filter((p) => {
         const sd = parseDate(p.start_datetime);
         if (!sd) return false;
         const st = String(p.status || '');
-        if (st === 'Completed' || st === 'Cancelled') return false;
-        return sd.getTime() > now.getTime();
+        if (st === 'Completed' || st === 'Cancelled' || isCancelledOrPostponed(st)) return false;
+        const diffDays = (sd.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
+        return diffDays >= 0 && diffDays <= 7;
       }).length;
-
-      const ongoing = programs.filter((p) => String(p.status || '') === 'Ongoing').length;
-      const completed = programs.filter((p) => String(p.status || '') === 'Completed').length;
-      const cancelled = programs.filter((p) => isCancelledOrPostponed(p.status)).length;
 
       const setText = (id, val) => {
         const el = document.getElementById(id);
         if (el) el.textContent = String(val);
       };
 
-      setText('dash-total-trainings', total);
-      setText('dash-total-year', totalThisYear);
-      setText('dash-total-month', totalThisMonth);
-      setText('dash-upcoming', upcoming);
-      setText('dash-ongoing', ongoing);
+      setText('dash-my-trainings', total);
       setText('dash-completed', completed);
-      setText('dash-cancelled', cancelled);
-
-      const buckets = {
-        'Planned': 0,
-        'Pending Approval': 0,
-        'Approved': 0,
-        'Ongoing': 0,
-        'Completed': 0
-      };
-
-      programs.forEach((p) => {
-        const b = normalizeStatusBucket(p.status);
-        buckets[b] = (buckets[b] || 0) + 1;
-      });
-
-      const donutCtx = document.getElementById('statusDonut');
-      if (donutCtx) {
-        new Chart(donutCtx, {
-          type: 'doughnut',
-          data: {
-            labels: Object.keys(buckets),
-            datasets: [{
-              data: Object.values(buckets),
-              backgroundColor: ['#f59e0b','#60a5fa','#10b981','#22c55e','#a78bfa'],
-              borderWidth: 0
-            }]
-          },
-          options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-              legend: { position: 'bottom' }
-            }
-          }
-        });
-      }
-
-      const trainingsPerMonth = new Array(12).fill(0);
-      const participantsPerMonth = new Array(12).fill(0);
-
-      programs.forEach((p) => {
-        const d = parseDate(p.start_datetime || p.created_at);
-        if (!d) return;
-        if (d.getFullYear() !== curYear) return;
-        const m = d.getMonth();
-        trainingsPerMonth[m] += 1;
-        const pn = parseInt(String(p.participants_needed || '0'), 10);
-        if (!isNaN(pn)) participantsPerMonth[m] += pn;
-      });
-
-      const barCtx = document.getElementById('monthlyBar');
-      if (barCtx) {
-        new Chart(barCtx, {
-          type: 'bar',
-          data: {
-            labels: monthLabels,
-            datasets: [
-              { label: 'Trainings', data: trainingsPerMonth, backgroundColor: '#60a5fa' },
-              { label: 'Participants', data: participantsPerMonth, backgroundColor: '#34d399' }
-            ]
-          },
-          options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            scales: {
-              y: { beginAtZero: true }
-            },
-            plugins: {
-              legend: { position: 'bottom' }
-            }
-          }
-        });
-      }
+      setText('dash-due-soon', dueSoon);
 
       if (window.lucide) window.lucide.createIcons();
     };
