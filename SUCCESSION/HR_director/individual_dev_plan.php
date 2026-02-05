@@ -551,10 +551,7 @@ require('../../partials/header.php');
 
   <div class="flex h-screen">
     <!-- Sidebar -->
-    <?php 
-    // Use relative path or absolute path based on your directory structure
-    include '../../USM/sidebarr.php'; 
-    ?>
+ 
     <!-- Content Area -->
     <div class="flex flex-col flex-1 overflow-hidden">
       <!-- Navbar -->

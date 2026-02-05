@@ -653,6 +653,10 @@ function employeeHasGaps(string $employeeId): bool
     $period = date('Y') . '-Q' . (string)ceil((int)date('n') / 3);
     seedMissingKpiEvaluations($employeeId, $period);
 
+    $deptStmt = $pdo->prepare("SELECT department FROM employees WHERE employee_id = ? LIMIT 1");
+    $deptStmt->execute([$employeeId]);
+    $dept = (string)($deptStmt->fetchColumn() ?: '');
+
     $stmt = $pdo->prepare(
         "SELECT COUNT(*)
          FROM (
@@ -661,13 +665,14 @@ function employeeHasGaps(string $employeeId): bool
             FROM employee_kpi_scores s
             JOIN kpis k ON k.id = s.kpi_id
             WHERE s.employee_id = ? AND s.evaluation_period = ?
+              AND (k.department IS NULL OR k.department = ?)
             GROUP BY k.kpi_name
          ) t
          LEFT JOIN competency_criteria cc
            ON cc.name = t.kpi_name
          WHERE (COALESCE(cc.required_level, 80) - COALESCE(t.kpi_pct, 0)) > 0"
     );
-    $stmt->execute([$employeeId, $period]);
+    $stmt->execute([$employeeId, $period, $dept]);
     $cnt = (int)($stmt->fetchColumn() ?? 0);
     return $cnt > 0;
 }
@@ -823,35 +828,42 @@ function getEmployeeDetails($employee_id)
             $period = date('Y') . '-Q' . (string)ceil((int)date('n') / 3);
             seedMissingKpiEvaluations((string)$employee_id, $period);
 
+            $empDept = (string)($employee['department'] ?? '');
+
             $stmtKpis = $pdo->prepare(
-                'SELECT k.id, k.kpi_name
+                'SELECT k.kpi_name
                  FROM employee_kpi_scores s
                  JOIN kpis k ON k.id = s.kpi_id
                  WHERE s.employee_id = ? AND s.evaluation_period = ?
-                 GROUP BY k.id, k.kpi_name
+                   AND (k.department IS NULL OR k.department = ?)
+                 GROUP BY k.kpi_name
                  ORDER BY k.kpi_name ASC'
             );
-            $stmtKpis->execute([$employee_id, $period]);
+            $stmtKpis->execute([$employee_id, $period, $empDept]);
             $kpiRows = $stmtKpis->fetchAll();
 
             $stmtEvals = $pdo->prepare(
-                'SELECT k.id AS kpi_id, s.criteria, s.score
+                'SELECT k.kpi_name, s.criteria, s.score
                  FROM employee_kpi_scores s
                  JOIN kpis k ON k.id = s.kpi_id
                  WHERE s.employee_id = ? AND s.evaluation_period = ?
+                   AND (k.department IS NULL OR k.department = ?)
                  ORDER BY k.kpi_name ASC, s.id ASC'
             );
-            $stmtEvals->execute([$employee_id, $period]);
+            $stmtEvals->execute([$employee_id, $period, $empDept]);
             $evalRows = $stmtEvals->fetchAll();
 
             $byKpi = [];
             $sumAll = 0.0;
             $cntAll = 0;
             foreach ($evalRows as $r) {
-                $kid = (int)($r['kpi_id'] ?? 0);
-                if (!isset($byKpi[$kid])) $byKpi[$kid] = [];
+                $kName = (string)($r['kpi_name'] ?? '');
+                if ($kName === '') {
+                    continue;
+                }
+                if (!isset($byKpi[$kName])) $byKpi[$kName] = [];
                 $score = is_numeric($r['score'] ?? null) ? (float)$r['score'] : 0.0;
-                $byKpi[$kid][] = [
+                $byKpi[$kName][] = [
                     'criteria' => (string)($r['criteria'] ?? ''),
                     'score' => $score,
                 ];
@@ -861,11 +873,11 @@ function getEmployeeDetails($employee_id)
 
             $employee['kpis'] = [];
             foreach ($kpiRows as $k) {
-                $kid = (int)($k['id'] ?? 0);
+                $kpiName = (string)($k['kpi_name'] ?? '');
                 $employee['kpis'][] = [
-                    'kpi_id' => $kid,
-                    'kpi_name' => (string)($k['kpi_name'] ?? ''),
-                    'evaluations' => $byKpi[$kid] ?? [],
+                    'kpi_id' => 0,
+                    'kpi_name' => $kpiName,
+                    'evaluations' => $kpiName !== '' ? ($byKpi[$kpiName] ?? []) : [],
                 ];
             }
 
