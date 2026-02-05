@@ -15,8 +15,18 @@ if (!is_int($employeeId) || $employeeId <= 0) {
     exit;
 }
 
+$sessionEditEmployeeId = (int)($_SESSION['profile_edit_employee_id'] ?? 0);
+$hasEditSessionFlags = isset($_SESSION['profile_edit_granted']) || isset($_SESSION['profile_edit_fields']) || isset($_SESSION['profile_surname_granted']);
+if ($hasEditSessionFlags && ($sessionEditEmployeeId <= 0 || $sessionEditEmployeeId !== $employeeId)) {
+    $_SESSION['profile_edit_granted'] = false;
+    $_SESSION['profile_edit_fields'] = [];
+    $_SESSION['profile_surname_granted'] = false;
+    unset($_SESSION['profile_edit_employee_id']);
+}
+
 $hasPendingProfileEditRequest = false;
 $decisionRequest = null;
+$recentActivities = [];
 
 if ($conn && is_int($employeeId)) {
     if (isset($_GET['ack']) && is_numeric($_GET['ack'])) {
@@ -39,6 +49,7 @@ if ($conn && is_int($employeeId)) {
                 }
                 if (strtolower(trim($status)) === 'approved') {
                     $_SESSION['profile_edit_granted'] = true;
+                    $_SESSION['profile_edit_employee_id'] = $employeeId;
 
                     $allowed = ['gender', 'civil_status', 'location', 'work_email', 'nationality', 'phone', 'emergency_contact', 'first_name', 'middle_name', 'birthdate'];
                     $editFields = [];
@@ -189,6 +200,13 @@ if ($conn && is_int($employeeId)) {
                                 if (!$ok) {
                                     $error_message = 'Failed to submit request. Please try again.';
                                 } else {
+                                    ess_log_activity(
+                                        $conn,
+                                        (int)$employeeId,
+                                        'Profile',
+                                        'Requested to edit personal info',
+                                        'Reason: ' . $reasonChoice
+                                    );
                                     header('Location: ' . basename((string)$_SERVER['PHP_SELF']) . '?requested=1');
                                     exit;
                                 }
@@ -423,7 +441,16 @@ if ($conn && is_int($employeeId)) {
                     $_SESSION['profile_edit_granted'] = false;
                     $_SESSION['profile_edit_fields'] = [];
                     $_SESSION['profile_surname_granted'] = false;
+                    unset($_SESSION['profile_edit_employee_id']);
                     $success_message = 'Profile updated successfully.';
+
+                    ess_log_activity(
+                        $conn,
+                        (int)$employeeId,
+                        'Profile',
+                        'Updated personal information',
+                        ''
+                    );
 
                     $emp = ess_ensure_employee($conn);
                 }
@@ -459,7 +486,7 @@ if (!is_dir($photoDir)) {
     @mkdir($photoDir, 0775, true);
 }
 
-$seed = (string)($_SESSION['employee_id'] ?? $_SESSION['employee_name'] ?? $_SESSION['fullname'] ?? $_SESSION['username'] ?? 'Employee');
+$seed = 'emp_' . (string)$employeeId;
 $avatarUrl = 'https://api.dicebear.com/7.x/adventurer/svg?seed=' . rawurlencode($seed);
 if (is_int($employeeId)) {
     $existing = glob($photoDir . DIRECTORY_SEPARATOR . 'employee_' . $employeeId . '.*');
@@ -536,6 +563,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['upload_photo'])) {
                         if (!@move_uploaded_file($tmp, $dest)) {
                             $error_message = 'Failed to save uploaded file. Please try again.';
                         } else {
+                            ess_log_activity(
+                                $conn,
+                                (int)$employeeId,
+                                'Profile',
+                                'Updated profile photo',
+                                ''
+                            );
                             header('Location: ' . basename((string)$_SERVER['PHP_SELF']) . '?photo=1');
                             exit;
                         }
@@ -582,23 +616,23 @@ if (is_array($emp)) {
     $user['suffix'] = (string)($emp['suffix'] ?? '');
 
     $nameParts = [];
-    $ln = trim($user['last_name']);
     $fn = trim($user['first_name']);
     $mn = trim($user['middle_name']);
+    $ln = trim($user['last_name']);
     $sx = trim($user['suffix']);
-    if ($ln !== '') {
-        $nameParts[] = $ln;
-    }
     if ($fn !== '') {
         $nameParts[] = $fn;
     }
     if ($mn !== '') {
         $nameParts[] = $mn;
     }
+    if ($ln !== '') {
+        $nameParts[] = $ln;
+    }
     if ($sx !== '') {
         $nameParts[] = $sx;
     }
-    $user['name'] = count($nameParts) > 0 ? implode(', ', $nameParts) : (string)($emp['employee_no'] ?? 'Employee');
+    $user['name'] = count($nameParts) > 0 ? implode(' ', $nameParts) : (string)($emp['employee_no'] ?? 'Employee');
 
     $user['position'] = (string)($emp['position'] ?? '');
     $user['role'] = (string)($emp['department'] ?? '');
@@ -660,6 +694,27 @@ $birthdateValue = '';
 if ((string)$user['birthdate'] !== '') {
     $ts = strtotime((string)$user['birthdate']);
     $birthdateValue = $ts ? date('Y-m-d', $ts) : '';
+}
+
+if ($conn && is_int($employeeId)) {
+    $stmt = mysqli_prepare(
+        $conn,
+        'SELECT activity_type, activity_title, activity_meta, created_at FROM recent_activities WHERE employee_id = ? ORDER BY created_at DESC LIMIT 8'
+    );
+    if ($stmt) {
+        mysqli_stmt_bind_param($stmt, 'i', $employeeId);
+        mysqli_stmt_execute($stmt);
+        $res = mysqli_stmt_get_result($stmt);
+        while ($res && ($row = mysqli_fetch_assoc($res))) {
+            $recentActivities[] = [
+                'type' => (string)($row['activity_type'] ?? ''),
+                'title' => (string)($row['activity_title'] ?? ''),
+                'meta' => (string)($row['activity_meta'] ?? ''),
+                'created_at' => (string)($row['created_at'] ?? ''),
+            ];
+        }
+        mysqli_stmt_close($stmt);
+    }
 }
 ?>
 <!DOCTYPE html>
@@ -732,15 +787,13 @@ if ((string)$user['birthdate'] !== '') {
 
                   <div class="space-y-3 text-sm">
                     <div class="flex items-center gap-2 text-gray-700">
-                      <i data-lucide="briefcase" class="w-4 h-4 text-blue-600"></i>
-                      <span><?php echo htmlspecialchars($user['role']); ?></span>
-                    </div>
-                    <?php if (trim((string)$user['department_no']) !== ''): ?>
-                    <div class="flex items-center gap-2 text-gray-700">
                       <i data-lucide="hash" class="w-4 h-4 text-slate-600"></i>
-                      <span><?php echo htmlspecialchars((string)$user['department_no']); ?></span>
+                      <span><?php echo htmlspecialchars((string)$user['emp_id']); ?></span>
                     </div>
-                    <?php endif; ?>
+                    <div class="flex items-center gap-2 text-gray-700">
+                      <i data-lucide="briefcase" class="w-4 h-4 text-blue-600"></i>
+                      <span><?php echo htmlspecialchars($user['department']); ?></span>
+                    </div>
                     <?php if (trim((string)$user['access_role']) !== ''): ?>
                     <div class="flex items-center gap-2 text-gray-700">
                       <i data-lucide="user" class="w-4 h-4 text-indigo-600"></i>
@@ -780,6 +833,30 @@ if ((string)$user['birthdate'] !== '') {
                   <div class="mt-4 flex items-start gap-2 text-sm text-amber-700">
                     <i data-lucide="info" class="w-4 h-4 mt-0.5"></i>
                     <div>To change employment details, please contact HR administrator.</div>
+                  </div>
+
+                  <div class="divider my-4"></div>
+                  <div>
+                    <h3 class="text-sm font-semibold text-gray-800">Recent Activities</h3>
+                    <?php if (count($recentActivities) === 0): ?>
+                      <div class="mt-2 text-sm text-gray-500">No recent activity yet.</div>
+                    <?php else: ?>
+                      <div class="mt-3 space-y-3">
+                        <?php foreach ($recentActivities as $a): ?>
+                          <div class="flex items-start justify-between gap-3">
+                            <div class="min-w-0">
+                              <div class="text-sm font-semibold text-gray-900 truncate"><?php echo htmlspecialchars((string)($a['title'] ?? '')); ?></div>
+                              <?php if (trim((string)($a['meta'] ?? '')) !== ''): ?>
+                                <div class="text-xs text-gray-500 line-clamp-2"><?php echo htmlspecialchars((string)($a['meta'] ?? '')); ?></div>
+                              <?php endif; ?>
+                            </div>
+                            <div class="text-xs text-gray-500 whitespace-nowrap">
+                              <?php echo htmlspecialchars((string)($a['created_at'] ?? '') !== '' ? date('M d, Y', strtotime((string)($a['created_at'] ?? ''))) : ''); ?>
+                            </div>
+                          </div>
+                        <?php endforeach; ?>
+                      </div>
+                    <?php endif; ?>
                   </div>
                 </div>
               </div>
@@ -899,28 +976,14 @@ if ((string)$user['birthdate'] !== '') {
                         <span class="badge badge-ghost">Restricted</span>
                       <?php endif; ?>
 
-                      <?php if (!$editGranted && !$hasPendingProfileEditRequest): ?>
-                        <button id="requestEditBtn" class="btn btn-outline btn-sm" type="button">Request</button>
-                      <?php endif; ?>
-
                       <button id="editProfileBtn" class="btn btn-ghost btn-sm" type="button">
                         <i data-lucide="pencil" class="w-4 h-4"></i>
-                        <span class="ml-2">Edit</span>
+                        <span class="ml-2">Request to edit</span>
                       </button>
                     </div>
                   </div>
 
                   <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                    <div class="form-control">
-                      <label class="label"><span class="label-text text-xs font-semibold text-gray-500">LAST NAME</span></label>
-                      <input
-                        name="last_name"
-                        class="profile-edit-field input input-bordered"
-                        value="<?php echo htmlspecialchars((string)$user['last_name']); ?>"
-                        data-editable="<?php echo $canEditLastName ? '1' : '0'; ?>"
-                        <?php echo $canEditLastName ? '' : 'disabled'; ?>
-                      />
-                    </div>
                     <div class="form-control">
                       <label class="label"><span class="label-text text-xs font-semibold text-gray-500">FIRST NAME</span></label>
                       <input
@@ -939,6 +1002,16 @@ if ((string)$user['birthdate'] !== '') {
                         value="<?php echo htmlspecialchars((string)$user['middle_name']); ?>"
                         data-editable="<?php echo $canEditMiddleName ? '1' : '0'; ?>"
                         <?php echo $canEditMiddleName ? '' : 'disabled'; ?>
+                      />
+                    </div>
+                    <div class="form-control">
+                      <label class="label"><span class="label-text text-xs font-semibold text-gray-500">LAST NAME</span></label>
+                      <input
+                        name="last_name"
+                        class="profile-edit-field input input-bordered"
+                        value="<?php echo htmlspecialchars((string)$user['last_name']); ?>"
+                        data-editable="<?php echo $canEditLastName ? '1' : '0'; ?>"
+                        <?php echo $canEditLastName ? '' : 'disabled'; ?>
                       />
                     </div>
                     <div class="form-control">

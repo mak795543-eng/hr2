@@ -44,6 +44,37 @@ if ($conn && $employeeId) {
         mysqli_stmt_close($stmt);
     }
 
+    $persistedByKey = [];
+    $stmt = mysqli_prepare(
+        $conn,
+        "SELECT notif_key, status, deleted, notif_type, notif_title, notif_meta, notif_link, notif_date
+         FROM notification_states
+         WHERE employee_id = ?
+           AND deleted = 0
+           AND (status = 'unread' OR notif_date >= ?)
+         ORDER BY COALESCE(notif_date, updated_at) DESC
+         LIMIT 50"
+    );
+    if ($stmt) {
+        mysqli_stmt_bind_param($stmt, 'is', $employeeId, $since);
+        mysqli_stmt_execute($stmt);
+        $res = mysqli_stmt_get_result($stmt);
+        while ($res && ($row = mysqli_fetch_assoc($res))) {
+            $k = (string)($row['notif_key'] ?? '');
+            if ($k === '') continue;
+            $persistedByKey[$k] = [
+                'type' => (string)($row['notif_type'] ?? ''),
+                'title' => (string)($row['notif_title'] ?? ''),
+                'meta' => (string)($row['notif_meta'] ?? ''),
+                'date' => (string)($row['notif_date'] ?? ''),
+                'link' => (string)($row['notif_link'] ?? ''),
+                'key' => $k,
+                'status' => (string)($row['status'] ?? 'unread'),
+            ];
+        }
+        mysqli_stmt_close($stmt);
+    }
+
 if ($learningConn && $roleLower !== '') {
     $stmt = $learningConn->prepare(
         "SELECT id, title, topic, created_at
@@ -115,43 +146,66 @@ if ($learningConn && $roleLower !== '') {
     $notifications = array_slice($notifications, 0, 6);
 
     if ($conn && $employeeId && count($notifications) > 0) {
-        $keys = array_values(array_unique(array_map(static fn($n) => (string)($n['key'] ?? ''), $notifications)));
-        $keys = array_values(array_filter($keys, static fn($k) => $k !== ''));
-        if (count($keys) > 0) {
-            $escaped = array_map(static function ($k) use ($conn) {
-                return "'" . mysqli_real_escape_string($conn, $k) . "'";
-            }, $keys);
-            $sql = "SELECT notif_key, status, deleted FROM notification_states WHERE employee_id = " . (int)$employeeId . " AND notif_key IN (" . implode(',', $escaped) . ")";
-            $res = @mysqli_query($conn, $sql);
-            $byKey = [];
-            while ($res && ($row = mysqli_fetch_assoc($res))) {
-                $k = (string)($row['notif_key'] ?? '');
-                if ($k === '') continue;
-                $byKey[$k] = [
-                    'status' => (string)($row['status'] ?? ''),
-                    'deleted' => (int)($row['deleted'] ?? 0),
-                ];
+        $upsert = mysqli_prepare(
+            $conn,
+            "INSERT INTO notification_states (employee_id, notif_key, status, deleted, notif_type, notif_title, notif_meta, notif_link, notif_date)
+             VALUES (?, ?, 'unread', 0, ?, ?, ?, ?, ?)
+             ON DUPLICATE KEY UPDATE
+               notif_type = COALESCE(notif_type, VALUES(notif_type)),
+               notif_title = COALESCE(notif_title, VALUES(notif_title)),
+               notif_meta = COALESCE(notif_meta, VALUES(notif_meta)),
+               notif_link = COALESCE(notif_link, VALUES(notif_link)),
+               notif_date = COALESCE(notif_date, VALUES(notif_date))"
+        );
+        foreach ($notifications as $n) {
+            if (!$upsert) break;
+            $k = (string)($n['key'] ?? '');
+            if ($k === '') continue;
+            $type = (string)($n['type'] ?? '');
+            $title = (string)($n['title'] ?? '');
+            $meta = (string)($n['meta'] ?? '');
+            $link = (string)($n['link'] ?? '');
+            $dt = (string)($n['date'] ?? '');
+            if ($dt === '') {
+                $dt = date('Y-m-d H:i:s');
             }
-
-            $filtered = [];
-            foreach ($notifications as $n) {
-                $k = (string)($n['key'] ?? '');
-                $st = $k !== '' ? ($byKey[$k] ?? null) : null;
-                if (is_array($st) && (int)($st['deleted'] ?? 0) === 1) {
-                    continue;
-                }
-                if (is_array($st) && (string)($st['status'] ?? '') !== '') {
-                    $n['status'] = (string)$st['status'];
-                }
-                $filtered[] = $n;
-            }
-            $notifications = $filtered;
+            mysqli_stmt_bind_param($upsert, 'issssss', $employeeId, $k, $type, $title, $meta, $link, $dt);
+            @mysqli_stmt_execute($upsert);
+        }
+        if ($upsert) {
+            mysqli_stmt_close($upsert);
         }
     }
 }
 
 if ($learningConn) {
     $learningConn->close();
+}
+
+if ($conn && $employeeId && !empty($persistedByKey)) {
+    foreach ($persistedByKey as $k => $p) {
+        if (!isset($p['key']) || (string)$p['key'] === '') continue;
+        $notifications[] = $p;
+    }
+}
+
+if (!empty($notifications)) {
+    $uniq = [];
+    $merged = [];
+    foreach ($notifications as $n) {
+        $k = (string)($n['key'] ?? '');
+        if ($k === '') continue;
+        if (isset($uniq[$k])) continue;
+        $uniq[$k] = true;
+        $merged[] = $n;
+    }
+    $notifications = $merged;
+
+    usort($notifications, static function ($a, $b) {
+        $ad = strtotime((string)($a['date'] ?? '')) ?: 0;
+        $bd = strtotime((string)($b['date'] ?? '')) ?: 0;
+        return $bd <=> $ad;
+    });
 }
 
     $stmt = mysqli_prepare($conn, 'SELECT COUNT(*) AS c FROM leave_requests WHERE employee_id = ?');

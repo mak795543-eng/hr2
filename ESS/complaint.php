@@ -134,7 +134,7 @@ $categories = [
       <?php include '../USM/navbar.php'; ?>
 
       <main class="flex-1 p-4 md:p-6">
-        <div class="max-w-3xl mx-auto">
+       
           <div class="card bg-base-100 shadow-sm border border-base-200">
             <div class="card-body">
               <div class="flex items-center gap-2">

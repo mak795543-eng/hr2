@@ -3,6 +3,27 @@ if (session_status() !== PHP_SESSION_ACTIVE) {
     session_start();
 }
 
+function ess_ensure_recent_activity_tables($conn): void
+{
+    if (!$conn) {
+        return;
+    }
+
+    @mysqli_query(
+        $conn,
+        "CREATE TABLE IF NOT EXISTS recent_activities (\n" .
+            "  id INT AUTO_INCREMENT PRIMARY KEY,\n" .
+            "  employee_id INT NOT NULL,\n" .
+            "  activity_type VARCHAR(80) NOT NULL,\n" .
+            "  activity_title VARCHAR(255) NOT NULL,\n" .
+            "  activity_meta TEXT NULL,\n" .
+            "  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,\n" .
+            "  INDEX idx_emp_created (employee_id, created_at),\n" .
+            "  FOREIGN KEY (employee_id) REFERENCES employees(id)\n" .
+            ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
+    );
+}
+
 function ess_ensure_notification_state_tables($conn): void
 {
     if (!$conn) {
@@ -33,6 +54,11 @@ function ess_ensure_notification_state_tables($conn): void
             "  notif_key CHAR(40) NOT NULL,\n" .
             "  status ENUM('unread','read','archived') NOT NULL DEFAULT 'unread',\n" .
             "  deleted TINYINT(1) NOT NULL DEFAULT 0,\n" .
+            "  notif_type VARCHAR(60) NULL,\n" .
+            "  notif_title VARCHAR(255) NULL,\n" .
+            "  notif_meta VARCHAR(255) NULL,\n" .
+            "  notif_link VARCHAR(255) NULL,\n" .
+            "  notif_date DATETIME NULL,\n" .
             "  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,\n" .
             "  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,\n" .
             "  UNIQUE KEY uniq_emp_notif (employee_id, notif_key),\n" .
@@ -45,6 +71,11 @@ function ess_ensure_notification_state_tables($conn): void
         $cols = [
             ['status', "ALTER TABLE notification_states ADD COLUMN status ENUM('unread','read','archived') NOT NULL DEFAULT 'unread'"],
             ['deleted', "ALTER TABLE notification_states ADD COLUMN deleted TINYINT(1) NOT NULL DEFAULT 0"],
+            ['notif_type', "ALTER TABLE notification_states ADD COLUMN notif_type VARCHAR(60) NULL"],
+            ['notif_title', "ALTER TABLE notification_states ADD COLUMN notif_title VARCHAR(255) NULL"],
+            ['notif_meta', "ALTER TABLE notification_states ADD COLUMN notif_meta VARCHAR(255) NULL"],
+            ['notif_link', "ALTER TABLE notification_states ADD COLUMN notif_link VARCHAR(255) NULL"],
+            ['notif_date', "ALTER TABLE notification_states ADD COLUMN notif_date DATETIME NULL"],
             ['created_at', "ALTER TABLE notification_states ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"],
             ['updated_at', "ALTER TABLE notification_states ADD COLUMN updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"],
         ];
@@ -267,6 +298,30 @@ function ess_ensure_profile_tables($conn): void
                 @mysqli_query($conn, $sql);
             }
         }
+
+        $stmt = mysqli_prepare(
+            $conn,
+            'SELECT INDEX_NAME FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ? AND NON_UNIQUE = 0'
+        );
+        if ($stmt) {
+            $tbl = 'employees';
+            $col = 'email';
+            mysqli_stmt_bind_param($stmt, 'sss', $dbName, $tbl, $col);
+            mysqli_stmt_execute($stmt);
+            $res = mysqli_stmt_get_result($stmt);
+            $uniqIndexes = [];
+            while ($res && ($r = mysqli_fetch_assoc($res))) {
+                $idx = (string)($r['INDEX_NAME'] ?? '');
+                if ($idx !== '' && strtoupper($idx) !== 'PRIMARY') {
+                    $uniqIndexes[$idx] = true;
+                }
+            }
+            mysqli_stmt_close($stmt);
+
+            foreach (array_keys($uniqIndexes) as $idxName) {
+                @mysqli_query($conn, 'ALTER TABLE employees DROP INDEX `' . mysqli_real_escape_string($conn, $idxName) . '`');
+            }
+        }
     }
 }
 
@@ -274,11 +329,42 @@ if ($conn) {
     ess_ensure_profile_tables($conn);
     ess_ensure_complaint_tables($conn);
     ess_ensure_notification_state_tables($conn);
+    ess_ensure_recent_activity_tables($conn);
+}
+
+function ess_log_activity($conn, int $employeeId, string $type, string $title, string $meta = ''): void
+{
+    if (!$conn || $employeeId <= 0) {
+        return;
+    }
+
+    $type = trim($type);
+    $title = trim($title);
+    $meta = trim($meta);
+    if ($type === '' || $title === '') {
+        return;
+    }
+
+    $stmt = mysqli_prepare(
+        $conn,
+        'INSERT INTO recent_activities (employee_id, activity_type, activity_title, activity_meta) VALUES (?, ?, ?, ?)'
+    );
+    if (!$stmt) {
+        return;
+    }
+
+    mysqli_stmt_bind_param($stmt, 'isss', $employeeId, $type, $title, $meta);
+    @mysqli_stmt_execute($stmt);
+    mysqli_stmt_close($stmt);
 }
 
 function ess_current_employee_no(): string
 {
-    return (string)($_SESSION['employee_id'] ?? $_SESSION['user_id'] ?? '');
+    $employeeId = trim((string)($_SESSION['employee_id'] ?? ''));
+    if ($employeeId !== '') {
+        return $employeeId;
+    }
+    return trim((string)($_SESSION['user_id'] ?? ''));
 }
 
 function ess_current_email(): string
@@ -318,18 +404,6 @@ function ess_ensure_employee($conn): ?array
         $stmt = mysqli_prepare($conn, 'SELECT * FROM employees WHERE employee_no = ? LIMIT 1');
         if ($stmt) {
             mysqli_stmt_bind_param($stmt, 's', $employeeNo);
-            mysqli_stmt_execute($stmt);
-            $res = mysqli_stmt_get_result($stmt);
-            $row = $res ? mysqli_fetch_assoc($res) : null;
-            mysqli_stmt_close($stmt);
-            if (is_array($row)) return $row;
-        }
-    }
-
-    if ($email !== '') {
-        $stmt = mysqli_prepare($conn, 'SELECT * FROM employees WHERE email = ? LIMIT 1');
-        if ($stmt) {
-            mysqli_stmt_bind_param($stmt, 's', $email);
             mysqli_stmt_execute($stmt);
             $res = mysqli_stmt_get_result($stmt);
             $row = $res ? mysqli_fetch_assoc($res) : null;
