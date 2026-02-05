@@ -17,7 +17,7 @@ CREATE TABLE employees (
     middle_name VARCHAR(100) NULL,
     last_name VARCHAR(100) NOT NULL,
     suffix VARCHAR(50) NULL,
-    email VARCHAR(150) UNIQUE NOT NULL,
+    email VARCHAR(150) NOT NULL,
     department VARCHAR(100),
     position VARCHAR(100),
     status ENUM('Active', 'Inactive') DEFAULT 'Active',
@@ -154,6 +154,17 @@ CREATE TABLE profile_update_requests (
     reviewed_at TIMESTAMP NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     seen_by_employee TINYINT(1) DEFAULT 0,
+    FOREIGN KEY (employee_id) REFERENCES employees(id)
+);
+
+CREATE TABLE recent_activities (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    employee_id INT NOT NULL,
+    activity_type VARCHAR(80) NOT NULL,
+    activity_title VARCHAR(255) NOT NULL,
+    activity_meta TEXT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_emp_created (employee_id, created_at),
     FOREIGN KEY (employee_id) REFERENCES employees(id)
 );
 

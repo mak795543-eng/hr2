@@ -30,7 +30,7 @@ try {
             $conn,
             "INSERT INTO notification_states (employee_id, notif_key, status, deleted)
              VALUES (?, ?, 'read', 1)
-             ON DUPLICATE KEY UPDATE deleted = 1, updated_at = CURRENT_TIMESTAMP"
+             ON DUPLICATE KEY UPDATE deleted = 1, notif_date = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP"
         );
         if (!$stmt) {
             throw new RuntimeException('DB error');
@@ -48,7 +48,7 @@ try {
             $conn,
             "INSERT INTO notification_states (employee_id, notif_key, status, deleted)
              VALUES (?, ?, 'archived', 0)
-             ON DUPLICATE KEY UPDATE status = 'archived', deleted = 0, updated_at = CURRENT_TIMESTAMP"
+             ON DUPLICATE KEY UPDATE status = 'archived', deleted = 0, notif_date = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP"
         );
         if (!$stmt) {
             throw new RuntimeException('DB error');
@@ -65,7 +65,7 @@ try {
         $conn,
         "INSERT INTO notification_states (employee_id, notif_key, status, deleted)
          VALUES (?, ?, 'read', 0)
-         ON DUPLICATE KEY UPDATE status = 'read', deleted = 0, updated_at = CURRENT_TIMESTAMP"
+         ON DUPLICATE KEY UPDATE status = 'read', deleted = 0, notif_date = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP"
     );
     if (!$stmt) {
         throw new RuntimeException('DB error');

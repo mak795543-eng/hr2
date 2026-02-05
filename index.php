@@ -167,13 +167,16 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && $employee_ID && $password) {
         $Department_ID = $row["Dept_id"];
         $Role = $row["role"];
         // dd($Role);
-        $_SESSION["role"] = (string)$Role;
 
         $Name = $row["employee_name"];
+
 
         // === Password check (plain equality in your original; keep but recommend hashing)
         if ($password === $row["password"]) {
             // dd("test2");
+
+            session_regenerate_id(true);
+            $_SESSION = [];
 
             // generate OTP and store PENDING login state (do NOT mark full session yet)
             $otp = rand(100000, 999999);
