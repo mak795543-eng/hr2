@@ -146,6 +146,23 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && $employee_ID && $password) {
 
         // Password check
         if ($password === $row["password"]) {
+            unset(
+                $_SESSION['employee_id'],
+                $_SESSION['user_id'],
+                $_SESSION['employee_name'],
+                $_SESSION['username'],
+                $_SESSION['role'],
+                $_SESSION['Dept_id'],
+                $_SESSION['email'],
+                $_SESSION['department'],
+                $_SESSION['position'],
+                $_SESSION['status'],
+                $_SESSION['profile_edit_granted'],
+                $_SESSION['profile_edit_fields'],
+                $_SESSION['profile_surname_granted'],
+                $_SESSION['profile_edit_employee_id']
+            );
+
             // Generate OTP and store PENDING login state
             $otp = rand(100000, 999999);
             $_SESSION["otp"] = (string)$otp;
@@ -156,8 +173,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && $employee_ID && $password) {
             $_SESSION["pending_role"] = $Role;
             $_SESSION["pending_Dept_id"] = $row["Dept_id"];
             $_SESSION["pending_email"] = $row["email"];
-            $_SESSION["otp_attempts"] = 0;
-            $_SESSION["auth_method"] = "2FA";
 
             if (sendOTP($row["email"], $otp)) {
                 logAttempt($hr2usm, $employee_ID, $Name, $Role, 'Authenticating', 'Login', 0, 'Authenticating', '');
@@ -193,7 +208,36 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && $employee_ID && $password) {
 
         if ($password === $row["password"]) {
             // Full login for this DB
+            session_regenerate_id(true);
+
+            unset(
+                $_SESSION['employee_id'],
+                $_SESSION['user_id'],
+                $_SESSION['employee_name'],
+                $_SESSION['username'],
+                $_SESSION['role'],
+                $_SESSION['Dept_id'],
+                $_SESSION['email'],
+                $_SESSION['department'],
+                $_SESSION['position'],
+                $_SESSION['status'],
+                $_SESSION['profile_edit_granted'],
+                $_SESSION['profile_edit_fields'],
+                $_SESSION['profile_surname_granted'],
+                $_SESSION['profile_edit_employee_id'],
+                $_SESSION['pending_employee_id'],
+                $_SESSION['pending_role'],
+                $_SESSION['pending_Dept_id'],
+                $_SESSION['pending_email'],
+                $_SESSION['otp'],
+                $_SESSION['otp_expiry'],
+                $_SESSION['otp_attempts']
+            );
+
             $_SESSION["employee_id"] = $employee_ID;
+            $_SESSION["user_id"] = $employee_ID;
+            $_SESSION["employee_name"] = $Name;
+            $_SESSION["username"] = $Name;
             $_SESSION["role"] = $Role;
             $_SESSION["Dept_id"] = $row["Dept_id"];
             $_SESSION["email"] = $row["email"] ?? $row["Email"] ?? '';

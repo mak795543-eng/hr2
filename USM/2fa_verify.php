@@ -198,12 +198,20 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
   if ($otpInput === $storedOtp && $otpInput !== '') {
     // Successful OTP -> promote to full login
+
+    $resolvedRole = $_SESSION["pending_role"] ?? $Role;
+    $resolvedEmail = $_SESSION["pending_email"] ?? '';
+
+    session_regenerate_id(true);
+    $_SESSION = [];
+
     $_SESSION["employee_id"] = $Actual_Employee_ID; // Use actual employee_id
+    $_SESSION["user_id"] = $Actual_Employee_ID;
     $_SESSION["employee_name"] = $Name;
     $_SESSION["username"] = $Name;
-    $_SESSION["role"] = $_SESSION["pending_role"] ?? $Role;
+    $_SESSION["role"] = $resolvedRole;
     $_SESSION["Dept_id"] = $Actual_Dept_ID; // Use actual dept_id from database
-    $_SESSION["email"] = $_SESSION["pending_email"] ?? '';
+    $_SESSION["email"] = $resolvedEmail;
 
     // Cleanup pending/otp stuff
     unset($_SESSION["pending_employee_id"], $_SESSION["pending_role"], $_SESSION["pending_Dept_id"], $_SESSION["pending_email"], $_SESSION["otp"], $_SESSION["otp_expiry"], $_SESSION["otp_attempts"]);
