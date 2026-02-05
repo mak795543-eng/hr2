@@ -415,6 +415,18 @@ if (isset($_GET['action']) && $_GET['action'] === 'list_programs') {
     exit;
 }
 
+if (isset($_GET['action']) && $_GET['action'] === 'list_all_programs') {
+    header('Content-Type: application/json; charset=utf-8');
+
+    $result = $conn->query("SELECT * FROM training_programs ORDER BY created_at DESC");
+    $programs = [];
+    while ($row = $result->fetch_assoc()) {
+        $programs[] = $row;
+    }
+    echo json_encode(['success' => true, 'programs' => $programs]);
+    exit;
+}
+
 if (isset($_GET['action']) && $_GET['action'] === 'get_program') {
     header('Content-Type: application/json; charset=utf-8');
 
@@ -1179,6 +1191,31 @@ try {
 } catch (Throwable $e) {
     $employees = [];
 }
+
+$tpTotalTrainings = 0;
+$tpNotPostedTrainings = 0;
+$tpCompletedTrainings = 0;
+try {
+    $res = $conn->query("SELECT COUNT(*) AS c FROM training_programs");
+    $row = $res ? $res->fetch_assoc() : null;
+    $tpTotalTrainings = $row ? (int)($row['c'] ?? 0) : 0;
+} catch (Throwable $e) {
+    $tpTotalTrainings = 0;
+}
+try {
+    $res = $conn->query("SELECT COUNT(*) AS c FROM training_programs WHERE IFNULL(status, '') <> 'POSTED'");
+    $row = $res ? $res->fetch_assoc() : null;
+    $tpNotPostedTrainings = $row ? (int)($row['c'] ?? 0) : 0;
+} catch (Throwable $e) {
+    $tpNotPostedTrainings = 0;
+}
+try {
+    $res = $conn->query("SELECT COUNT(*) AS c FROM training_programs WHERE status = 'Completed'");
+    $row = $res ? $res->fetch_assoc() : null;
+    $tpCompletedTrainings = $row ? (int)($row['c'] ?? 0) : 0;
+} catch (Throwable $e) {
+    $tpCompletedTrainings = 0;
+}
 require('../../partials/header.php');
 ?>
 
@@ -1299,6 +1336,45 @@ require('../../partials/header.php');
     
             
             <main class="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto">
+
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8 fade-in">
+          <div class="hr2-summary-card rounded-xl shadow-md p-6">
+            <div class="flex items-center justify-between">
+              <div>
+                <div class="text-sm text-gray-500">Total Trainings</div>
+                <div class="text-2xl font-bold text-gray-900"><?php echo (int)$tpTotalTrainings; ?></div>
+              </div>
+              <div class="p-3 bg-blue-100 rounded-full">
+                <i data-lucide="layers" class="h-6 w-6 text-blue-600"></i>
+              </div>
+            </div>
+          </div>
+
+          <div class="hr2-summary-card rounded-xl shadow-md p-6">
+            <div class="flex items-center justify-between">
+              <div>
+                <div class="text-sm text-gray-500">Not posted Trainings</div>
+                <div class="text-2xl font-bold text-gray-900"><?php echo (int)$tpNotPostedTrainings; ?></div>
+              </div>
+              <div class="p-3 bg-yellow-100 rounded-full">
+                <i data-lucide="upload" class="h-6 w-6 text-yellow-600"></i>
+              </div>
+            </div>
+          </div>
+
+          <div class="hr2-summary-card rounded-xl shadow-md p-6">
+            <div class="flex items-center justify-between">
+              <div>
+                <div class="text-sm text-gray-500">Completed Trainings</div>
+                <div class="text-2xl font-bold text-gray-900"><?php echo (int)$tpCompletedTrainings; ?></div>
+              </div>
+              <div class="p-3 bg-purple-100 rounded-full">
+                <i data-lucide="check-circle" class="h-6 w-6 text-purple-600"></i>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <!-- Main Training Programs Section -->
         <div class="bg-white rounded-xl shadow-md p-6 mb-8">
             <!-- Action Bar with Filters -->
@@ -1359,7 +1435,7 @@ require('../../partials/header.php');
                     </div>
 
                     
-                    <a id="add-training-btn" href="add_training.php" class="btn btn-primary btn-sm">
+                    <a id="add-training-btn" href="add_training.php" class="btn btn-sm hr2-primary-btn">
                         <i data-lucide="plus" class="h-5 w-5 mr-2"></i>
                         Add Training
                     </a>

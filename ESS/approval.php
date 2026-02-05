@@ -1536,7 +1536,7 @@ try {
     </div>
     <form method="dialog" class="modal-backdrop"><button>close</button></form>
   </dialog>
-
+<?php require('../partials/footer.php') ?>
   <script>
     const complaintAssignOptions = <?php echo json_encode($assignOptions, JSON_UNESCAPED_SLASHES); ?>;
     function getExt(name) {

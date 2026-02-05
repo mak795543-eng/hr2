@@ -440,7 +440,7 @@ require('../../partials/header.php');
                   <p class="text-gray-600">View results for all posted examinations</p>
                 </div>
                 <div class="flex gap-4 items-center">
-                  <div class="stats-card">
+                  <div class="stats-card hr2-summary-card">
                     <div class="text-sm text-gray-500">Posted Exams</div>
                     <div class="text-2xl font-bold text-gray-800"><?php echo count($posted_examinations); ?></div>
                     <div class="text-xs text-gray-400">Available for review</div>
@@ -670,11 +670,11 @@ require('../../partials/header.php');
 
               <!-- Exam Overview Stats -->
               <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-                <div class="stats-card">
+                <div class="stats-card hr2-summary-card">
                   <div class="text-sm text-gray-500">Total Participants</div>
                   <div class="text-2xl font-bold text-gray-800"><?php echo count($exam_results); ?></div>
                 </div>
-                <div class="stats-card">
+                <div class="stats-card hr2-summary-card">
                   <div class="text-sm text-gray-500">Average Score</div>
                   <div class="text-2xl font-bold text-gray-800">
                     <?php 
@@ -690,7 +690,7 @@ require('../../partials/header.php');
                     ?>
                   </div>
                 </div>
-                <div class="stats-card">
+                <div class="stats-card hr2-summary-card">
                   <div class="text-sm text-gray-500">Pass Rate</div>
                   <div class="text-2xl font-bold text-gray-800">
                     <?php 
@@ -706,7 +706,7 @@ require('../../partials/header.php');
                     ?>
                   </div>
                 </div>
-                <div class="stats-card">
+                <div class="stats-card hr2-summary-card">
                   <div class="text-sm text-gray-500">Department</div>
                   <div class="text-2xl font-bold text-gray-800"><?php echo isset($exam_details['department']) ? ucwords(str_replace('-', ' ', $exam_details['department'])) : 'All'; ?></div>
                 </div>
