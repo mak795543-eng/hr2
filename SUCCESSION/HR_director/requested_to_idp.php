@@ -1,10 +1,21 @@
 ﻿<?php
-require_once __DIR__ . '/../../COMPETENCY/criticalgaps/criticalgaps/config.php';
+require_once __DIR__ . '/../../COMPETENCY/criticalgaps/config.php';
 
 $flashOk = (string)($_GET['ok'] ?? '');
 $flashErr = (string)($_GET['err'] ?? '');
 
-$stmt = $pdo->query(
+$period = date('Y') . '-Q' . (string)ceil((int)date('n') / 3);
+
+try {
+    $seedStmt = $pdo->query("SELECT DISTINCT employee_id FROM requested_to_idp WHERE status = 'Pending'");
+    $seedIds = $seedStmt->fetchAll(PDO::FETCH_COLUMN);
+    foreach (($seedIds ?? []) as $eid) {
+        seedMissingKpiEvaluations((string)$eid, $period);
+    }
+} catch (Throwable $e) {
+}
+
+$stmt = $pdo->prepare(
     "SELECT r.employee_id,
             r.employee_name,
             r.position,
@@ -22,21 +33,15 @@ $stmt = $pdo->query(
             END AS status
      FROM requested_to_idp r
      LEFT JOIN (
-         SELECT r2.employee_id,
-                r2.department,
-                AVG(COALESCE(es2.skill_score, 0)) AS competency
-         FROM requested_to_idp r2
-         JOIN skills s2
-           ON s2.category = 'General Skills'
-          AND s2.department = r2.department
-         LEFT JOIN employee_skills es2
-           ON es2.employee_id = r2.employee_id
-          AND es2.skill_id = s2.id
-         GROUP BY r2.employee_id, r2.department
-     ) gs ON gs.employee_id = r.employee_id AND gs.department = r.department
+         SELECT s2.employee_id, AVG(COALESCE(s2.score, 0)) / 5 * 100 AS competency
+         FROM employee_kpi_scores s2
+         WHERE s2.evaluation_period = ?
+         GROUP BY s2.employee_id
+     ) gs ON gs.employee_id = r.employee_id
      WHERE r.status = 'Pending'
      ORDER BY COALESCE(r.updated_at, r.created_at) DESC"
 );
+$stmt->execute([$period]);
 $rows = $stmt->fetchAll();
 
 function h($v) {

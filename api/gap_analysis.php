@@ -35,6 +35,34 @@ try {
         exit;
     }
 
+    if ($action === 'all_employees') {
+        // Return all employees with their computed KPI competency for the period
+        $stmt = $pdo->prepare(
+            'SELECT e.employee_id, e.full_name, e.department, e.position,
+                    COALESCE(g.overall_competency, 0) AS overall_competency,
+                    COALESCE(g.status, "Retrain") AS status
+             FROM employees e
+             LEFT JOIN kpi_gap_formulations g
+                ON g.employee_id = e.employee_id AND g.evaluation_period = ?
+             ORDER BY e.department ASC, e.full_name ASC'
+        );
+        $stmt->execute([$period]);
+        $rows = $stmt->fetchAll();
+
+        // For employees without saved formulation, compute on-the-fly
+        foreach ($rows as &$r) {
+            if ((float)($r['overall_competency'] ?? 0) === 0.0) {
+                seedMissingKpiEvaluations((string)($r['employee_id'] ?? ''), $period);
+                $comp = computeEmployeeCompetency((string)($r['employee_id'] ?? ''));
+                $r['overall_competency'] = $comp['competency'];
+                $r['status'] = $comp['status'];
+            }
+        }
+
+        echo json_encode(['success' => true, 'evaluation_period' => $period, 'data' => $rows], JSON_UNESCAPED_SLASHES);
+        exit;
+    }
+
     if ($action === 'missing') {
         // Employees missing KPI scores for the period OR missing a saved formulation.
         $stmt = $pdo->prepare(

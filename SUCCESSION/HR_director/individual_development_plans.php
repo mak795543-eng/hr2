@@ -4,6 +4,8 @@ require_once __DIR__ . '/../../COMPETENCY/criticalgaps/config.php';
 $flashOk = (string)($_GET['ok'] ?? '');
 $flashErr = (string)($_GET['err'] ?? '');
 
+$period = date('Y') . '-Q' . (string)ceil((int)date('n') / 3);
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = (string)($_POST['action'] ?? '');
     $idpId = (int)($_POST['idp_id'] ?? 0);
@@ -20,17 +22,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         try {
             $stmtSkills = $pdo->prepare(
-                "SELECT s.skill_name,
-                        COALESCE(es.skill_score, 0) AS skill_score,
-                        es.assessment_date
-                 FROM skills s
-                 LEFT JOIN employee_skills es
-                   ON es.skill_id = s.id AND es.employee_id = ?
-                 WHERE s.category = 'General Skills'
-                   AND s.department = ?
-                 ORDER BY s.skill_name ASC"
+                "SELECT k.kpi_name AS skill_name,
+                        AVG(COALESCE(s.score, 0)) / 5 * 100 AS skill_score,
+                        NULL AS assessment_date
+                 FROM employee_kpi_scores s
+                 JOIN kpis k
+                   ON k.id = s.kpi_id
+                 WHERE s.employee_id = ?
+                   AND s.evaluation_period = ?
+                 GROUP BY k.kpi_name
+                 ORDER BY k.kpi_name ASC"
             );
-            $stmtSkills->execute([$employeeId, $department]);
+            seedMissingKpiEvaluations($employeeId, $period);
+            $stmtSkills->execute([$employeeId, $period]);
             $skills = $stmtSkills->fetchAll(PDO::FETCH_ASSOC);
             echo json_encode(['success' => true, 'skills' => $skills]);
             exit;
@@ -177,7 +181,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-$stmt = $pdo->query(
+$stmt = $pdo->prepare(
     "SELECT idp.id,
             idp.employee_id,
             idp.employee_name,
@@ -194,20 +198,14 @@ $stmt = $pdo->query(
             idp.updated_at
      FROM individual_development_plans idp
      LEFT JOIN (
-         SELECT idp2.employee_id,
-                idp2.department,
-                AVG(COALESCE(es2.skill_score, 0)) AS competency
-         FROM individual_development_plans idp2
-         JOIN skills s2
-           ON s2.category = 'General Skills'
-          AND s2.department = idp2.department
-         LEFT JOIN employee_skills es2
-           ON es2.employee_id = idp2.employee_id
-          AND es2.skill_id = s2.id
-         GROUP BY idp2.employee_id, idp2.department
-     ) gs ON gs.employee_id = idp.employee_id AND gs.department = idp.department
+         SELECT s2.employee_id, AVG(COALESCE(s2.score, 0)) / 5 * 100 AS competency
+         FROM employee_kpi_scores s2
+         WHERE s2.evaluation_period = ?
+         GROUP BY s2.employee_id
+     ) gs ON gs.employee_id = idp.employee_id
      ORDER BY idp.updated_at DESC, idp.created_at DESC"
 );
+$stmt->execute([$period]);
 $rows = $stmt->fetchAll();
 
 function h($v) {

@@ -12,6 +12,8 @@ if (!function_exists('h')) {
 $employeeId = trim((string)($_GET['employee_id'] ?? ''));
 $viewOnly = (string)($_GET['view'] ?? '') === '1';
 
+$period = date('Y') . '-Q' . (string)ceil((int)date('n') / 3);
+
 $successMessage = '';
 $errorMessage = '';
 
@@ -157,21 +159,15 @@ if ($errorMessage === '' && $_SERVER['REQUEST_METHOD'] === 'POST' && !$viewOnly)
                     END AS status
              FROM succession_submissions ss
              LEFT JOIN (
-                 SELECT ss2.employee_id,
-                        ss2.department,
-                        AVG(COALESCE(es2.skill_score, 0)) AS competency
-                 FROM succession_submissions ss2
-                 JOIN skills s2
-                   ON s2.category = 'General Skills'
-                  AND s2.department = ss2.department
-                 LEFT JOIN employee_skills es2
-                   ON es2.employee_id = ss2.employee_id
-                  AND es2.skill_id = s2.id
-                 GROUP BY ss2.employee_id, ss2.department
-             ) gs ON gs.employee_id = ss.employee_id AND gs.department = ss.department
+                 SELECT s2.employee_id, AVG(COALESCE(s2.score, 0)) / 5 * 100 AS competency
+                 FROM employee_kpi_scores s2
+                 WHERE s2.evaluation_period = ?
+                 GROUP BY s2.employee_id
+             ) gs ON gs.employee_id = ss.employee_id
              WHERE ss.employee_id = ?"
         );
-        $stmt2->execute([$employeeId]);
+        seedMissingKpiEvaluations($employeeId, $period);
+        $stmt2->execute([$period, $employeeId]);
         $src = $stmt2->fetch();
 
         if ($src) {
@@ -459,21 +455,15 @@ if ($employeeId !== '') {
                 ss.created_at
          FROM succession_submissions ss
          LEFT JOIN (
-             SELECT ss2.employee_id,
-                    ss2.department,
-                    AVG(COALESCE(es2.skill_score, 0)) AS competency
-             FROM succession_submissions ss2
-             JOIN skills s2
-               ON s2.category = 'General Skills'
-              AND s2.department = ss2.department
-             LEFT JOIN employee_skills es2
-               ON es2.employee_id = ss2.employee_id
-              AND es2.skill_id = s2.id
-             GROUP BY ss2.employee_id, ss2.department
-         ) gs ON gs.employee_id = ss.employee_id AND gs.department = ss.department
+             SELECT s2.employee_id, AVG(COALESCE(s2.score, 0)) / 5 * 100 AS competency
+             FROM employee_kpi_scores s2
+             WHERE s2.evaluation_period = ?
+             GROUP BY s2.employee_id
+         ) gs ON gs.employee_id = ss.employee_id
          WHERE ss.employee_id = ?"
     );
-    $stmt->execute([$employeeId]);
+    seedMissingKpiEvaluations($employeeId, $period);
+    $stmt->execute([$period, $employeeId]);
     $row = $stmt->fetch();
 }
 if (!$row) {
@@ -510,17 +500,19 @@ $generalSkillsBreakdown = [];
 if ($row) {
     try {
         $stmtSkills = $pdo->prepare(
-            "SELECT s.skill_name,
-                    COALESCE(es.skill_score, 0) AS skill_score,
-                    es.assessment_date
-             FROM skills s
-             LEFT JOIN employee_skills es
-               ON es.skill_id = s.id AND es.employee_id = ?
-             WHERE s.category = 'General Skills'
-               AND s.department = ?
-             ORDER BY s.skill_name ASC"
+            "SELECT k.kpi_name AS skill_name,
+                    AVG(COALESCE(s.score, 0)) / 5 * 100 AS skill_score,
+                    NULL AS assessment_date
+             FROM employee_kpi_scores s
+             JOIN kpis k
+               ON k.id = s.kpi_id
+             WHERE s.employee_id = ?
+               AND s.evaluation_period = ?
+             GROUP BY k.kpi_name
+             ORDER BY k.kpi_name ASC"
         );
-        $stmtSkills->execute([(string)($row['employee_id'] ?? ''), (string)($row['department'] ?? '')]);
+        seedMissingKpiEvaluations((string)($row['employee_id'] ?? ''), $period);
+        $stmtSkills->execute([(string)($row['employee_id'] ?? ''), $period]);
         $generalSkillsBreakdown = $stmtSkills->fetchAll(PDO::FETCH_ASSOC);
     } catch (Throwable $e) {
         $generalSkillsBreakdown = [];
@@ -550,11 +542,7 @@ require('../../partials/header.php');
 <body class="bg-gray-50 min-h-screen">
 
   <div class="flex h-screen">
-    <!-- Sidebar -->
-    <?php 
-    // Use relative path or absolute path based on your directory structure
-    include '../../USM/sidebarr.php'; 
-    ?>
+   
     <!-- Content Area -->
     <div class="flex flex-col flex-1 overflow-hidden">
       <!-- Navbar -->

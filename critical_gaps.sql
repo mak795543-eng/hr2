@@ -834,6 +834,67 @@ INSERT INTO `succession_submissions` (`id`, `employee_id`, `employee_name`, `pos
 (28, 'CR-SR-004', 'Carlo Bautista', 'Restaurant Manager', 'Food & Beverage (F&B)', 88.00, 'Succession Ready', '- Strategic Guest Experience\n- Revenue Growth', 95.00, '2026-03-24', 'Pending', NULL, '2026-01-22 23:08:49', '2026-01-22 23:08:49', 0),
 (29, 'CR-SR-005', 'Jasper Tan', 'Chief Engineer / Engineering Manager', 'Engineering / Maintenance', 56.86, 'Refresher Training', 'Documentation & Reporting Skills:\r\n- Updated reporting procedures\r\n\r\nEmergency Response Readiness:\r\n- Drills and simulations\r\n\r\nHealth & Safety Compliance:\r\n- Updated safety regulations\r\n\r\nPreventive Maintenance Skills:\r\n- Updated maintenance schedules', 70.00, '2026-03-24', 'Created', '2026-01-24 10:26:51', '2026-01-22 23:08:49', '2026-01-24 10:26:51', 1);
 
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `competency_criteria`
+--
+
+CREATE TABLE `competency_criteria` (
+  `id` int(11) NOT NULL,
+  `name` varchar(150) NOT NULL,
+  `description` text DEFAULT NULL,
+  `required_level` decimal(5,2) NOT NULL DEFAULT 80.00,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `kpis`
+--
+
+CREATE TABLE `kpis` (
+  `id` int(11) NOT NULL,
+  `kpi_name` varchar(150) NOT NULL,
+  `department` varchar(100) DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `employee_kpi_scores`
+--
+
+CREATE TABLE `employee_kpi_scores` (
+  `id` int(11) NOT NULL,
+  `employee_id` varchar(50) NOT NULL,
+  `evaluation_period` varchar(50) NOT NULL,
+  `kpi_id` int(11) NOT NULL,
+  `criteria` varchar(255) NOT NULL,
+  `score` decimal(5,2) NOT NULL DEFAULT 0.00,
+  `assessed_at` timestamp NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `kpi_gap_formulations`
+--
+
+CREATE TABLE `kpi_gap_formulations` (
+  `id` int(11) NOT NULL,
+  `employee_id` varchar(50) NOT NULL,
+  `evaluation_period` varchar(50) NOT NULL,
+  `overall_competency` decimal(5,2) NOT NULL DEFAULT 0.00,
+  `status` varchar(50) NOT NULL,
+  `details_json` longtext DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
 --
 -- Indexes for dumped tables
 --
@@ -844,6 +905,13 @@ INSERT INTO `succession_submissions` (`id`, `employee_id`, `employee_name`, `pos
 ALTER TABLE `departments`
   ADD PRIMARY KEY (`id`),
   ADD UNIQUE KEY `name` (`name`);
+
+--
+-- Indexes for table `competency_criteria`
+--
+ALTER TABLE `competency_criteria`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `uniq_competency_name` (`name`);
 
 --
 -- Indexes for table `development_plan_items`
@@ -862,6 +930,15 @@ ALTER TABLE `employees`
   ADD UNIQUE KEY `employee_id` (`employee_id`);
 
 --
+-- Indexes for table `employee_kpi_scores`
+--
+ALTER TABLE `employee_kpi_scores`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `uniq_emp_kpi_criteria` (`employee_id`,`evaluation_period`,`kpi_id`,`criteria`),
+  ADD KEY `idx_emp_period` (`employee_id`,`evaluation_period`),
+  ADD KEY `idx_emp_kpi_kpi` (`kpi_id`);
+
+--
 -- Indexes for table `employee_skills`
 --
 ALTER TABLE `employee_skills`
@@ -876,6 +953,22 @@ ALTER TABLE `general_skill_standards`
   ADD PRIMARY KEY (`id`),
   ADD UNIQUE KEY `uniq_skill_standard` (`skill_id`),
   ADD KEY `idx_standard_skill` (`skill_id`);
+
+--
+-- Indexes for table `kpi_gap_formulations`
+--
+ALTER TABLE `kpi_gap_formulations`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `uniq_emp_period` (`employee_id`,`evaluation_period`),
+  ADD KEY `idx_period` (`evaluation_period`),
+  ADD KEY `idx_gap_employee` (`employee_id`);
+
+--
+-- Indexes for table `kpis`
+--
+ALTER TABLE `kpis`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `uniq_kpi` (`kpi_name`,`department`);
 
 --
 -- Indexes for table `individual_development_plans`
@@ -931,6 +1024,12 @@ ALTER TABLE `development_plan_items`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=325;
 
 --
+-- AUTO_INCREMENT for table `competency_criteria`
+--
+ALTER TABLE `competency_criteria`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+
+--
 -- AUTO_INCREMENT for table `employees`
 --
 ALTER TABLE `employees`
@@ -943,6 +1042,12 @@ ALTER TABLE `employee_skills`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=649;
 
 --
+-- AUTO_INCREMENT for table `employee_kpi_scores`
+--
+ALTER TABLE `employee_kpi_scores`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+
+--
 -- AUTO_INCREMENT for table `general_skill_standards`
 --
 ALTER TABLE `general_skill_standards`
@@ -953,6 +1058,18 @@ ALTER TABLE `general_skill_standards`
 --
 ALTER TABLE `individual_development_plans`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=22;
+
+--
+-- AUTO_INCREMENT for table `kpi_gap_formulations`
+--
+ALTER TABLE `kpi_gap_formulations`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `kpis`
+--
+ALTER TABLE `kpis`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
 
 --
 -- AUTO_INCREMENT for table `requested_to_idp`
@@ -990,10 +1107,23 @@ ALTER TABLE `employee_skills`
   ADD CONSTRAINT `fk_es_skill` FOREIGN KEY (`skill_id`) REFERENCES `skills` (`id`) ON DELETE CASCADE;
 
 --
+-- Constraints for table `employee_kpi_scores`
+--
+ALTER TABLE `employee_kpi_scores`
+  ADD CONSTRAINT `fk_emp_kpi_employee` FOREIGN KEY (`employee_id`) REFERENCES `employees` (`employee_id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `fk_emp_kpi_kpi` FOREIGN KEY (`kpi_id`) REFERENCES `kpis` (`id`) ON DELETE CASCADE;
+
+--
 -- Constraints for table `general_skill_standards`
 --
 ALTER TABLE `general_skill_standards`
   ADD CONSTRAINT `fk_gss_skill` FOREIGN KEY (`skill_id`) REFERENCES `skills` (`id`) ON DELETE CASCADE;
+
+--
+-- Constraints for table `kpi_gap_formulations`
+--
+ALTER TABLE `kpi_gap_formulations`
+  ADD CONSTRAINT `fk_gap_emp` FOREIGN KEY (`employee_id`) REFERENCES `employees` (`employee_id`) ON DELETE CASCADE;
 
 --
 -- Constraints for table `individual_development_plans`
