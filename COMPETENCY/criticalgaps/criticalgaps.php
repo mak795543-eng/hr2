@@ -43,7 +43,6 @@ require('../../partials/header.php');
             </div>
             <div class="flex gap-2">
                 <a href="gap_analysis.php" class="btn btn-outline btn-sm">Gap Analysis</a>
-                <a href="../../kpi_eval_dummy.php" class="btn btn-primary btn-sm">KPI Evaluation</a>
                 <button type="button" id="push-all-to-succession" class="btn btn-outline btn-sm">Push All to Succession</button>
             </div>
         </div>
@@ -404,17 +403,18 @@ require('../../partials/header.php');
             
             // Set subtitle
             subtitle.textContent = `${employee.full_name} | ${employee.position} | ${employee.department}`;
-            
-            const overall = parseFloat(employee.competency) || 0;
+
             const maxScore = 5;
             const kpis = Array.isArray(employee.kpis) ? employee.kpis : [];
+            const analysis = employee.analysis || {};
+            const computed = Array.isArray(analysis.computed) ? analysis.computed : [];
+            const overallObj = analysis.overall || {};
+            const overallPct = Number.isFinite(Number(overallObj.pct)) ? Number(overallObj.pct) : (parseFloat(employee.competency) || 0);
+            const overallStatus = String(overallObj.status || employee.status || 'Retrain');
 
             const kpisHtml = kpis.length > 0 ? kpis.map((kpi) => {
                 const name = String(kpi.kpi_name ?? kpi.kpi ?? '');
                 const evaluations = Array.isArray(kpi.evaluations) ? kpi.evaluations : [];
-                const scores = evaluations.map(e => Number(e.score)).filter(v => Number.isFinite(v));
-                const avg = scores.length ? (scores.reduce((a, b) => a + b, 0) / scores.length) : 0;
-                const pct = Math.max(0, Math.min(100, (avg / maxScore) * 100));
 
                 const rows = evaluations.map((ev) => {
                     const s = Number(ev.score);
@@ -436,8 +436,8 @@ require('../../partials/header.php');
                         <div class="px-4 py-3 bg-gray-50 border-b border-gray-300 flex items-center justify-between gap-3">
                             <div class="font-semibold text-gray-900">${escapeHtml(name)}</div>
                             <div class="text-right">
-                                <div class="text-sm text-gray-600">Average</div>
-                                <div class="font-bold text-gray-900">${avg.toFixed(2)} / ${maxScore} (${pct.toFixed(1)}%)</div>
+                                <div class="text-sm text-gray-600">Evaluations</div>
+                                <div class="text-xs text-gray-500">(Analyze to see KPI gaps)</div>
                             </div>
                         </div>
                         <div class="overflow-x-auto">
@@ -465,6 +465,23 @@ require('../../partials/header.php');
                     <p class="text-lg font-medium">No KPI evaluations available</p>
                 </div>
             `;
+
+            const analysisRows = computed.map((r) => {
+                const kpiName = String(r.kpi_name ?? '');
+                const kpiPct = Number(r.kpi_pct ?? 0);
+                const reqPct = Number(r.required_pct ?? 0);
+                const gapPct = Number(r.gap_pct ?? 0);
+                const badge = gapPct > 0 ? 'badge-error' : 'badge-success';
+                return `
+                    <tr class="hover:bg-gray-50">
+                        <td class="py-2 px-4 border-b border-gray-300 text-sm text-gray-900">${escapeHtml(kpiName)}</td>
+                        <td class="py-2 px-4 border-b border-gray-300 text-right font-semibold">${kpiPct.toFixed(1)}%</td>
+                        <td class="py-2 px-4 border-b border-gray-300 text-right font-semibold">${reqPct.toFixed(1)}%</td>
+                        <td class="py-2 px-4 border-b border-gray-300 text-right"><span class="badge ${badge}">${gapPct.toFixed(1)}%</span></td>
+                    </tr>
+                `;
+            }).join('');
+
             content.innerHTML = `
                 <div class="space-y-6">
                     <div class="bg-gray-50 p-5 rounded-lg border border-gray-300">
@@ -487,26 +504,69 @@ require('../../partials/header.php');
                                 </div>
                             </div>
                             <div class="text-right">
-                                <div class="text-sm text-gray-600">Competency Level</div>
-                                <div class="text-3xl font-bold text-gray-900 mt-1">${overall.toFixed(1)}%</div>
-                                <div class="mt-2">
-                                    <span class="status-badge ${getStatusClass(employee.status)}">${escapeHtml(employee.status)}</span>
-                                </div>
+                                <div class="text-sm text-gray-600">Evaluation</div>
+                                <div class="text-xs text-gray-500">Analyze to compute competency and gaps</div>
                             </div>
                         </div>
                     </div>
 
-                    <div class="bg-white border border-gray-300 rounded-lg p-5">
-                        <h4 class="font-semibold text-gray-900 flex items-center gap-2 mb-4">
-                            <i data-lucide="list-checks" class="w-4 h-4"></i>
-                            KPI Evaluations
-                        </h4>
-                        <div class="space-y-4">
-                            ${employee.evaluation_period ? `
-                                <div class="text-sm text-gray-600">Evaluation period: <span class="font-semibold">${escapeHtml(employee.evaluation_period)}</span></div>
-                            ` : ''}
-                            ${kpisHtml}
+                    <div class="flex flex-col md:flex-row gap-2">
+                        <button id="analyze-btn" class="btn bg-gray-900 text-white hover:bg-gray-800 border-0 flex-1">
+                            <i data-lucide="search" class="w-4 h-4 mr-2"></i>
+                            Analyze
+                        </button>
+                    </div>
+
+                    <div id="analysis-block" class="hidden space-y-4">
+                        <div class="bg-gray-50 p-5 rounded-lg border border-gray-300">
+                            <div class="flex flex-col md:flex-row md:items-center justify-between gap-3">
+                                <div>
+                                    <div class="text-sm text-gray-600">Overall Competency</div>
+                                    <div class="text-3xl font-bold text-gray-900 mt-1">${overallPct.toFixed(1)}%</div>
+                                </div>
+                                <div class="text-right">
+                                    <div class="text-sm text-gray-600">Status</div>
+                                    <div class="mt-1"><span class="status-badge ${getStatusClass(overallStatus)}">${escapeHtml(overallStatus)}</span></div>
+                                </div>
+                            </div>
                         </div>
+
+                        <div class="border border-gray-300 rounded-lg overflow-hidden">
+                            <div class="px-4 py-3 bg-gray-50 border-b border-gray-300 flex items-center justify-between gap-3">
+                                <div class="font-semibold text-gray-900">KPI Analysis</div>
+                                <div class="text-xs text-gray-500">Actual vs Required vs Gap</div>
+                            </div>
+                            <div class="overflow-x-auto">
+                                <table class="table w-full">
+                                    <thead>
+                                        <tr class="bg-white">
+                                            <th class="text-gray-700 py-2 px-4 border-b border-gray-300">KPI</th>
+                                            <th class="text-gray-700 py-2 px-4 border-b border-gray-300 text-right">Actual</th>
+                                            <th class="text-gray-700 py-2 px-4 border-b border-gray-300 text-right">Required</th>
+                                            <th class="text-gray-700 py-2 px-4 border-b border-gray-300 text-right">Gap</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="divide-y divide-gray-200">
+                                        ${analysisRows || `
+                                            <tr>
+                                                <td colspan="4" class="py-8 text-center text-gray-500">No analysis available</td>
+                                            </tr>
+                                        `}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <div class="flex flex-col md:flex-row gap-2">
+                            <button id="forward-critical-btn" class="btn bg-white border border-gray-300 hover:bg-gray-50 text-gray-800 flex-1">
+                                <i data-lucide="arrow-right" class="w-4 h-4 mr-2"></i>
+                                Forward Role to Critical Roles
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="space-y-6">
+                        ${kpisHtml}
                     </div>
 
                     <div class="flex justify-between items-center pt-6 border-t border-gray-300">
@@ -528,6 +588,54 @@ require('../../partials/header.php');
                     </div>
                 </div>
             `;
+
+            const analyzeBtn = document.getElementById('analyze-btn');
+            const analysisBlock = document.getElementById('analysis-block');
+            if (analyzeBtn && analysisBlock) {
+                analyzeBtn.addEventListener('click', () => {
+                    analysisBlock.classList.remove('hidden');
+                    analyzeBtn.disabled = true;
+                });
+            }
+
+            const forwardBtn = document.getElementById('forward-critical-btn');
+            if (forwardBtn) {
+                forwardBtn.addEventListener('click', async () => {
+                    try {
+                        const evalPeriod = String(employee.evaluation_period || '').trim() || '';
+                        const res = await fetch('forward_to_critical.php', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ employee_id: employee.employee_id, evaluation_period: evalPeriod })
+                        });
+                        const json = await res.json();
+                        if (!res.ok || !json || json.success !== true) {
+                            throw new Error(json?.message || 'Failed to forward');
+                        }
+
+                        await Swal.fire({
+                            icon: 'success',
+                            title: 'Forwarded',
+                            text: 'Employee forwarded to Critical Roles.',
+                            confirmButtonColor: '#1f2937'
+                        });
+
+                        const card = document.querySelector(`.employee-card[data-employee-id="${CSS.escape(employee.employee_id)}"]`);
+                        if (card) {
+                            card.remove();
+                        }
+
+                        document.getElementById('view-modal').close();
+                    } catch (err) {
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Error',
+                            text: (err && err.message) ? err.message : 'Server error',
+                            confirmButtonColor: '#1f2937'
+                        });
+                    }
+                });
+            }
             
         } catch (error) {
             content.innerHTML = `

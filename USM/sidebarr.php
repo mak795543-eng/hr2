@@ -31,16 +31,16 @@ if (!function_exists('hasAccess')) {
     <!-- Sidebar Header -->
     <div class="flex flex-col sm:flex-row items-center justify-between px-4 mb-6 text-center">
         <h1 class="text-xl sm:text-2xl font-bold text-white flex items-center gap-2">
-            <img id="sidebar-logo" src="logo/logofinal.png"
+            <img id="sidebar-logo" src="/hr2/logofinal.png"
                 alt="Logo"
                 class="h-12 sm:h-16 md:h-20 w-auto max-w-full">
-            <img id="sonly" src="logo/logofinal.png"
+            <img id="sonly" src="/hr2/sonly.png"
                 alt="Logo"
                 class="hidden h-10 w-auto max-w-full">
         </h1>
     </div>
 
-    <!-- Navigation Menu -->
+    <!-- Navigsdation Menu -->
     <div class="flex-1 flex flex-col overflow-hidden hover:overflow-y-auto">
         <nav class="flex-1 px-2 space-y-1">
             <!-- DASHBOARD SECTION -->
@@ -55,6 +55,17 @@ if (!function_exists('hasAccess')) {
                 </a>
             <?php endif; ?>
     
+            <!-- DASHBOARD SECTION -->
+            <?php if (hasAccess('employee_self_service', $allowed_modules, $is_supervisor)): ?>
+                <a href="/../hr2/ESS/dashboard.php" class="block">
+                    <div class="flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-all hover:bg-blue-600/50 text-white group">
+                        <div class="p-1.5 rounded-lg bg-blue-800/30 group-hover:bg-blue-700/50 transition-colors">
+                            <i data-lucide="layout-dashboard" class="w-5 h-5 text-[#F7B32B] group-hover:text-white"></i>
+                        </div>
+                        <span class="ml-3 sidebar-text">ESS Dashboard</span>
+                    </div>
+                </a>
+            <?php endif; ?>
 
 
 
@@ -366,7 +377,7 @@ if (!function_exists('hasAccess')) {
                     </div>
                 </a>
         
-                <a href="/../hr2/TRAINING/TRAINING/dashboard.php" class="block">
+                <a href="/../hr2/ESS/mytraining.php" class="block">
                     <div class="flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-all hover:bg-blue-600/50 text-white group">
                         <div class="p-1 rounded-lg bg-blue-800/30 group-hover:bg-blue-700/50 transition-colors">
                             <i data-lucide="graduation-cap" class="w-5 h-5 text-[#F7B32B] group-hover:text-white"></i>
@@ -390,6 +401,15 @@ if (!function_exists('hasAccess')) {
                             <i data-lucide="clipboard-check" class="w-5 h-5 text-[#F7B32B] group-hover:text-white"></i>
                         </div>
                         <span class="ml-3 sidebar-text">My Examination</span>
+                    </div>
+                </a>
+                       
+                <a href="/../hr2/ESS/submitdocument.php" class="block">
+                    <div class="flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-all hover:bg-blue-600/50 text-white group">
+                        <div class="p-1 rounded-lg bg-blue-800/30 group-hover:bg-blue-700/50 transition-colors">
+                            <i data-lucide="file-up" class="w-5 h-5 text-[#F7B32B] group-hover:text-white"></i>
+                        </div>
+                        <span class="ml-3 sidebar-text">Submit Document</span>
                     </div>
                 </a>
 

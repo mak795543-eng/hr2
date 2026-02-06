@@ -20,6 +20,17 @@ try {
 
 $allowedStatuses = ['Retrain', 'Reskilling', 'Refresher Training', 'Upskilling', 'Succession Ready'];
 
+$period = date('Y') . '-Q' . (string)ceil((int)date('n') / 3);
+
+try {
+    $seedStmt = $pdo->query("SELECT DISTINCT employee_id FROM succession_submissions WHERE is_pushed = 1");
+    $seedIds = $seedStmt->fetchAll(PDO::FETCH_COLUMN);
+    foreach (($seedIds ?? []) as $eid) {
+        seedMissingKpiEvaluations((string)$eid, $period);
+    }
+} catch (Throwable $e) {
+}
+
 $where = [
     'ss.is_pushed = 1'
 ];
@@ -69,20 +80,15 @@ $stmt = $pdo->prepare(
             END AS status
      FROM succession_submissions ss
      LEFT JOIN (
-         SELECT ss2.employee_id, ss2.department, AVG(COALESCE(es2.skill_score, 0)) AS competency
-         FROM succession_submissions ss2
-         JOIN skills s2
-           ON s2.category = 'General Skills'
-          AND s2.department = ss2.department
-         LEFT JOIN employee_skills es2
-           ON es2.employee_id = ss2.employee_id
-          AND es2.skill_id = s2.id
-         GROUP BY ss2.employee_id, ss2.department
-     ) gs ON gs.employee_id = ss.employee_id AND gs.department = ss.department
+         SELECT s2.employee_id, AVG(COALESCE(s2.score, 0)) / 5 * 100 AS competency
+         FROM employee_kpi_scores s2
+         WHERE s2.evaluation_period = ?
+         GROUP BY s2.employee_id
+     ) gs ON gs.employee_id = ss.employee_id
      $whereSql
      ORDER BY ss.created_at DESC"
 );
-$stmt->execute($params);
+$stmt->execute(array_merge([$period], $params));
 $rows = $stmt->fetchAll();
 
 function h($v) {
