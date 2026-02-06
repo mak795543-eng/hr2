@@ -79,7 +79,7 @@
         
         <!-- Statistics Overview -->
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-            <div class="stats-card bg-white rounded-xl shadow-md p-6">
+            <div class="stats-card hr2-summary-card rounded-xl shadow-md p-6">
                 <div class="flex items-center justify-between">
                     <div>
                         <p class="text-sm text-gray-500">Total Trainings</p>
@@ -102,7 +102,7 @@
                 </div>
             </div>
             
-            <div class="stats-card bg-white rounded-xl shadow-md p-6">
+            <div class="stats-card hr2-summary-card rounded-xl shadow-md p-6">
                 <div class="flex items-center justify-between">
                     <div>
                         <p class="text-sm text-gray-500">Participants</p>
@@ -125,7 +125,7 @@
                 </div>
             </div>
             
-            <div class="stats-card bg-white rounded-xl shadow-md p-6">
+            <div class="stats-card hr2-summary-card rounded-xl shadow-md p-6">
                 <div class="flex items-center justify-between">
                     <div>
                         <p class="text-sm text-gray-500">Completion Rate</p>
@@ -145,7 +145,7 @@
                 </div>
             </div>
             
-            <div class="stats-card bg-white rounded-xl shadow-md p-6">
+            <div class="stats-card hr2-summary-card rounded-xl shadow-md p-6">
                 <div class="flex items-center justify-between">
                     <div>
                         <p class="text-sm text-gray-500">Upcoming Trainings</p>

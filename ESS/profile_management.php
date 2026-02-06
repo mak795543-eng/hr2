@@ -845,13 +845,16 @@ if ($conn && is_int($employeeId)) {
                         <?php foreach ($recentActivities as $a): ?>
                           <div class="flex items-start justify-between gap-3">
                             <div class="min-w-0">
+                              <?php if (trim((string)($a['type'] ?? '')) !== ''): ?>
+                                <div class="text-[11px] font-semibold text-gray-500 uppercase tracking-wide truncate"><?php echo htmlspecialchars((string)($a['type'] ?? '')); ?></div>
+                              <?php endif; ?>
                               <div class="text-sm font-semibold text-gray-900 truncate"><?php echo htmlspecialchars((string)($a['title'] ?? '')); ?></div>
                               <?php if (trim((string)($a['meta'] ?? '')) !== ''): ?>
                                 <div class="text-xs text-gray-500 line-clamp-2"><?php echo htmlspecialchars((string)($a['meta'] ?? '')); ?></div>
                               <?php endif; ?>
                             </div>
                             <div class="text-xs text-gray-500 whitespace-nowrap">
-                              <?php echo htmlspecialchars((string)($a['created_at'] ?? '') !== '' ? date('M d, Y', strtotime((string)($a['created_at'] ?? ''))) : ''); ?>
+                              <?php echo htmlspecialchars((string)($a['created_at'] ?? '') !== '' ? date('M d, Y g:i A', strtotime((string)($a['created_at'] ?? ''))) : ''); ?>
                             </div>
                           </div>
                         <?php endforeach; ?>

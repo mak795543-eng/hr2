@@ -242,6 +242,32 @@ if ($tableExists) {
         $rows = [];
     }
 }
+
+$ptTotalTrainings = 0;
+$ptCompletedTrainings = 0;
+$ptIdpTrainings = 0;
+
+if ($tableExists) {
+    $ptTotalTrainings = count($rows);
+
+    try {
+        $res = $conn->query("SELECT COUNT(*) AS c FROM training_posts tp JOIN training_programs p ON p.id = tp.program_id WHERE p.status = 'Completed'");
+        $row = $res ? $res->fetch_assoc() : null;
+        $ptCompletedTrainings = $row ? (int)($row['c'] ?? 0) : 0;
+    } catch (Throwable $e) {
+        $ptCompletedTrainings = 0;
+    }
+
+    try {
+        if ($tableHasColumn($conn, 'training_programs', 'requested_by')) {
+            $res = $conn->query("SELECT COUNT(*) AS c FROM training_posts tp JOIN training_programs p ON p.id = tp.program_id WHERE p.requested_by = 'IDP'");
+            $row = $res ? $res->fetch_assoc() : null;
+            $ptIdpTrainings = $row ? (int)($row['c'] ?? 0) : 0;
+        }
+    } catch (Throwable $e) {
+        $ptIdpTrainings = 0;
+    }
+}
 require('../../partials/header.php');
 ?>
 
@@ -258,7 +284,7 @@ require('../../partials/header.php');
           title: 'text-base-content',
           htmlContainer: 'text-base-content',
           actions: 'flex gap-2',
-          confirmButton: 'btn btn-primary',
+          confirmButton: 'btn hr2-primary-btn',
           cancelButton: 'btn btn-ghost',
           denyButton: 'btn btn-ghost',
           ...(inCustom || {})
@@ -348,6 +374,44 @@ require('../../partials/header.php');
         </div>
       </div>
 
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8 fade-in">
+        <div class="hr2-summary-card rounded-xl shadow-md p-6">
+          <div class="flex items-center justify-between">
+            <div>
+              <div class="text-sm text-gray-500">Total Trainings</div>
+              <div class="text-2xl font-bold text-gray-900"><?php echo (int)$ptTotalTrainings; ?></div>
+            </div>
+            <div class="p-3 bg-blue-100 rounded-full">
+              <i data-lucide="layers" class="h-6 w-6 text-blue-600"></i>
+            </div>
+          </div>
+        </div>
+
+        <div class="hr2-summary-card rounded-xl shadow-md p-6">
+          <div class="flex items-center justify-between">
+            <div>
+              <div class="text-sm text-gray-500">Completed Trainings</div>
+              <div class="text-2xl font-bold text-gray-900"><?php echo (int)$ptCompletedTrainings; ?></div>
+            </div>
+            <div class="p-3 bg-purple-100 rounded-full">
+              <i data-lucide="check-circle" class="h-6 w-6 text-purple-600"></i>
+            </div>
+          </div>
+        </div>
+
+        <div class="hr2-summary-card rounded-xl shadow-md p-6">
+          <div class="flex items-center justify-between">
+            <div>
+              <div class="text-sm text-gray-500">IDP trainings</div>
+              <div class="text-2xl font-bold text-gray-900"><?php echo (int)$ptIdpTrainings; ?></div>
+            </div>
+            <div class="p-3 bg-yellow-100 rounded-full">
+              <i data-lucide="target" class="h-6 w-6 text-yellow-600"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <?php if (!$tableExists): ?>
         <div class="bg-white rounded-xl shadow-md p-6">
           <div class="text-gray-700 font-semibold">No posts table</div>
@@ -383,9 +447,9 @@ require('../../partials/header.php');
                       <td data-label="Posted At"><?php echo htmlspecialchars((string)($r['posted_at'] ?? '')); ?></td>
                       <td data-label="Action">
                         <div class="flex flex-wrap gap-2">
-                          <button type="button" class="btn btn-sm btn-outline" data-action="view">View</button>
-                          <button type="button" class="btn btn-sm btn-primary" data-action="assign">Assign</button>
-                          <a class="btn btn-sm btn-accent" href="evaluatio.php?program_id=<?php echo (int)($r['program_id'] ?? 0); ?>&submission_no=<?php echo (int)($r['submission_no'] ?? 1); ?>">Evaluate</a>
+                          <button type="button" class="btn btn-sm hr2-outline-btn" data-action="view">View</button>
+                          <button type="button" class="btn btn-sm hr2-primary-btn" data-action="assign">Assign</button>
+                          <a class="btn btn-sm hr2-primary-btn" href="evaluatio.php?program_id=<?php echo (int)($r['program_id'] ?? 0); ?>&submission_no=<?php echo (int)($r['submission_no'] ?? 1); ?>">Evaluate</a>
                         </div>
                       </td>
                     </tr>
@@ -447,8 +511,8 @@ require('../../partials/header.php');
           <div class="flex items-center justify-between gap-3 mt-4">
             <div class="font-semibold text-gray-700">Employees</div>
             <div class="flex items-center gap-2">
-              <button type="button" class="btn btn-sm btn-outline" id="posted-assign-all">Select All</button>
-              <button type="button" class="btn btn-sm btn-outline" id="posted-assign-none">Select None</button>
+              <button type="button" class="btn btn-sm hr2-outline-btn" id="posted-assign-all">Select All</button>
+              <button type="button" class="btn btn-sm hr2-outline-btn" id="posted-assign-none">Select None</button>
             </div>
           </div>
 
@@ -470,7 +534,7 @@ require('../../partials/header.php');
           </div>
 
           <div class="modal-action">
-            <button type="button" class="btn btn-primary" id="posted-assign-save">Save</button>
+            <button type="button" class="btn hr2-primary-btn" id="posted-assign-save">Save</button>
             <button type="button" class="btn btn-ghost" id="posted-assign-cancel">Cancel</button>
           </div>
         </div>
@@ -489,7 +553,7 @@ require('../../partials/header.php');
         popup: 'bg-base-100 text-base-content rounded-box',
         title: 'text-base-content',
         htmlContainer: 'text-base-content',
-        confirmButton: 'btn btn-primary',
+        confirmButton: 'btn hr2-primary-btn',
         cancelButton: 'btn btn-ghost'
       }
     };

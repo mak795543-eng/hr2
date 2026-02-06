@@ -284,7 +284,7 @@ sort($all_roles);
             
             <!-- Statistics Cards -->
             <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-              <div class="stat bg-white rounded-lg border border-gray-200 p-6">
+              <div class="stat hr2-summary-card rounded-lg p-6">
                 <div class="stat-figure text-gray-600">
                   <i class="fas fa-file-alt text-3xl"></i>
                 </div>
@@ -293,7 +293,7 @@ sort($all_roles);
                 <div class="stat-desc text-gray-500">Active examinations</div>
               </div>
               
-              <div class="stat bg-white rounded-lg border border-gray-200 p-6">
+              <div class="stat hr2-summary-card rounded-lg p-6">
                 <div class="stat-figure text-gray-600">
                   <i class="fas fa-users text-3xl"></i>
                 </div>
@@ -302,7 +302,7 @@ sort($all_roles);
                 <div class="stat-desc text-gray-500">For assignment</div>
               </div>
               
-              <div class="stat bg-white rounded-lg border border-gray-200 p-6">
+              <div class="stat hr2-summary-card rounded-lg p-6">
                 <div class="stat-figure text-gray-600">
                   <i class="fas fa-calendar-check text-3xl"></i>
                 </div>

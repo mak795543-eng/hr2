@@ -97,12 +97,39 @@ CREATE TABLE leave_requests (
     start_date DATE NOT NULL,
     end_date DATE NOT NULL,
     reason TEXT,
-    status ENUM('Pending', 'Approved', 'Rejected') DEFAULT 'Pending',
+    status ENUM('Pending', 'Approved', 'Rejected', 'For Compliance') DEFAULT 'Pending',
+    remarks TEXT NULL,
     approved_by INT,
     approved_at TIMESTAMP NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_emp_created (employee_id, created_at),
     FOREIGN KEY (employee_id) REFERENCES employees(id)
-);
+)
+ENGINE=InnoDB
+DEFAULT CHARSET=utf8mb4;
+
+-- ============================================
+-- 6.1 NOTIFICATION STATES
+-- ============================================
+CREATE TABLE notification_states (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    employee_id INT NOT NULL,
+    notif_key CHAR(40) NOT NULL,
+    status ENUM('unread','read','archived') NOT NULL DEFAULT 'unread',
+    deleted TINYINT(1) NOT NULL DEFAULT 0,
+    notif_type VARCHAR(60) NULL,
+    notif_title VARCHAR(255) NULL,
+    notif_meta VARCHAR(255) NULL,
+    notif_link VARCHAR(255) NULL,
+    notif_date DATETIME NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uniq_emp_notif (employee_id, notif_key),
+    INDEX idx_emp_status (employee_id, status),
+    INDEX idx_emp_deleted (employee_id, deleted)
+)
+ENGINE=InnoDB
+DEFAULT CHARSET=utf8mb4;
 
 -- ============================================
 -- 7. COMPLAINT

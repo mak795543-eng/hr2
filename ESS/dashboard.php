@@ -317,6 +317,7 @@ function badgeClassForNotifType($type) {
         'training schedule' => 'bg-emerald-50 text-emerald-700 border border-emerald-200',
         'promotion' => 'bg-violet-50 text-violet-700 border border-violet-200',
         'approval update' => 'bg-rose-50 text-rose-700 border border-rose-200',
+        'leave update' => 'bg-blue-50 text-blue-700 border border-blue-200',
         default => 'bg-gray-50 text-gray-700 border border-gray-200',
     };
 }
@@ -329,6 +330,7 @@ function viewLabelForNotifType($type) {
         'training schedule' => 'View Training',
         'promotion' => 'View Promotion',
         'approval update' => 'View Profile',
+        'leave update' => 'View',
         default => 'View',
     };
 }
@@ -361,7 +363,7 @@ function viewLabelForNotifType($type) {
           </div>
 
           <div class="mt-6 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-            <a href="<?php echo htmlspecialchars($summary['documents']['link']); ?>" class="card bg-base-100 border border-base-200 shadow-sm hover:shadow transition-shadow">
+            <a href="<?php echo htmlspecialchars($summary['documents']['link']); ?>" class="card hr2-summary-card border border-base-200 shadow-sm hover:shadow transition-shadow">
               <div class="card-body">
                 <div class="flex items-center justify-between">
                   <div class="p-2 rounded-xl bg-base-200">
@@ -380,7 +382,7 @@ function viewLabelForNotifType($type) {
               </div>
             </a>
 
-            <a href="<?php echo htmlspecialchars($summary['leave']['link']); ?>" class="card bg-base-100 border border-base-200 shadow-sm hover:shadow transition-shadow">
+            <a href="<?php echo htmlspecialchars($summary['leave']['link']); ?>" class="card hr2-summary-card border border-base-200 shadow-sm hover:shadow transition-shadow">
               <div class="card-body">
                 <div class="flex items-center justify-between">
                   <div class="p-2 rounded-xl bg-base-200">
@@ -399,7 +401,7 @@ function viewLabelForNotifType($type) {
               </div>
             </a>
 
-            <a href="<?php echo htmlspecialchars($summary['payments']['link']); ?>" class="card bg-base-100 border border-base-200 shadow-sm hover:shadow transition-shadow">
+            <a href="<?php echo htmlspecialchars($summary['payments']['link']); ?>" class="card hr2-summary-card border border-base-200 shadow-sm hover:shadow transition-shadow">
               <div class="card-body">
                 <div class="flex items-center justify-between">
                   <div class="p-2 rounded-xl bg-base-200">
@@ -418,7 +420,7 @@ function viewLabelForNotifType($type) {
               </div>
             </a>
 
-            <a href="<?php echo htmlspecialchars($summary['claims']['link']); ?>" class="card bg-base-100 border border-base-200 shadow-sm hover:shadow transition-shadow">
+            <a href="<?php echo htmlspecialchars($summary['claims']['link']); ?>" class="card hr2-summary-card border border-base-200 shadow-sm hover:shadow transition-shadow">
               <div class="card-body">
                 <div class="flex items-center justify-between">
                   <div class="p-2 rounded-xl bg-base-200">
@@ -449,7 +451,6 @@ function viewLabelForNotifType($type) {
                       </div>
                       <div>
                         <h2 class="font-semibold text-gray-800">Notifications</h2>
-                        <p class="text-sm text-gray-500">Latest notifications (last 24 hours).</p>
                       </div>
                     </div>
                   </div>
@@ -509,10 +510,19 @@ function viewLabelForNotifType($type) {
                                 </div>
 
                                 <div class="mt-3">
-                                  <a class="btn btn-sm btn-outline w-full notif-view" data-key="<?php echo htmlspecialchars((string)($n['key'] ?? '')); ?>" href="<?php echo htmlspecialchars($n['link']); ?>">
+                                  <button
+                                    type="button"
+                                    class="btn btn-sm btn-outline w-full notif-view"
+                                    data-key="<?php echo htmlspecialchars((string)($n['key'] ?? '')); ?>"
+                                    data-type="<?php echo htmlspecialchars((string)($n['type'] ?? '')); ?>"
+                                    data-title="<?php echo htmlspecialchars((string)($n['title'] ?? '')); ?>"
+                                    data-meta="<?php echo htmlspecialchars((string)($n['meta'] ?? '')); ?>"
+                                    data-date="<?php echo htmlspecialchars((string)($n['date'] ?? '')); ?>"
+                                    data-link="<?php echo htmlspecialchars((string)($n['link'] ?? '')); ?>"
+                                  >
                                     <i data-lucide="eye" class="w-4 h-4"></i>
                                     <span class="ml-2"><?php echo htmlspecialchars(viewLabelForNotifType((string)($n['type'] ?? ''))); ?></span>
-                                  </a>
+                                  </button>
                                 </div>
                               </div>
                             </div>
@@ -566,6 +576,27 @@ function viewLabelForNotifType($type) {
     </div>
   </div>
 
+  <dialog id="notifViewModal" class="modal">
+    <div class="modal-box w-11/12 max-w-2xl">
+      <div class="flex items-start justify-between gap-3">
+        <div>
+          <h3 class="font-bold text-lg" id="notifModalTitle">Notification</h3>
+          <div class="text-sm text-gray-500" id="notifModalDate"></div>
+        </div>
+        <button type="button" class="btn btn-sm btn-ghost" id="notifModalClose">✕</button>
+      </div>
+
+      <div class="divider my-4"></div>
+
+      <div class="text-sm text-gray-700 whitespace-pre-line" id="notifModalBody"></div>
+
+      <div class="modal-action">
+        <button type="button" class="btn hr2-primary-btn" id="notifModalOk">OK</button>
+      </div>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+  </dialog>
+<?php require('../partials/footer.php') ?>
   <script>
     lucide.createIcons();
   </script>
@@ -658,6 +689,13 @@ function viewLabelForNotifType($type) {
         const key = link.getAttribute('data-key') || '';
         if (!key) return;
 
+        const type = (link.getAttribute('data-type') || '').toLowerCase();
+        const title = link.getAttribute('data-title') || '';
+        const meta = link.getAttribute('data-meta') || '';
+        const dt = link.getAttribute('data-date') || '';
+        const href = link.getAttribute('data-link') || '';
+
+        e.preventDefault();
         try {
           const data = await postState('read', key);
           if (!data || !data.success) return;
@@ -665,9 +703,34 @@ function viewLabelForNotifType($type) {
           if (!card) return;
           card.setAttribute('data-status', 'read');
           updateNewBadge(card, 'read');
+
+          if (type === 'leave update') {
+            const dlg = document.getElementById('notifViewModal');
+            const tEl = document.getElementById('notifModalTitle');
+            const dEl = document.getElementById('notifModalDate');
+            const bEl = document.getElementById('notifModalBody');
+            if (tEl) tEl.textContent = title || 'Leave Update';
+            if (dEl) dEl.textContent = dt ? dt : '';
+            if (bEl) bEl.textContent = meta || '';
+            if (dlg) dlg.showModal();
+            return;
+          }
+
+          if (href) {
+            window.location.href = href;
+          }
         } catch (err) {
         }
       });
+
+      const closeNotifModal = () => {
+        const dlg = document.getElementById('notifViewModal');
+        if (dlg) dlg.close();
+      };
+      const closeBtn = document.getElementById('notifModalClose');
+      const okBtn = document.getElementById('notifModalOk');
+      if (closeBtn) closeBtn.addEventListener('click', closeNotifModal);
+      if (okBtn) okBtn.addEventListener('click', closeNotifModal);
 
       setActiveTab('all');
       applyFilter('all');

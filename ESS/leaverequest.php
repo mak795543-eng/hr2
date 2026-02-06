@@ -4,14 +4,34 @@ session_start();
 require_once __DIR__ . '/db.php';
 
 $employeeId = ess_employee_id($conn);
+$employeeGender = '';
+if ($conn && $employeeId) {
+    $stmtG = mysqli_prepare($conn, 'SELECT gender FROM employee_profiles WHERE employee_id = ? LIMIT 1');
+    if ($stmtG) {
+        mysqli_stmt_bind_param($stmtG, 'i', $employeeId);
+        mysqli_stmt_execute($stmtG);
+        $resG = mysqli_stmt_get_result($stmtG);
+        $rowG = $resG ? mysqli_fetch_assoc($resG) : null;
+        mysqli_stmt_close($stmtG);
+        if (is_array($rowG)) {
+            $employeeGender = strtolower(trim((string)($rowG['gender'] ?? '')));
+        }
+    }
+}
 
 $success_message = '';
 $error_message = '';
 
+$myReqStats = [
+    'total' => 0,
+    'pending' => 0,
+    'for_compliance' => 0,
+];
+
 $balances = [
-    ['label' => 'Vacation', 'remaining' => 80, 'used' => 40, 'total' => 120, 'color' => 'text-blue-600', 'bar' => 'progress-primary'],
-    ['label' => 'Sick Leave', 'remaining' => 64, 'used' => 16, 'total' => 80, 'color' => 'text-emerald-600', 'bar' => 'progress-success'],
-    ['label' => 'Personal', 'remaining' => 16, 'used' => 8, 'total' => 24, 'color' => 'text-amber-600', 'bar' => 'progress-warning'],
+    ['label' => 'Vacation', 'remaining' => 80, 'used' => 40, 'total' => 120, 'color' => 'text-gray-900', 'bar' => 'progress-primary'],
+    ['label' => 'Sick Leave', 'remaining' => 64, 'used' => 16, 'total' => 80, 'color' => 'text-gray-900', 'bar' => 'progress-success'],
+    ['label' => 'Personal', 'remaining' => 16, 'used' => 8, 'total' => 24, 'color' => 'text-gray-900', 'bar' => 'progress-warning'],
 ];
 
 $recentRequests = [
@@ -25,15 +45,65 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_leave'])) {
     $startDate = trim((string)($_POST['start_date'] ?? ''));
     $endDate = trim((string)($_POST['end_date'] ?? ''));
     $reason = trim((string)($_POST['reason'] ?? ''));
+    $termsAccepted = (string)($_POST['terms_accepted'] ?? '') === '1';
 
-    if ($leaveType === '' || $startDate === '' || $endDate === '') {
+    $allowedLeaveTypes = [
+        'Vacation',
+        'Sick Leave',
+        'Emergency Leave',
+        'Service Incentive Leave',
+        'Bereavement Leave',
+        'Solo Parent Leave',
+        'Maternity Leave',
+        'Paternity Leave',
+    ];
+
+    $fixedDays = [
+        'Sick Leave' => 1,
+        'Emergency Leave' => 2,
+        'Service Incentive Leave' => 5,
+        'Bereavement Leave' => 3,
+        'Solo Parent Leave' => 7,
+        'Maternity Leave' => 105,
+        'Paternity Leave' => 7,
+    ];
+
+    $genderIsFemale = ($employeeGender === 'female' || $employeeGender === 'f');
+    $genderIsMale = ($employeeGender === 'male' || $employeeGender === 'm');
+
+    if (!$termsAccepted) {
+        $error_message = 'You must accept the Terms and Conditions before submitting.';
+    } elseif ($leaveType === '' || $startDate === '') {
         $error_message = 'Please fill in the required fields.';
+    } elseif ($startDate < date('Y-m-d')) {
+        $error_message = 'Start date cannot be in the past.';
+    } elseif (!in_array($leaveType, $allowedLeaveTypes, true)) {
+        $error_message = 'Invalid leave type selected.';
     } elseif (!$employeeId) {
         $error_message = 'Unable to identify employee. Please login again.';
     } elseif (!$conn) {
         $error_message = 'Database connection unavailable.';
+    } elseif ($genderIsFemale && $leaveType === 'Paternity Leave') {
+        $error_message = 'Invalid leave type selected.';
+    } elseif ($genderIsMale && $leaveType === 'Maternity Leave') {
+        $error_message = 'Invalid leave type selected.';
     } else {
         $status = 'Pending';
+
+        $days = (int)($_POST['days'] ?? 1);
+        if ($days <= 0) $days = 1;
+
+        if ($leaveType === 'Vacation') {
+            if ($days > 5) $days = 5;
+        } else {
+            $days = (int)($fixedDays[$leaveType] ?? 1);
+        }
+
+        $sd = strtotime($startDate);
+        if ($sd !== false) {
+            $endDate = date('Y-m-d', $sd + (max(1, $days) - 1) * 86400);
+        }
+
         $stmt = mysqli_prepare($conn, 'INSERT INTO leave_requests (employee_id, leave_type, start_date, end_date, reason, status) VALUES (?, ?, ?, ?, ?, ?)');
         if (!$stmt) {
             $error_message = 'Failed to submit leave request.';
@@ -52,6 +122,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_leave'])) {
 }
 
 if ($conn && $employeeId) {
+    $stmtStats = mysqli_prepare($conn, 'SELECT status, COUNT(*) AS c FROM leave_requests WHERE employee_id = ? GROUP BY status');
+    if ($stmtStats) {
+        mysqli_stmt_bind_param($stmtStats, 'i', $employeeId);
+        mysqli_stmt_execute($stmtStats);
+        $resStats = mysqli_stmt_get_result($stmtStats);
+        if ($resStats) {
+            while ($r = mysqli_fetch_assoc($resStats)) {
+                $st = strtolower(trim((string)($r['status'] ?? '')));
+                $c = (int)($r['c'] ?? 0);
+                $myReqStats['total'] += $c;
+                if ($st === 'pending') $myReqStats['pending'] = $c;
+                if ($st === 'for compliance') $myReqStats['for_compliance'] = $c;
+            }
+        }
+        mysqli_stmt_close($stmtStats);
+    }
+
     $recentRequests = [];
     $stmt = mysqli_prepare($conn, 'SELECT leave_type, start_date, end_date, status FROM leave_requests WHERE employee_id = ? ORDER BY created_at DESC LIMIT 5');
     if ($stmt) {
@@ -101,6 +188,7 @@ function leaveStatusBadge($status) {
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://cdn.jsdelivr.net/npm/daisyui@4.6.0/dist/full.css" rel="stylesheet" type="text/css" />
   <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 </head>
 <body class="bg-gray-50 min-h-screen">
   <div class="flex h-screen">
@@ -111,9 +199,17 @@ function leaveStatusBadge($status) {
 
       <main class="flex-1 p-4 md:p-6">
         <div class="max-w-6xl mx-auto">
-          <div class="mb-6">
-            <h1 class="text-2xl font-bold text-gray-800">Leave Request</h1>
-            <p class="text-gray-600">Submit a new leave request and track approvals.</p>
+          <div class="mb-6 flex items-start justify-between gap-3">
+            <div>
+              <h1 class="text-2xl font-bold text-gray-800">Leave Request</h1>
+              <p class="text-gray-600">Submit a new leave request and track approvals.</p>
+            </div>
+            <div class="pt-1">
+              <button class="btn btn-sm hr2-primary-btn" type="button" id="openTermsBtn">
+                <i data-lucide="file-text" class="w-4 h-4"></i>
+                <span class="ml-2">Terms and Conditions</span>
+              </button>
+            </div>
           </div>
 
           <?php if ($success_message !== ''): ?>
@@ -131,26 +227,50 @@ function leaveStatusBadge($status) {
           <?php endif; ?>
 
           <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-            <?php foreach ($balances as $b): ?>
-              <div class="card bg-base-100 shadow-sm border border-base-200">
-                <div class="card-body">
-                  <div class="flex items-start justify-between">
-                    <div>
-                      <div class="text-xs font-semibold text-gray-500 uppercase tracking-wider"><?php echo htmlspecialchars($b['label']); ?></div>
-                      <div class="mt-2 text-3xl font-bold <?php echo $b['color']; ?>"><?php echo (int)$b['remaining']; ?></div>
-                      <div class="text-xs text-gray-500">Hours Remaining</div>
-                    </div>
-                    <div class="p-2 rounded-xl bg-base-200">
-                      <i data-lucide="calendar" class="w-5 h-5"></i>
-                    </div>
+            <div class="card hr2-summary-card bg-base-100 shadow-sm border border-base-200">
+              <div class="card-body">
+                <div class="flex items-start justify-between">
+                  <div>
+                    <div class="text-xs font-semibold text-gray-500 uppercase tracking-wider">My Total Leave Request</div>
+                    <div class="mt-2 text-3xl font-bold text-gray-900"><?php echo (int)$myReqStats['total']; ?></div>
+                    <div class="text-xs text-gray-500">All time</div>
                   </div>
-                  <div class="mt-4">
-                    <progress class="progress <?php echo $b['bar']; ?> w-full" value="<?php echo (int)$b['used']; ?>" max="<?php echo (int)$b['total']; ?>"></progress>
-                    <div class="mt-2 text-[11px] text-gray-500"><?php echo (int)$b['used']; ?> hrs used of <?php echo (int)$b['total']; ?> hrs</div>
+                  <div class="p-2 rounded-xl bg-base-200">
+                    <i data-lucide="layers" class="w-5 h-5 text-blue-600"></i>
                   </div>
                 </div>
               </div>
-            <?php endforeach; ?>
+            </div>
+
+            <div class="card hr2-summary-card bg-base-100 shadow-sm border border-base-200">
+              <div class="card-body">
+                <div class="flex items-start justify-between">
+                  <div>
+                    <div class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Pending Request</div>
+                    <div class="mt-2 text-3xl font-bold text-gray-900"><?php echo (int)$myReqStats['pending']; ?></div>
+                    <div class="text-xs text-gray-500">Awaiting approval</div>
+                  </div>
+                  <div class="p-2 rounded-xl bg-base-200">
+                    <i data-lucide="hourglass" class="w-5 h-5 text-blue-600"></i>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="card hr2-summary-card bg-base-100 shadow-sm border border-base-200">
+              <div class="card-body">
+                <div class="flex items-start justify-between">
+                  <div>
+                    <div class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Remaining Leave Request</div>
+                    <div class="mt-2 text-3xl font-bold text-gray-900"><?php echo (int)$myReqStats['for_compliance']; ?></div>
+                    <div class="text-xs text-gray-500">For compliance</div>
+                  </div>
+                  <div class="p-2 rounded-xl bg-base-200">
+                    <i data-lucide="clipboard-check" class="w-5 h-5 text-blue-600"></i>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
 
           <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -159,30 +279,43 @@ function leaveStatusBadge($status) {
                 <div class="card-body">
                   <h2 class="card-title">New Leave Request</h2>
 
-                  <form method="POST" class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <form method="POST" class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4" id="leaveRequestForm">
                     <input type="hidden" name="submit_leave" value="1" />
+                    <input type="hidden" name="terms_accepted" value="0" id="termsAcceptedInput" />
+
                     <div class="form-control">
                       <label class="label"><span class="label-text text-xs font-semibold text-gray-500">LEAVE TYPE</span></label>
-                      <select name="leave_type" class="select select-bordered" required>
-                        <option>Vacation</option>
-                        <option>Sick Leave</option>
-                        <option>Personal</option>
+                      <select name="leave_type" class="select select-bordered" required id="leaveTypeSelect">
+                        <option value="Vacation">Vacation</option>
+                        <option value="Sick Leave">Sick Leave</option>
+                        <option value="Emergency Leave">Emergency Leave</option>
+                        <option value="Service Incentive Leave">Service Incentive Leave</option>
+                        <option value="Solo Parent Leave">Solo Parent Leave</option>
+                        <option value="Bereavement Leave">Bereavement Leave</option>
+                        <?php if ($employeeGender === 'female' || $employeeGender === 'f'): ?>
+                          <option value="Maternity Leave">Maternity Leave</option>
+                        <?php elseif ($employeeGender === 'male' || $employeeGender === 'm'): ?>
+                          <option value="Paternity Leave">Paternity Leave</option>
+                        <?php else: ?>
+                          <option value="Maternity Leave">Maternity Leave</option>
+                          <option value="Paternity Leave">Paternity Leave</option>
+                        <?php endif; ?>
                       </select>
                     </div>
 
                     <div class="form-control">
                       <label class="label"><span class="label-text text-xs font-semibold text-gray-500">NUMBER OF DAYS</span></label>
-                      <input name="days" class="input input-bordered" type="number" min="1" value="1" />
+                      <input name="days" id="leaveDays" class="input input-bordered" type="number" min="1" value="1" />
                     </div>
 
                     <div class="form-control">
                       <label class="label"><span class="label-text text-xs font-semibold text-gray-500">START DATE</span></label>
-                      <input name="start_date" class="input input-bordered" type="date" required />
+                      <input name="start_date" id="leaveStartDate" class="input input-bordered" type="date" required min="<?php echo htmlspecialchars(date('Y-m-d')); ?>" />
                     </div>
 
                     <div class="form-control">
                       <label class="label"><span class="label-text text-xs font-semibold text-gray-500">END DATE</span></label>
-                      <input name="end_date" class="input input-bordered" type="date" required />
+                      <input name="end_date" id="leaveEndDate" class="input input-bordered" type="date" required readonly min="<?php echo htmlspecialchars(date('Y-m-d')); ?>" />
                     </div>
 
                     <div class="form-control md:col-span-2">
@@ -191,7 +324,7 @@ function leaveStatusBadge($status) {
                     </div>
 
                     <div class="md:col-span-2 mt-2">
-                      <button class="btn btn-primary w-full" type="submit">
+                      <button class="btn hr2-primary-btn w-full" type="button" id="openTermsSubmitBtn">
                         <i data-lucide="send" class="w-4 h-4"></i>
                         <span class="ml-2">Submit Request</span>
                       </button>
@@ -239,8 +372,254 @@ function leaveStatusBadge($status) {
     </div>
   </div>
 
+  <dialog id="termsModal" class="modal">
+    <div class="modal-box w-11/12 max-w-4xl">
+      <div class="flex items-start justify-between gap-3">
+        <div>
+          <h3 class="font-bold text-lg" id="termsTitle">Terms and Conditions</h3>
+          <p class="text-sm text-gray-500" id="termsSubtitle">Please review the leave request policy.</p>
+        </div>
+        <button class="btn btn-sm btn-ghost" type="button" id="termsCloseBtn" aria-label="Close">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>
+
+      <div class="divider my-4"></div>
+
+      <div class="prose max-w-none text-sm text-gray-700" style="max-height: 55vh; overflow: auto;">
+        <h4>1. General Provisions</h4>
+        <p>Leave requests must be submitted through the ESS portal and approved by the appropriate supervisor or HR representative.</p>
+        <p>Employees are responsible for ensuring that their leave request is accurate, complete, and filed within the required timeframe.</p>
+        <p>Leave will be credited and deducted based on the company’s approved leave balances and policies.</p>
+
+        <h4>2. Vacation Leave (VL)</h4>
+        <p>Employees are entitled to 10–15 days of vacation leave per year, depending on tenure and company policy.</p>
+        <p>Leave requests cannot exceed the employee’s available vacation leave balance.</p>
+        <p>Maximum per request is generally 5 consecutive working days.</p>
+        <p>Requests beyond this may require additional approval from HR or management.</p>
+
+        <h4>3. Sick Leave (SL)</h4>
+        <p>Employees are entitled to 10–15 days of sick leave per year.</p>
+        <p>Medical certificates may be required for absences of 2 or more consecutive days.</p>
+        <p>Sick leave cannot exceed the employee’s available sick leave balance.</p>
+
+        <h4>4. Emergency Leave (EL)</h4>
+        <p>Emergency leave is intended for unforeseen personal or family emergencies.</p>
+        <p>Employees may request 1–2 days per occurrence, with a maximum of 3–5 days per year.</p>
+        <p>Requests exceeding this limit require supervisor approval.</p>
+
+        <h4>5. Service Incentive Leave (SIL)</h4>
+        <p>Employees are entitled to 5 days of service incentive leave per year in accordance with Philippine labor law.</p>
+        <p>Unused SIL may be converted to cash or carried over according to company policy.</p>
+
+        <h4>6. Bereavement Leave</h4>
+        <p>Bereavement leave of 3–5 days per incident is granted for the death of an immediate family member.</p>
+        <p>Proper documentation may be required.</p>
+
+        <h4>7. Maternity / Paternity Leave</h4>
+        <p>Maternity Leave: Eligible female employees are entitled to 105 days of leave per childbirth as mandated by law, with additional benefits per company policy.</p>
+        <p>Paternity Leave: Eligible married male employees are entitled to 7 days of leave per childbirth as mandated by law.</p>
+
+        <h4>8. Solo Parent Leave</h4>
+        <p>Eligible solo parent employees are entitled to 7 days of leave per year in accordance with RA 8972.</p>
+        <p>This leave may be used for parental responsibilities, including child care and related activities.</p>
+        <p>Supporting documentation may be required to confirm eligibility.</p>
+
+        <h4>9. Leave Approval &amp; Responsibility</h4>
+        <p>Submission of leave does not guarantee approval; all requests are subject to verification and supervisor/HR approval.</p>
+        <p>Employees must ensure that leave does not interfere with operational requirements unless otherwise approved.</p>
+        <p>Employees must update their leave request in the ESS if circumstances change.</p>
+
+        <h4>10. Acknowledgment</h4>
+        <p>By clicking “I Accept” below, I acknowledge that I have read, understood, and agree to comply with these Terms and Conditions regarding leave requests through the Employee Self-Service system.</p>
+      </div>
+
+      <div class="mt-4" id="termsAcceptWrap">
+        <label class="flex items-start gap-3">
+          <input type="checkbox" class="checkbox" id="termsAcceptCheckbox" />
+          <span class="text-sm text-gray-700">I Accept All Terms and Conditions</span>
+        </label>
+      </div>
+
+      <div class="modal-action">
+        <button type="button" class="btn hr2-outline-btn" id="termsCancelBtn">Close</button>
+        <button type="button" class="btn hr2-primary-btn" id="termsSubmitBtn">Submit</button>
+      </div>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+  </dialog>
+
   <script>
-    lucide.createIcons();
+    (function () {
+      if (window.lucide) window.lucide.createIcons();
+
+      const leaveTypeEl = document.getElementById('leaveTypeSelect');
+      const daysEl = document.getElementById('leaveDays');
+      const startEl = document.getElementById('leaveStartDate');
+      const endEl = document.getElementById('leaveEndDate');
+
+      const openTermsBtn = document.getElementById('openTermsBtn');
+      const openTermsSubmitBtn = document.getElementById('openTermsSubmitBtn');
+
+      const termsModal = document.getElementById('termsModal');
+      const termsCloseBtn = document.getElementById('termsCloseBtn');
+      const termsCancelBtn = document.getElementById('termsCancelBtn');
+      const termsSubmitBtn = document.getElementById('termsSubmitBtn');
+      const termsAcceptWrap = document.getElementById('termsAcceptWrap');
+      const termsAcceptCheckbox = document.getElementById('termsAcceptCheckbox');
+      const termsAcceptedInput = document.getElementById('termsAcceptedInput');
+      const formEl = document.getElementById('leaveRequestForm');
+
+      const policy = {
+        'Vacation': { days: 1, editable: true, max: 5 },
+        'Sick Leave': { days: 1, editable: false },
+        'Emergency Leave': { days: 2, editable: false },
+        'Service Incentive Leave': { days: 5, editable: false },
+        'Bereavement Leave': { days: 3, editable: false },
+        'Maternity Leave': { days: 105, editable: false },
+        'Paternity Leave': { days: 7, editable: false },
+        'Solo Parent Leave': { days: 7, editable: false },
+      };
+
+      const clamp = (n, min, max) => Math.max(min, Math.min(max, n));
+
+      function addDays(dateStr, deltaDays) {
+        const d = new Date(dateStr);
+        if (Number.isNaN(d.getTime())) return '';
+        d.setDate(d.getDate() + deltaDays);
+        const yyyy = d.getFullYear();
+        const mm = String(d.getMonth() + 1).padStart(2, '0');
+        const dd = String(d.getDate()).padStart(2, '0');
+        return `${yyyy}-${mm}-${dd}`;
+      }
+
+      function getDayInt() {
+        const v = parseInt(String(daysEl && daysEl.value || '1'), 10);
+        return Number.isFinite(v) && v > 0 ? v : 1;
+      }
+
+      function syncEndFromStartAndDays() {
+        if (!startEl || !endEl) return;
+        const s = String(startEl.value || '').trim();
+        const d = getDayInt();
+        if (!s) return;
+        endEl.value = addDays(s, Math.max(1, d) - 1);
+      }
+
+      function syncDaysFromStartEndMax5() {
+        if (!startEl || !endEl || !daysEl) return;
+        const s = String(startEl.value || '').trim();
+        const e = String(endEl.value || '').trim();
+        if (!s || !e) return;
+        const sd = new Date(s);
+        const ed = new Date(e);
+        if (Number.isNaN(sd.getTime()) || Number.isNaN(ed.getTime())) return;
+        const diff = Math.floor((ed.getTime() - sd.getTime()) / 86400000) + 1;
+        daysEl.value = String(clamp(diff, 1, 5));
+      }
+
+      function applyPolicy() {
+        if (!leaveTypeEl || !daysEl || !endEl) return;
+        const t = String(leaveTypeEl.value || 'Vacation');
+        const p = policy[t] || policy['Vacation'];
+
+        if (p.editable) {
+          daysEl.readOnly = false;
+          daysEl.max = String(p.max || 5);
+          daysEl.value = String(clamp(getDayInt(), 1, p.max || 5));
+        } else {
+          daysEl.readOnly = true;
+          daysEl.removeAttribute('max');
+          daysEl.value = String(p.days);
+        }
+        endEl.readOnly = true;
+        syncEndFromStartAndDays();
+      }
+
+      function openTerms(mode) {
+        if (!termsModal) return;
+        const isSubmit = mode === 'submit';
+        if (termsAcceptWrap) termsAcceptWrap.classList.toggle('hidden', !isSubmit);
+        if (termsSubmitBtn) termsSubmitBtn.classList.toggle('hidden', !isSubmit);
+        if (termsAcceptCheckbox) termsAcceptCheckbox.checked = false;
+        if (termsAcceptedInput) termsAcceptedInput.value = '0';
+        termsModal.showModal();
+      }
+
+      function closeTerms() {
+        if (termsModal) termsModal.close();
+      }
+
+      if (leaveTypeEl) leaveTypeEl.addEventListener('change', applyPolicy);
+      if (daysEl) daysEl.addEventListener('input', () => {
+        if (!leaveTypeEl) return;
+        if (String(leaveTypeEl.value || '') === 'Vacation') {
+          daysEl.value = String(clamp(getDayInt(), 1, 5));
+          syncEndFromStartAndDays();
+        }
+      });
+      function todayStr() {
+        const d = new Date();
+        const yyyy = d.getFullYear();
+        const mm = String(d.getMonth() + 1).padStart(2, '0');
+        const dd = String(d.getDate()).padStart(2, '0');
+        return `${yyyy}-${mm}-${dd}`;
+      }
+
+      function applyMinDates() {
+        const min = todayStr();
+        if (startEl) {
+          startEl.min = min;
+          if (String(startEl.value || '') !== '' && String(startEl.value) < min) startEl.value = min;
+        }
+        if (endEl) endEl.min = min;
+      }
+
+      if (startEl) startEl.addEventListener('change', () => {
+        applyMinDates();
+        syncEndFromStartAndDays();
+      });
+
+      if (openTermsBtn) openTermsBtn.addEventListener('click', () => openTerms('view'));
+      if (openTermsSubmitBtn) openTermsSubmitBtn.addEventListener('click', () => openTerms('submit'));
+      if (termsCloseBtn) termsCloseBtn.addEventListener('click', closeTerms);
+      if (termsCancelBtn) termsCancelBtn.addEventListener('click', closeTerms);
+
+      if (termsSubmitBtn) {
+        termsSubmitBtn.addEventListener('click', () => {
+          if (!formEl) return;
+          if (!termsAcceptCheckbox || !termsAcceptCheckbox.checked) {
+            if (window.Swal) {
+              Swal.fire({
+                icon: 'warning',
+                title: 'Terms Required',
+                text: 'Please accept the Terms and Conditions to continue.',
+                buttonsStyling: false,
+                customClass: { confirmButton: 'btn hr2-primary-btn' }
+              });
+            }
+            return;
+          }
+          if (termsAcceptedInput) termsAcceptedInput.value = '1';
+          formEl.submit();
+        });
+      }
+
+      applyMinDates();
+      applyPolicy();
+
+      const submitted = <?php echo json_encode($success_message !== ''); ?>;
+      if (submitted && window.Swal) {
+        Swal.fire({
+          icon: 'success',
+          title: 'Submitted',
+          text: 'Leave request submitted successfully.',
+          buttonsStyling: false,
+          customClass: { confirmButton: 'btn hr2-primary-btn' }
+        });
+      }
+    })();
   </script>
 </body>
 </html>
+<?php require('../partials/footer.php') ?>

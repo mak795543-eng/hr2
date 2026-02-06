@@ -87,6 +87,65 @@ function ess_ensure_notification_state_tables($conn): void
     }
 }
 
+function ess_ensure_leave_tables($conn): void
+{
+    if (!$conn) {
+        return;
+    }
+
+    $dbResult = @mysqli_query($conn, 'SELECT DATABASE() AS db');
+    $dbRow = $dbResult ? mysqli_fetch_assoc($dbResult) : null;
+    $dbName = (string)($dbRow['db'] ?? '');
+
+    $columnExists = static function ($table, $column) use ($conn, $dbName): bool {
+        if ($dbName === '') return false;
+        $stmt = mysqli_prepare($conn, 'SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ? LIMIT 1');
+        if (!$stmt) return false;
+        mysqli_stmt_bind_param($stmt, 'sss', $dbName, $table, $column);
+        mysqli_stmt_execute($stmt);
+        $res = mysqli_stmt_get_result($stmt);
+        $row = $res ? mysqli_fetch_assoc($res) : null;
+        mysqli_stmt_close($stmt);
+        return is_array($row);
+    };
+
+    @mysqli_query(
+        $conn,
+        "CREATE TABLE IF NOT EXISTS leave_requests (\n" .
+            "  id INT AUTO_INCREMENT PRIMARY KEY,\n" .
+            "  employee_id INT NOT NULL,\n" .
+            "  leave_type VARCHAR(100) NOT NULL,\n" .
+            "  start_date DATE NOT NULL,\n" .
+            "  end_date DATE NOT NULL,\n" .
+            "  reason TEXT,\n" .
+            "  status ENUM('Pending','Approved','Rejected','For Compliance') DEFAULT 'Pending',\n" .
+            "  remarks TEXT NULL,\n" .
+            "  approved_by INT NULL,\n" .
+            "  approved_at TIMESTAMP NULL,\n" .
+            "  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,\n" .
+            "  INDEX idx_emp_created (employee_id, created_at),\n" .
+            "  FOREIGN KEY (employee_id) REFERENCES employees(id)\n" .
+            ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
+    );
+
+    if ($dbName !== '') {
+        if (!$columnExists('leave_requests', 'remarks')) {
+            @mysqli_query($conn, 'ALTER TABLE leave_requests ADD COLUMN remarks TEXT NULL');
+        }
+        if (!$columnExists('leave_requests', 'approved_by')) {
+            @mysqli_query($conn, 'ALTER TABLE leave_requests ADD COLUMN approved_by INT NULL');
+        }
+        if (!$columnExists('leave_requests', 'approved_at')) {
+            @mysqli_query($conn, 'ALTER TABLE leave_requests ADD COLUMN approved_at TIMESTAMP NULL');
+        }
+
+        @mysqli_query(
+            $conn,
+            "ALTER TABLE leave_requests MODIFY COLUMN status ENUM('Pending','Approved','Rejected','For Compliance') DEFAULT 'Pending'"
+        );
+    }
+}
+
 function ess_ensure_complaint_tables($conn): void
 {
     if (!$conn) {
@@ -328,6 +387,7 @@ function ess_ensure_profile_tables($conn): void
 if ($conn) {
     ess_ensure_profile_tables($conn);
     ess_ensure_complaint_tables($conn);
+    ess_ensure_leave_tables($conn);
     ess_ensure_notification_state_tables($conn);
     ess_ensure_recent_activity_tables($conn);
 }

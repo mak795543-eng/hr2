@@ -162,7 +162,7 @@ session_start();
                 <!-- Summary Cards Grid -->
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
                     <!-- Learning Modules -->
-                    <div class="stat-card bg-white p-5 rounded-lg border border-gray-200 border-l-blue-500">
+                    <div class="stat-card hr2-summary-card p-5 rounded-lg">
                         <div class="flex items-start justify-between mb-4">
                             <div>
                                 <div class="flex items-center mb-1">
@@ -185,7 +185,7 @@ session_start();
                     </div>
 
                     <!-- Assessments to Take -->
-                    <div class="stat-card bg-white p-5 rounded-lg border border-gray-200 border-l-amber-500">
+                    <div class="stat-card hr2-summary-card p-5 rounded-lg">
                         <div class="flex items-start justify-between mb-4">
                             <div>
                                 <div class="flex items-center mb-1">
@@ -212,7 +212,7 @@ session_start();
                     </div>
 
                     <!-- Leave Balance -->
-                    <div class="stat-card bg-white p-5 rounded-lg border border-gray-200 border-l-green-500">
+                    <div class="stat-card hr2-summary-card p-5 rounded-lg">
                         <div class="flex items-start justify-between mb-4">
                             <div>
                                 <div class="flex items-center mb-1">
@@ -242,7 +242,7 @@ session_start();
                 <!-- Second Row of Summary Cards -->
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
                     <!-- Recent Activities -->
-                    <div class="stat-card bg-white p-5 rounded-lg border border-gray-200 border-l-purple-500">
+                    <div class="stat-card hr2-summary-card p-5 rounded-lg">
                         <div class="flex items-start justify-between mb-4">
                             <div>
                                 <div class="flex items-center mb-1">
@@ -273,14 +273,14 @@ session_start();
                     </div>
 
                     <!-- Training Schedule -->
-                    <div class="stat-card bg-white p-5 rounded-lg border border-gray-200 border-l-indigo-500">
+                    <div class="stat-card hr2-summary-card p-5 rounded-lg">
                         <div class="flex items-start justify-between mb-4">
                             <div>
                                 <div class="flex items-center mb-1">
                                     <i data-lucide="clock" class="w-4 h-4 text-indigo-600 mr-2"></i>
                                     <p class="text-sm font-medium text-gray-600">Training Schedule</p>
                                 </div>
-                                <p class="text-2xl font-semibold text-gray-800">4 Sessions</p>
+                                <p class="text-2xl font-semibold text-gray-800">4 Upcoming</p>
                             </div>
                             <div class="text-xs text-indigo-600 bg-indigo-50 px-2 py-1 rounded">
                                 This Week

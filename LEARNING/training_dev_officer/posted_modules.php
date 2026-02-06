@@ -301,6 +301,18 @@ $conn->close();
       color: #6b7280;
     }
 
+    .stat-card.hr2-summary-card .stat-number {
+      color: rgba(255, 255, 255, 0.96) !important;
+    }
+
+    .stat-card.hr2-summary-card .stat-label {
+      color: rgba(234, 242, 255, 0.72) !important;
+    }
+
+    .stat-card.hr2-summary-card .stat-icon {
+      color: #f7b32b !important;
+    }
+
     /* Loading spinner */
     .loading-spinner {
       display: inline-block;
@@ -420,7 +432,7 @@ $conn->close();
 
             <!-- Stats Section -->
             <div class="stats-grid mb-6">
-              <div class="stat-card">
+              <div class="stat-card hr2-summary-card">
                 <div class="stat-inner">
                   <div>
                     <div class="stat-label">Total Posted Modules</div>
@@ -431,7 +443,7 @@ $conn->close();
                   </div>
                 </div>
               </div>
-              <div class="stat-card">
+              <div class="stat-card hr2-summary-card">
                 <div class="stat-inner">
                   <div>
                     <div class="stat-label">Posted This Month</div>
@@ -453,7 +465,7 @@ $conn->close();
                   </div>
                 </div>
               </div>
-              <div class="stat-card">
+              <div class="stat-card hr2-summary-card">
                 <div class="stat-inner">
                   <div>
                     <div class="stat-label">Active Departments</div>
@@ -474,7 +486,7 @@ $conn->close();
                   </div>
                 </div>
               </div>
-              <div class="stat-card">
+              <div class="stat-card hr2-summary-card">
                 <div class="stat-inner">
                   <div>
                     <div class="stat-label">Latest Post</div>
