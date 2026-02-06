@@ -387,50 +387,66 @@ function leaveStatusBadge($status) {
       <div class="divider my-4"></div>
 
       <div class="prose max-w-none text-sm text-gray-700" style="max-height: 55vh; overflow: auto;">
-        <h4>1. General Provisions</h4>
+        <h4><strong>1. General Provisions</strong></h4>
         <p>Leave requests must be submitted through the ESS portal and approved by the appropriate supervisor or HR representative.</p>
         <p>Employees are responsible for ensuring that their leave request is accurate, complete, and filed within the required timeframe.</p>
         <p>Leave will be credited and deducted based on the company’s approved leave balances and policies.</p>
 
-        <h4>2. Vacation Leave (VL)</h4>
+        <h4><strong>2. Vacation Leave (VL)</strong></h4>
         <p>Employees are entitled to 10–15 days of vacation leave per year, depending on tenure and company policy.</p>
         <p>Leave requests cannot exceed the employee’s available vacation leave balance.</p>
         <p>Maximum per request is generally 5 consecutive working days.</p>
         <p>Requests beyond this may require additional approval from HR or management.</p>
 
-        <h4>3. Sick Leave (SL)</h4>
+        <h4><strong>3. Sick Leave (SL)</strong></h4>
         <p>Employees are entitled to 10–15 days of sick leave per year.</p>
         <p>Medical certificates may be required for absences of 2 or more consecutive days.</p>
         <p>Sick leave cannot exceed the employee’s available sick leave balance.</p>
 
-        <h4>4. Emergency Leave (EL)</h4>
+        <h4><strong>4. Emergency Leave (EL)</strong></h4>
         <p>Emergency leave is intended for unforeseen personal or family emergencies.</p>
         <p>Employees may request 1–2 days per occurrence, with a maximum of 3–5 days per year.</p>
         <p>Requests exceeding this limit require supervisor approval.</p>
 
-        <h4>5. Service Incentive Leave (SIL)</h4>
+        <h4><strong>5. Service Incentive Leave (SIL)</strong></h4>
         <p>Employees are entitled to 5 days of service incentive leave per year in accordance with Philippine labor law.</p>
         <p>Unused SIL may be converted to cash or carried over according to company policy.</p>
 
-        <h4>6. Bereavement Leave</h4>
+        <h4><strong>6. Bereavement Leave</strong></h4>
         <p>Bereavement leave of 3–5 days per incident is granted for the death of an immediate family member.</p>
         <p>Proper documentation may be required.</p>
 
-        <h4>7. Maternity / Paternity Leave</h4>
+        <h4><strong>7. Maternity / Paternity Leave</strong></h4>
         <p>Maternity Leave: Eligible female employees are entitled to 105 days of leave per childbirth as mandated by law, with additional benefits per company policy.</p>
         <p>Paternity Leave: Eligible married male employees are entitled to 7 days of leave per childbirth as mandated by law.</p>
 
-        <h4>8. Solo Parent Leave</h4>
+        <h4><strong>8. Solo Parent Leave</strong></h4>
         <p>Eligible solo parent employees are entitled to 7 days of leave per year in accordance with RA 8972.</p>
         <p>This leave may be used for parental responsibilities, including child care and related activities.</p>
         <p>Supporting documentation may be required to confirm eligibility.</p>
 
-        <h4>9. Leave Approval &amp; Responsibility</h4>
+        <h4><strong>9. Leave Approval &amp; Responsibility</strong></h4>
         <p>Submission of leave does not guarantee approval; all requests are subject to verification and supervisor/HR approval.</p>
         <p>Employees must ensure that leave does not interfere with operational requirements unless otherwise approved.</p>
         <p>Employees must update their leave request in the ESS if circumstances change.</p>
 
-        <h4>10. Acknowledgment</h4>
+        <h4><strong>10. Governing Law</strong></h4>
+        <p>All leave requests submitted through the ESS shall be governed by and construed in accordance with the laws of the Republic of the Philippines, including but not limited to:</p>
+        <p>Presidential Decree No. 442 – Labor Code of the Philippines</p>
+        <p>Republic Act No. 11210 – 105-Day Expanded Maternity Leave Law</p>
+        <p>Republic Act No. 8187 – Paternity Leave Act of 1996</p>
+        <p>Republic Act No. 9710 – Magna Carta of Women</p>
+        <p>Republic Act No. 8972, as amended by RA 11861 – Solo Parents’ Welfare Act</p>
+        <p>Republic Act No. 10173 – Data Privacy Act of 2012</p>
+        <p>Applicable DOLE issuances and company policies</p>
+
+        <h4><strong>11. Data Privacy and Confidentiality</strong></h4>
+        <p>All personal information and documents submitted shall be processed in compliance with the Data Privacy Act of 2012 and used solely for leave administration, payroll processing, and legal compliance.</p>
+
+        <h4><strong>12. Documentation and Verification</strong></h4>
+        <p>Management reserves the right to require supporting documents (e.g., medical certificates, proof of emergency, government-issued documents) to validate the leave request. Failure to provide required documents may result in denial or adjustment of the leave.</p>
+
+        <h4><strong>13. Acknowledgment</strong></h4>
         <p>By clicking “I Accept” below, I acknowledge that I have read, understood, and agree to comply with these Terms and Conditions regarding leave requests through the Employee Self-Service system.</p>
       </div>
 

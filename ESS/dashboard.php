@@ -5,6 +5,154 @@ require __DIR__ . '/db.php';
 
 $employeeId = ess_employee_id($conn);
 
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['complaint_api'])) {
+    header('Content-Type: application/json; charset=utf-8');
+
+    if (!$conn || !is_int($employeeId) || $employeeId <= 0) {
+        echo json_encode(['success' => false, 'message' => 'Unauthorized']);
+        exit;
+    }
+
+    $employeeNo = ess_current_employee_no();
+    $action = strtolower(trim((string)($_POST['action'] ?? '')));
+    $cid = (int)($_POST['complaint_id'] ?? 0);
+    if (!in_array($action, ['details', 'schedule'], true) || $cid <= 0) {
+        echo json_encode(['success' => false, 'message' => 'Invalid request']);
+        exit;
+    }
+
+    $stmt = mysqli_prepare(
+        $conn,
+        'SELECT id, employee_id, subject, description, category, category_other, incident_date, attachment_path, workflow_status, assigned_to_employee_no, meeting_date, meeting_time, meeting_place FROM complaints WHERE id = ? LIMIT 1'
+    );
+    if (!$stmt) {
+        echo json_encode(['success' => false, 'message' => 'Server error']);
+        exit;
+    }
+    mysqli_stmt_bind_param($stmt, 'i', $cid);
+    mysqli_stmt_execute($stmt);
+    $res = mysqli_stmt_get_result($stmt);
+    $row = $res ? mysqli_fetch_assoc($res) : null;
+    mysqli_stmt_close($stmt);
+
+    if (!is_array($row)) {
+        echo json_encode(['success' => false, 'message' => 'Not found']);
+        exit;
+    }
+
+    $assignedTo = (string)($row['assigned_to_employee_no'] ?? '');
+    $isAssignee = ($employeeNo !== '' && $assignedTo !== '' && $assignedTo === $employeeNo);
+    $isOwner = ((int)($row['employee_id'] ?? 0) === (int)$employeeId);
+
+    if (!$isAssignee && !$isOwner) {
+        echo json_encode(['success' => false, 'message' => 'Unauthorized']);
+        exit;
+    }
+
+    if ($action === 'details') {
+        $cat = (string)($row['category'] ?? '');
+        $catOther = (string)($row['category_other'] ?? '');
+        $categoryDisplay = $cat;
+        $catLower = strtolower(trim($cat));
+        if (in_array($catLower, ['other', 'others'], true) && $catOther !== '') {
+            $categoryDisplay = 'Other - ' . $catOther;
+        }
+
+        echo json_encode([
+            'success' => true,
+            'complaint' => [
+                'id' => (int)($row['id'] ?? 0),
+                'subject' => (string)($row['subject'] ?? ''),
+                'description' => (string)($row['description'] ?? ''),
+                'category' => $categoryDisplay,
+                'incident_date' => (string)($row['incident_date'] ?? ''),
+                'workflow_status' => (string)($row['workflow_status'] ?? ''),
+                'attachment_path' => (string)($row['attachment_path'] ?? ''),
+                'meeting_date' => (string)($row['meeting_date'] ?? ''),
+                'meeting_time' => (string)($row['meeting_time'] ?? ''),
+                'meeting_place' => (string)($row['meeting_place'] ?? ''),
+            ],
+            'is_assignee' => $isAssignee,
+            'is_owner' => $isOwner,
+        ]);
+        exit;
+    }
+
+    $meetingDate = trim((string)($_POST['meeting_date'] ?? ''));
+    $meetingTime = trim((string)($_POST['meeting_time'] ?? ''));
+    $meetingPlace = trim((string)($_POST['meeting_place'] ?? ''));
+
+    if (!$isAssignee) {
+        echo json_encode(['success' => false, 'message' => 'Unauthorized']);
+        exit;
+    }
+
+    if ($meetingDate === '' || $meetingTime === '' || $meetingPlace === '') {
+        echo json_encode(['success' => false, 'message' => 'Meeting date, time, and place are required']);
+        exit;
+    }
+    if ($meetingDate < date('Y-m-d')) {
+        echo json_encode(['success' => false, 'message' => 'Meeting date cannot be in the past']);
+        exit;
+    }
+
+    $actorId = ess_employee_id($conn);
+    $actor = is_int($actorId) ? $actorId : 0;
+    $now = date('Y-m-d H:i:s');
+
+    $stmtUp = mysqli_prepare(
+        $conn,
+        'UPDATE complaints SET meeting_date = ?, meeting_time = ?, meeting_place = ?, meeting_scheduled_by = ?, meeting_scheduled_at = ?, seen_by_employee = 0 WHERE id = ?'
+    );
+    if (!$stmtUp) {
+        echo json_encode(['success' => false, 'message' => 'Server error']);
+        exit;
+    }
+    mysqli_stmt_bind_param($stmtUp, 'sssisi', $meetingDate, $meetingTime, $meetingPlace, $actor, $now, $cid);
+    $ok = mysqli_stmt_execute($stmtUp);
+    mysqli_stmt_close($stmtUp);
+
+    if (!$ok) {
+        echo json_encode(['success' => false, 'message' => 'Failed to schedule meeting']);
+        exit;
+    }
+
+    $targetEmployeeId = (int)($row['employee_id'] ?? 0);
+    $subject = (string)($row['subject'] ?? '');
+    if ($targetEmployeeId > 0) {
+        $notifKey = sha1('complaint_meeting|' . $cid . '|' . $meetingDate . '|' . $meetingTime . '|' . $now);
+        $notifType = 'Complaint';
+        $notifTitle = 'Meeting Scheduled';
+        $shortSubj = $subject !== '' ? (' - ' . $subject) : '';
+        $notifMeta = 'Meeting scheduled. Complaint ID: ' . $cid . '. Date/Time: ' . $meetingDate . ' ' . $meetingTime . '. Place: ' . $meetingPlace . $shortSubj . '.';
+        $notifLink = 'dashboard.php';
+        $notifDate = $now;
+
+        $stmtNotif = mysqli_prepare(
+            $conn,
+            "INSERT INTO notification_states (employee_id, notif_key, status, deleted, notif_type, notif_title, notif_meta, notif_link, notif_date)
+             VALUES (?, ?, 'unread', 0, ?, ?, ?, ?, ?)
+             ON DUPLICATE KEY UPDATE
+               status = 'unread',
+               deleted = 0,
+               notif_type = VALUES(notif_type),
+               notif_title = VALUES(notif_title),
+               notif_meta = VALUES(notif_meta),
+               notif_link = VALUES(notif_link),
+               notif_date = VALUES(notif_date),
+               updated_at = CURRENT_TIMESTAMP"
+        );
+        if ($stmtNotif) {
+            mysqli_stmt_bind_param($stmtNotif, 'issssss', $targetEmployeeId, $notifKey, $notifType, $notifTitle, $notifMeta, $notifLink, $notifDate);
+            @mysqli_stmt_execute($stmtNotif);
+            mysqli_stmt_close($stmtNotif);
+        }
+    }
+
+    echo json_encode(['success' => true]);
+    exit;
+}
+
 $role = trim((string)($_SESSION['role'] ?? ''));
 $roleLower = strtolower($role);
 
@@ -28,10 +176,25 @@ $summary = [
     'documents' => ['count' => 0, 'label' => 'Documents', 'link' => 'mydocuments.php'],
     'leave' => ['count' => 0, 'label' => 'Leave Requests', 'link' => 'leaverequest.php'],
     'payments' => ['count' => 0, 'label' => 'Payment History', 'link' => 'paymenthistory.php'],
-    'claims' => ['count' => 0, 'label' => 'Claims', 'link' => 'submitclaim.php'],
+    'exams_completed' => ['count' => 0, 'label' => 'Completed Examinations', 'link' => 'myexamination.php'],
 ];
 
 $recentActivities = [];
+
+if ($learningConn) {
+    $empNo = ess_current_employee_no();
+    if ($empNo !== '') {
+        $stmt = $learningConn->prepare("SELECT COUNT(DISTINCT exam_id) AS c FROM exam_results WHERE employee_id = ? AND taker_type = 'employee'");
+        if ($stmt) {
+            $stmt->bind_param('s', $empNo);
+            $stmt->execute();
+            $res = $stmt->get_result();
+            $row = $res ? $res->fetch_assoc() : null;
+            $summary['exams_completed']['count'] = (int)($row['c'] ?? 0);
+            $stmt->close();
+        }
+    }
+}
 
 if ($conn && $employeeId) {
     $stmt = mysqli_prepare($conn, 'SELECT COUNT(*) AS c FROM employee_documents WHERE employee_id = ?');
@@ -318,6 +481,7 @@ function badgeClassForNotifType($type) {
         'promotion' => 'bg-violet-50 text-violet-700 border border-violet-200',
         'approval update' => 'bg-rose-50 text-rose-700 border border-rose-200',
         'leave update' => 'bg-blue-50 text-blue-700 border border-blue-200',
+        'complaint' => 'bg-orange-50 text-orange-700 border border-orange-200',
         default => 'bg-gray-50 text-gray-700 border border-gray-200',
     };
 }
@@ -331,6 +495,7 @@ function viewLabelForNotifType($type) {
         'promotion' => 'View Promotion',
         'approval update' => 'View Profile',
         'leave update' => 'View',
+        'complaint' => 'View',
         default => 'View',
     };
 }
@@ -420,17 +585,17 @@ function viewLabelForNotifType($type) {
               </div>
             </a>
 
-            <a href="<?php echo htmlspecialchars($summary['claims']['link']); ?>" class="card hr2-summary-card border border-base-200 shadow-sm hover:shadow transition-shadow">
+            <a href="<?php echo htmlspecialchars($summary['exams_completed']['link']); ?>" class="card hr2-summary-card border border-base-200 shadow-sm hover:shadow transition-shadow">
               <div class="card-body">
                 <div class="flex items-center justify-between">
                   <div class="p-2 rounded-xl bg-base-200">
-                    <i data-lucide="hand-coins" class="w-5 h-5"></i>
+                    <i data-lucide="clipboard-check" class="w-5 h-5"></i>
                   </div>
-                  <span class="badge badge-ghost badge-outline">Claims</span>
+                  <span class="badge badge-warning badge-outline">Examinations</span>
                 </div>
                 <div class="mt-3">
-                  <div class="text-3xl font-bold text-gray-900"><?php echo (int)$summary['claims']['count']; ?></div>
-                  <div class="text-sm text-gray-500">Active submissions</div>
+                  <div class="text-3xl font-bold text-gray-900"><?php echo (int)$summary['exams_completed']['count']; ?></div>
+                  <div class="text-sm text-gray-500">Completed examinations</div>
                 </div>
                 <div class="mt-3 text-sm text-blue-600 flex items-center gap-1">
                   <span>View</span>
@@ -549,9 +714,9 @@ function viewLabelForNotifType($type) {
                   </div>
 
                   <div class="mt-4 grid grid-cols-1 gap-2">
-                    <a href="submitdocument.php" class="btn btn-outline justify-start">
-                      <i data-lucide="upload" class="w-4 h-4"></i>
-                      <span class="ml-2">Upload Document</span>
+                    <a href="complaint.php" class="btn btn-outline justify-start">
+                      <i data-lucide="message-square-warning" class="w-4 h-4"></i>
+                      <span class="ml-2">File a Complaint</span>
                     </a>
                     <a href="leaverequest.php" class="btn btn-outline justify-start">
                       <i data-lucide="calendar-plus" class="w-4 h-4"></i>
@@ -583,7 +748,7 @@ function viewLabelForNotifType($type) {
           <h3 class="font-bold text-lg" id="notifModalTitle">Notification</h3>
           <div class="text-sm text-gray-500" id="notifModalDate"></div>
         </div>
-        <button type="button" class="btn btn-sm btn-ghost" id="notifModalClose">✕</button>
+        <button type="button" class="btn btn-sm hr2-outline-btn" id="notifModalClose">✕</button>
       </div>
 
       <div class="divider my-4"></div>
@@ -592,6 +757,86 @@ function viewLabelForNotifType($type) {
 
       <div class="modal-action">
         <button type="button" class="btn hr2-primary-btn" id="notifModalOk">OK</button>
+      </div>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+  </dialog>
+
+  <dialog id="complaintNotifModal" class="modal">
+    <div class="modal-box w-11/12 max-w-2xl">
+      <div class="flex items-start justify-between gap-3">
+        <div>
+          <h3 class="font-bold text-lg" id="complaintModalTitle">Complaint</h3>
+          <div class="text-sm text-gray-500" id="complaintModalSub"></div>
+        </div>
+        <button type="button" class="btn btn-sm hr2-outline-btn" id="complaintModalClose">✕</button>
+      </div>
+
+      <div class="divider my-4"></div>
+
+      <div class="space-y-3">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <div class="text-xs font-semibold text-gray-500">SUBJECT</div>
+            <div id="complaintModalSubject" class="mt-1 text-gray-800"></div>
+          </div>
+          <div>
+            <div class="text-xs font-semibold text-gray-500">STATUS</div>
+            <div id="complaintModalStatus" class="mt-1 text-gray-800"></div>
+          </div>
+          <div>
+            <div class="text-xs font-semibold text-gray-500">CATEGORY</div>
+            <div id="complaintModalCategory" class="mt-1 text-gray-800"></div>
+          </div>
+          <div>
+            <div class="text-xs font-semibold text-gray-500">INCIDENT DATE</div>
+            <div id="complaintModalIncident" class="mt-1 text-gray-800"></div>
+          </div>
+        </div>
+
+        <div>
+          <div class="text-xs font-semibold text-gray-500">DETAILS</div>
+          <div id="complaintModalDesc" class="mt-1 whitespace-pre-line text-gray-800"></div>
+        </div>
+
+        <div>
+          <div class="text-xs font-semibold text-gray-500">ATTACHMENT</div>
+          <div id="complaintModalAttachmentWrap" class="mt-2">
+            <img id="complaintModalAttachmentImg" class="hidden w-full max-h-[320px] object-contain rounded-lg border border-base-200 bg-white" alt="Attachment" />
+            <div id="complaintModalAttachmentNone" class="text-sm text-gray-500">No attachment.</div>
+            <div class="mt-2 flex items-center gap-2" id="complaintModalAttachmentActions">
+              <a id="complaintModalAttachmentDownload" class="btn btn-sm hr2-primary-btn" href="#">Download</a>
+            </div>
+          </div>
+        </div>
+
+        <div class="divider my-2"></div>
+
+        <form id="complaintScheduleForm" class="space-y-3">
+          <input type="hidden" id="complaintScheduleId" value="" />
+
+          <div class="text-xs font-semibold text-gray-500">SCHEDULE A MEETING</div>
+
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div class="form-control">
+              <label class="label"><span class="label-text">Meeting Date</span></label>
+              <input type="date" id="complaintScheduleDate" class="input input-bordered" />
+            </div>
+            <div class="form-control">
+              <label class="label"><span class="label-text">Call Time</span></label>
+              <input type="time" id="complaintScheduleTime" class="input input-bordered" />
+            </div>
+            <div class="form-control">
+              <label class="label"><span class="label-text">Where can you meet?</span></label>
+              <input type="text" id="complaintSchedulePlace" class="input input-bordered" placeholder="e.g., HR Office" />
+            </div>
+          </div>
+        </form>
+      </div>
+
+      <div class="modal-action">
+        <button type="button" class="btn hr2-primary-btn" id="complaintScheduleBtn">Schedule a Meeting</button>
+        <button type="button" class="btn hr2-outline-btn" id="complaintModalOk">Close</button>
       </div>
     </div>
     <form method="dialog" class="modal-backdrop"><button>close</button></form>
@@ -716,6 +961,105 @@ function viewLabelForNotifType($type) {
             return;
           }
 
+          if (type === 'complaint') {
+            const idMatch = String(meta || '').match(/complaint\s*id\s*:\s*(\d+)/i) || String(title || '').match(/complaint\s*id\s*:\s*(\d+)/i);
+            const cid = idMatch ? (idMatch[1] || '') : '';
+            const dlg = document.getElementById('complaintNotifModal');
+            if (!dlg || !cid) {
+              const d2 = document.getElementById('notifViewModal');
+              const tEl = document.getElementById('notifModalTitle');
+              const dEl = document.getElementById('notifModalDate');
+              const bEl = document.getElementById('notifModalBody');
+              if (tEl) tEl.textContent = title || 'Complaint';
+              if (dEl) dEl.textContent = dt ? dt : '';
+              if (bEl) bEl.textContent = meta || '';
+              if (d2) d2.showModal();
+              return;
+            }
+
+            const fd = new FormData();
+            fd.append('complaint_api', '1');
+            fd.append('action', 'details');
+            fd.append('complaint_id', cid);
+            const res2 = await fetch(window.location.href, { method: 'POST', body: fd, credentials: 'same-origin' });
+            const data2 = await res2.json();
+            if (!data2 || !data2.success) return;
+
+            const c = data2.complaint || {};
+            const tEl = document.getElementById('complaintModalTitle');
+            const sEl = document.getElementById('complaintModalSub');
+            const subjEl = document.getElementById('complaintModalSubject');
+            const stEl = document.getElementById('complaintModalStatus');
+            const catEl = document.getElementById('complaintModalCategory');
+            const incEl = document.getElementById('complaintModalIncident');
+            const descEl = document.getElementById('complaintModalDesc');
+            const attWrap = document.getElementById('complaintModalAttachmentWrap');
+            const attImg = document.getElementById('complaintModalAttachmentImg');
+            const attNone = document.getElementById('complaintModalAttachmentNone');
+            const attActions = document.getElementById('complaintModalAttachmentActions');
+            const attDl = document.getElementById('complaintModalAttachmentDownload');
+            const idEl = document.getElementById('complaintScheduleId');
+            const dateEl = document.getElementById('complaintScheduleDate');
+            const timeEl = document.getElementById('complaintScheduleTime');
+            const placeEl = document.getElementById('complaintSchedulePlace');
+            const schedBtn = document.getElementById('complaintScheduleBtn');
+
+            if (tEl) tEl.textContent = title || 'Complaint';
+            if (sEl) sEl.textContent = dt ? dt : '';
+            if (subjEl) subjEl.textContent = c.subject || '';
+            if (stEl) stEl.textContent = c.workflow_status || '';
+            if (catEl) catEl.textContent = c.category || '';
+            if (incEl) incEl.textContent = c.incident_date || '';
+            if (descEl) descEl.textContent = c.description || '';
+            if (idEl) idEl.value = String(c.id || cid);
+
+            const attPath = String(c.attachment_path || '').trim();
+            const hasAtt = attPath !== '';
+            if (attNone) attNone.style.display = hasAtt ? 'none' : '';
+            if (attActions) attActions.style.display = hasAtt ? '' : 'none';
+            if (attImg) attImg.classList.add('hidden');
+            if (attDl) attDl.setAttribute('href', '#');
+
+            if (hasAtt) {
+              const lower = attPath.toLowerCase();
+              const isImg = lower.endsWith('.png') || lower.endsWith('.jpg') || lower.endsWith('.jpeg') || lower.endsWith('.gif') || lower.endsWith('.webp');
+              const dlUrl = 'approval.php?section=complaints&complaint_attachment_download=' + encodeURIComponent(String(c.id || cid));
+              if (attDl) attDl.setAttribute('href', dlUrl);
+              if (attImg) {
+                if (isImg) {
+                  attImg.src = attPath;
+                  attImg.classList.remove('hidden');
+                } else {
+                  attImg.classList.add('hidden');
+                }
+              }
+            }
+
+            const today = (() => {
+              const d = new Date();
+              const yyyy = d.getFullYear();
+              const mm = String(d.getMonth() + 1).padStart(2, '0');
+              const dd = String(d.getDate()).padStart(2, '0');
+              return `${yyyy}-${mm}-${dd}`;
+            })();
+
+            if (dateEl) {
+              dateEl.min = today;
+              dateEl.value = c.meeting_date || today;
+            }
+            if (timeEl) timeEl.value = (c.meeting_time || '').slice(0, 5);
+            if (placeEl) placeEl.value = c.meeting_place || '';
+
+            const canSchedule = !!data2.is_assignee;
+            if (dateEl) dateEl.disabled = !canSchedule;
+            if (timeEl) timeEl.disabled = !canSchedule;
+            if (placeEl) placeEl.disabled = !canSchedule;
+            if (schedBtn) schedBtn.style.display = canSchedule ? '' : 'none';
+
+            dlg.showModal();
+            return;
+          }
+
           if (href) {
             window.location.href = href;
           }
@@ -731,6 +1075,51 @@ function viewLabelForNotifType($type) {
       const okBtn = document.getElementById('notifModalOk');
       if (closeBtn) closeBtn.addEventListener('click', closeNotifModal);
       if (okBtn) okBtn.addEventListener('click', closeNotifModal);
+
+      const closeComplaintModal = () => {
+        const dlg = document.getElementById('complaintNotifModal');
+        if (dlg) dlg.close();
+      };
+      const complaintCloseBtn = document.getElementById('complaintModalClose');
+      const complaintOkBtn = document.getElementById('complaintModalOk');
+      if (complaintCloseBtn) complaintCloseBtn.addEventListener('click', closeComplaintModal);
+      if (complaintOkBtn) complaintOkBtn.addEventListener('click', closeComplaintModal);
+
+      const scheduleBtn = document.getElementById('complaintScheduleBtn');
+      if (scheduleBtn) {
+        scheduleBtn.addEventListener('click', async () => {
+          const idEl = document.getElementById('complaintScheduleId');
+          const dateEl = document.getElementById('complaintScheduleDate');
+          const timeEl = document.getElementById('complaintScheduleTime');
+          const placeEl = document.getElementById('complaintSchedulePlace');
+          const cid = idEl ? (idEl.value || '') : '';
+          const meetingDate = dateEl ? (dateEl.value || '') : '';
+          const meetingTime = timeEl ? (timeEl.value || '') : '';
+          const meetingPlace = placeEl ? (placeEl.value || '') : '';
+          if (!cid) return;
+
+          const fd = new FormData();
+          fd.append('complaint_api', '1');
+          fd.append('action', 'schedule');
+          fd.append('complaint_id', cid);
+          fd.append('meeting_date', meetingDate);
+          fd.append('meeting_time', meetingTime);
+          fd.append('meeting_place', meetingPlace);
+
+          try {
+            const res = await fetch(window.location.href, { method: 'POST', body: fd, credentials: 'same-origin' });
+            const data = await res.json();
+            if (!data || !data.success) {
+              const msg = data && data.message ? data.message : 'Failed to schedule meeting.';
+              alert(msg);
+              return;
+            }
+            alert('Meeting scheduled.');
+            window.location.reload();
+          } catch (e2) {
+          }
+        });
+      }
 
       setActiveTab('all');
       applyFilter('all');
