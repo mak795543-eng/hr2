@@ -191,6 +191,11 @@ function ess_ensure_complaint_tables($conn): void
             "  assigned_role VARCHAR(50) NULL,\n" .
             "  assigned_to_employee_no VARCHAR(50) NULL,\n" .
             "  assigned_at TIMESTAMP NULL,\n" .
+            "  meeting_date DATE NULL,\n" .
+            "  meeting_time TIME NULL,\n" .
+            "  meeting_place VARCHAR(255) NULL,\n" .
+            "  meeting_scheduled_by INT NULL,\n" .
+            "  meeting_scheduled_at TIMESTAMP NULL,\n" .
             "  seen_by_assignee TINYINT(1) DEFAULT 0,\n" .
             "  seen_by_employee TINYINT(1) DEFAULT 0,\n" .
             "  FOREIGN KEY (employee_id) REFERENCES employees(id)\n" .
@@ -210,6 +215,11 @@ function ess_ensure_complaint_tables($conn): void
             ['assigned_role', "ALTER TABLE complaints ADD COLUMN assigned_role VARCHAR(50) NULL"],
             ['assigned_to_employee_no', "ALTER TABLE complaints ADD COLUMN assigned_to_employee_no VARCHAR(50) NULL"],
             ['assigned_at', "ALTER TABLE complaints ADD COLUMN assigned_at TIMESTAMP NULL"],
+            ['meeting_date', "ALTER TABLE complaints ADD COLUMN meeting_date DATE NULL"],
+            ['meeting_time', "ALTER TABLE complaints ADD COLUMN meeting_time TIME NULL"],
+            ['meeting_place', "ALTER TABLE complaints ADD COLUMN meeting_place VARCHAR(255) NULL"],
+            ['meeting_scheduled_by', "ALTER TABLE complaints ADD COLUMN meeting_scheduled_by INT NULL"],
+            ['meeting_scheduled_at', "ALTER TABLE complaints ADD COLUMN meeting_scheduled_at TIMESTAMP NULL"],
             ['seen_by_assignee', "ALTER TABLE complaints ADD COLUMN seen_by_assignee TINYINT(1) DEFAULT 0"],
             ['seen_by_employee', "ALTER TABLE complaints ADD COLUMN seen_by_employee TINYINT(1) DEFAULT 0"],
         ];
