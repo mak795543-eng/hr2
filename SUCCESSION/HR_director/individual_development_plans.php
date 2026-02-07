@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 require_once __DIR__ . '/../../COMPETENCY/criticalgaps/config.php';
 
 $flashOk = (string)($_GET['ok'] ?? '');
@@ -248,7 +248,7 @@ require('../../partials/header.php');
     include '../../USM/sidebarr.php'; 
     ?>
     <!-- Content Area -->
-    <div class="flex flex-col flex-1 overflow-hidden">
+    <div class="flex flex-col flex-1 overflow-auto">
       <!-- Navbar -->
       <?php include '../../USM/navbar.php'; ?>
       
@@ -335,9 +335,9 @@ require('../../partials/header.php');
             </div>
 
             <div class="mt-4">
-                <div class="text-sm font-semibold">General Skills Breakdown</div>
-                <div id="idp_view_skills" class="max-h-60 overflow-auto rounded-lg bg-base-200 p-3 mt-2">
-                    <div class="text-sm opacity-70" id="idp_view_skills_status">â€”</div>
+                <div class="text-sm font-semibold">Skill Gap Analysis</div>
+                <div id="idp_view_gap" class="max-h-96 overflow-auto rounded-lg bg-base-200 p-3 mt-2">
+                    <div class="text-sm opacity-70">Analyze to compute gaps</div>
                 </div>
             </div>
 
@@ -465,8 +465,7 @@ require('../../partials/header.php');
             var viewBadge = document.getElementById('idp_view_status_badge');
             var viewBody = document.getElementById('idp_view_body');
             var viewPlan = document.getElementById('idp_view_plan');
-            var viewSkills = document.getElementById('idp_view_skills');
-            var viewSkillsStatus = document.getElementById('idp_view_skills_status');
+            var viewGap = document.getElementById('idp_view_gap');
             var viewEditBtn = document.getElementById('idp_view_edit_btn');
             var formReq = document.getElementById('idp_view_form_request_training');
             var formCancel = document.getElementById('idp_view_form_cancel');
@@ -481,62 +480,52 @@ require('../../partials/header.php');
                 });
             }
 
-            function renderSkills(skills) {
-                if (!viewSkills) return;
-                viewSkills.innerHTML = '';
-
-                if (!skills || !skills.length) {
-                    var empty = document.createElement('div');
-                    empty.className = 'text-sm opacity-70';
-                    empty.textContent = 'No skills found.';
-                    viewSkills.appendChild(empty);
-                    return;
+            function loadGapAnalysis(employeeId) {
+                if (viewGap) {
+                    viewGap.innerHTML = '<div class="text-sm opacity-70">Loading analysis...</div>';
                 }
-
-                var tbl = document.createElement('table');
-                tbl.className = 'table table-sm w-full';
-                tbl.innerHTML = '<thead><tr><th>Skill</th><th class="text-right">%</th></tr></thead>';
-                var tb = document.createElement('tbody');
-                skills.forEach(function (s) {
-                    var tr = document.createElement('tr');
-                    tr.innerHTML = '<td>' + esc(s.skill_name) + '</td><td class="text-right">' + esc(s.skill_score) + '%</td>';
-                    tb.appendChild(tr);
-                });
-                tbl.appendChild(tb);
-                viewSkills.appendChild(tbl);
-            }
-
-            function loadSkills(employeeId, department) {
-                if (viewSkillsStatus) {
-                    viewSkillsStatus.textContent = 'Loading...';
-                }
-                if (viewSkills) {
-                    viewSkills.innerHTML = '<div class="text-sm opacity-70">Loading...</div>';
-                }
-
-                var fd = new URLSearchParams();
-                fd.set('action', 'get_general_skills');
-                fd.set('employee_id', String(employeeId || ''));
-                fd.set('department', String(department || ''));
-
-                fetch(window.location.pathname, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' },
-                    body: fd.toString()
-                }).then(function (res) {
-                    return res.json();
-                }).then(function (data) {
-                    if (data && data.success) {
-                        renderSkills(data.skills || []);
+                var url = '../../COMPETENCY/criticalgaps/get_employee_details.php?id=' + encodeURIComponent(String(employeeId || ''));
+                fetch(url).then(function (res) { return res.json(); }).then(function (data) {
+                    if (!viewGap) return;
+                    if (!data || data.error) {
+                        viewGap.innerHTML = '<div class="text-sm opacity-70">Failed to load analysis.</div>';
+                        return;
+                    }
+                    var analysis = data.analysis || {};
+                    var overall = analysis.overall || {};
+                    var computed = Array.isArray(analysis.computed) ? analysis.computed : [];
+                    var overallPct = Number(overall.pct || 0);
+                    var status = String(overall.status || 'Retrain');
+                    var head = document.createElement('div');
+                    head.className = 'flex items-center justify-between mb-3';
+                    head.innerHTML = '<div><div class="text-xs opacity-70">Overall Competency</div><div class="text-xl font-bold">' + (Number.isFinite(overallPct) ? overallPct.toFixed(1) : '0.0') + '%</div></div>' +
+                                     '<div class="text-right"><div class="text-xs opacity-70">Status</div><div><span class="badge">' + esc(status) + '</span></div></div>';
+                    var tbl = document.createElement('table');
+                    tbl.className = 'table table-sm w-full';
+                    tbl.innerHTML = '<thead><tr><th>KPI</th><th class="text-right">Actual</th><th class="text-right">Required</th><th class="text-right">Gap</th></tr></thead>';
+                    var tb = document.createElement('tbody');
+                    if (!computed.length) {
+                        tb.innerHTML = '<tr><td colspan="4" class="py-6 text-center opacity-70">No analysis available</td></tr>';
                     } else {
-                        if (viewSkills) {
-                            viewSkills.innerHTML = '<div class="text-sm opacity-70">Failed to load skills.</div>';
-                        }
+                        computed.forEach(function (r) {
+                            var kpiPct = Number(r.kpi_pct || 0);
+                            var reqPct = Number(r.required_pct || 0);
+                            var gapPct = Number(r.gap_pct || 0);
+                            var tr = document.createElement('tr');
+                            tr.innerHTML =
+                                '<td>' + esc(String(r.kpi_name || '')) + '</td>' +
+                                '<td class="text-right font-semibold">' + (Number.isFinite(kpiPct) ? kpiPct.toFixed(1) : '0.0') + '%</td>' +
+                                '<td class="text-right font-semibold">' + (Number.isFinite(reqPct) ? reqPct.toFixed(1) : '0.0') + '%</td>' +
+                                '<td class="text-right"><span class="badge ' + (gapPct > 0 ? 'badge-error' : 'badge-success') + '">' + (Number.isFinite(gapPct) ? gapPct.toFixed(1) : '0.0') + '%</span></td>';
+                            tb.appendChild(tr);
+                        });
                     }
+                    tbl.appendChild(tb);
+                    viewGap.innerHTML = '';
+                    viewGap.appendChild(head);
+                    viewGap.appendChild(tbl);
                 }).catch(function () {
-                    if (viewSkills) {
-                        viewSkills.innerHTML = '<div class="text-sm opacity-70">Failed to load skills.</div>';
-                    }
+                    if (viewGap) viewGap.innerHTML = '<div class="text-sm opacity-70">Failed to load analysis.</div>';
                 });
             }
 
@@ -655,7 +644,9 @@ require('../../partials/header.php');
                             viewBody.appendChild(box('Employee ID', String(r.employee_id || 'â€”')));
                             viewBody.appendChild(box('Position', String(r.position || 'â€”')));
                             viewBody.appendChild(box('Department', String(r.department || 'â€”')));
-                            viewBody.appendChild(box('General Skills %', String(r.competency || '0') + '%'));
+                            var compPct = Number(r.competency || 0);
+                            var compFmt = Number.isFinite(compPct) ? compPct.toFixed(1) : '0.0';
+                            viewBody.appendChild(box('Competency %', compFmt + '%'));
                             viewBody.appendChild(box('Succession Status', String(r.succession_status || 'â€”')));
                             viewBody.appendChild(box('IDP Status', statusLabel(status)));
                             viewBody.appendChild(box('Target Score', score));
@@ -670,7 +661,7 @@ require('../../partials/header.php');
                             renderPlanBubbles(bubbles, String(r.development_plan || ''));
                         }
 
-                        loadSkills(String(r.employee_id || ''), String(r.department || ''));
+                        loadGapAnalysis(String(r.employee_id || ''));
 
                         if (viewBadge) {
                             viewBadge.className = 'badge badge-sm ' + badgeClass(status);
@@ -715,4 +706,3 @@ require('../../partials/header.php');
     </div>
   </div>
 <?php require('../../partials/footer.php') ?>
-
