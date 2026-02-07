@@ -73,53 +73,59 @@ if ($employeeId !== '') {
         })();
     </script>
     <script>
-    (function() {
-        const iframe = document.getElementById('tp-iframe');
-        try {
-            document.querySelectorAll('.flex.flex-col.md\\:flex-row.md\\:items-center.md\\:justify-between.gap-3.mb-6, .card.bg-base-100.shadow.mb-6, #sidebar').forEach(el => el && (el.style.display = 'none'));
-            if (iframe) iframe.className = 'w-full h-[900px]';
-        } catch (e) {}
-        function enhance() {
+        (function() {
+            const iframe = document.getElementById('tp-iframe');
             try {
-                const doc = iframe.contentWindow.document;
-                // Hide everything except the training modal
-                Array.from(doc.body.children).forEach(el => { if (el.id !== 'training-modal') el.style.display = 'none'; });
-                const modalBox = doc.querySelector('#training-modal .modal-box');
-                if (modalBox) { modalBox.classList.remove('max-w-4xl'); modalBox.classList.add('max-w-6xl'); }
-                // Inject bubbles if description exists
-                const formEl = doc.getElementById('training-form');
-                const descArea = doc.getElementById('description');
-                const dev = (<?php echo json_encode((string)($row['development_plan'] ?? '')); ?>).trim();
-                if (formEl && dev !== '') {
-                    const bubbleWrap = doc.createElement('div');
-                    bubbleWrap.className = 'space-y-2';
-                    const label = doc.createElement('div');
-                    label.className = 'text-sm font-semibold text-gray-700';
-                    label.textContent = 'Development Plan';
-                    const bubbles = doc.createElement('div');
-                    bubbles.className = 'flex flex-wrap gap-2';
-                    dev.split(/\r?\n/).map(s => s.trim()).filter(s => s !== '' && s !== '-').forEach(txt => {
-                        const span = doc.createElement('span');
-                        span.className = 'badge badge-outline';
-                        span.textContent = txt.replace(/^[-•]\s*/, '');
-                        bubbles.appendChild(span);
-                    });
-                    bubbleWrap.appendChild(label);
-                    bubbleWrap.appendChild(bubbles);
-                    const descContainer = descArea ? descArea.closest('.form-control') : null;
-                    if (descContainer && descContainer.parentNode) descContainer.parentNode.insertBefore(bubbleWrap, descContainer);
-                    else formEl.insertBefore(bubbleWrap, formEl.firstChild);
-                }
-                // Fit iframe height
-                setTimeout(() => {
-                    const box = doc.querySelector('#training-modal .modal-box');
-                    const h = box ? (box.scrollHeight + 120) : 900;
-                    iframe.style.height = Math.max(600, h) + 'px';
-                }, 200);
+                document.querySelectorAll('.flex.flex-col.md\\:flex-row.md\\:items-center.md\\:justify-between.gap-3.mb-6, .card.bg-base-100.shadow.mb-6, #sidebar').forEach(el => el && (el.style.display = 'none'));
+                if (iframe) iframe.className = 'w-full h-[900px]';
             } catch (e) {}
-        }
-        iframe.addEventListener('load', () => setTimeout(enhance, 300));
-    })();
+
+            function enhance() {
+                try {
+                    const doc = iframe.contentWindow.document;
+                    // Hide everything except the training modal
+                    Array.from(doc.body.children).forEach(el => {
+                        if (el.id !== 'training-modal') el.style.display = 'none';
+                    });
+                    const modalBox = doc.querySelector('#training-modal .modal-box');
+                    if (modalBox) {
+                        modalBox.classList.remove('max-w-4xl');
+                        modalBox.classList.add('max-w-6xl');
+                    }
+                    // Inject bubbles if description exists
+                    const formEl = doc.getElementById('training-form');
+                    const descArea = doc.getElementById('description');
+                    const dev = (<?php echo json_encode((string)($row['development_plan'] ?? '')); ?>).trim();
+                    if (formEl && dev !== '') {
+                        const bubbleWrap = doc.createElement('div');
+                        bubbleWrap.className = 'space-y-2';
+                        const label = doc.createElement('div');
+                        label.className = 'text-sm font-semibold text-gray-700';
+                        label.textContent = 'Development Plan';
+                        const bubbles = doc.createElement('div');
+                        bubbles.className = 'flex flex-wrap gap-2';
+                        dev.split(/\r?\n/).map(s => s.trim()).filter(s => s !== '' && s !== '-').forEach(txt => {
+                            const span = doc.createElement('span');
+                            span.className = 'badge badge-outline';
+                            span.textContent = txt.replace(/^[-•]\s*/, '');
+                            bubbles.appendChild(span);
+                        });
+                        bubbleWrap.appendChild(label);
+                        bubbleWrap.appendChild(bubbles);
+                        const descContainer = descArea ? descArea.closest('.form-control') : null;
+                        if (descContainer && descContainer.parentNode) descContainer.parentNode.insertBefore(bubbleWrap, descContainer);
+                        else formEl.insertBefore(bubbleWrap, formEl.firstChild);
+                    }
+                    // Fit iframe height
+                    setTimeout(() => {
+                        const box = doc.querySelector('#training-modal .modal-box');
+                        const h = box ? (box.scrollHeight + 120) : 900;
+                        iframe.style.height = Math.max(600, h) + 'px';
+                    }, 200);
+                } catch (e) {}
+            }
+            iframe.addEventListener('load', () => setTimeout(enhance, 300));
+        })();
     </script>
     <script src="../../soliera.js"></script>
     <script src="../../sidebar.js"></script>

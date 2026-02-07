@@ -4,96 +4,81 @@ require_once __DIR__ . '/config.php';
 header('Content-Type: application/json; charset=utf-8');
 
 try {
-    $period = '';
-    if (isset($_GET['period'])) {
-        $period = trim((string)$_GET['period']);
-    }
-    if ($period === '') {
-        $period = date('Y') . '-Q' . (string)ceil((int)date('n') / 3);
-    }
-
     ensureKpiSchema();
-
-    $essDb = getenv('ESS_DB_NAME') ?: 'hr2_employee_self_service';
-    $hasEss = false;
-    try {
-        $chk = $pdo->prepare("SELECT COUNT(*) FROM information_schema.SCHEMATA WHERE SCHEMA_NAME = ?");
-        $chk->execute([$essDb]);
-        $hasEss = ((int)$chk->fetchColumn() > 0);
-    } catch (Throwable $e) {
-        $hasEss = false;
-    }
-
-    $parts = [];
-    $parts[] = "SELECT e.employee_id, e.full_name, e.department, e.position FROM employees e";
-    $parts[] = "SELECT ss.employee_id, ss.employee_name AS full_name, ss.department, ss.position FROM succession_submissions ss WHERE ss.is_pushed = 1";
-    if ($hasEss) {
-        $parts[] = "SELECT ess.employee_no AS employee_id, CONCAT(ess.first_name, ' ', COALESCE(ess.last_name,'')) AS full_name, ess.department, ess.position FROM `{$essDb}`.`employees` ess";
-    }
-    $unionBase = implode(" UNION ", $parts);
 
     $sql = "
         SELECT 
-            b.employee_id,
-            b.full_name,
-            b.department,
-            b.position,
-            COALESCE(gs.competency, 0) AS overall_competency,
+            e.employee_id,
+            e.full_name,
+            e.department,
+            e.position,
+            COALESCE(AVG(COALESCE(s.score, 0)) / 5 * 100, 0) AS overall_competency,
             CASE
-                WHEN COALESCE(gs.competency, 0) <= 20 THEN 'Retrain'
-                WHEN COALESCE(gs.competency, 0) <= 40 THEN 'Reskilling'
-                WHEN COALESCE(gs.competency, 0) <= 60 THEN 'Refresher Training'
-                WHEN COALESCE(gs.competency, 0) <= 80 THEN 'Upskilling'
+                WHEN COUNT(s.id) = 0 THEN 'Not Evaluated'
+                WHEN (AVG(COALESCE(s.score, 0)) / 5 * 100) <= 20 THEN 'Retrain'
+                WHEN (AVG(COALESCE(s.score, 0)) / 5 * 100) <= 40 THEN 'Reskilling'
+                WHEN (AVG(COALESCE(s.score, 0)) / 5 * 100) <= 60 THEN 'Refresher Training'
+                WHEN (AVG(COALESCE(s.score, 0)) / 5 * 100) <= 80 THEN 'Upskilling'
                 ELSE 'Succession Ready'
-            END AS status
-        FROM (
-            {$unionBase}
-        ) b
-        LEFT JOIN (
-            SELECT s2.employee_id, AVG(COALESCE(s2.score, 0)) / 5 * 100 AS competency
-            FROM employee_kpi_scores s2
-            WHERE s2.evaluation_period = ?
-            GROUP BY s2.employee_id
-        ) gs ON gs.employee_id = b.employee_id
-        GROUP BY b.employee_id, b.full_name, b.department, b.position, gs.competency
-        ORDER BY b.full_name ASC
+            END AS status,
+            COUNT(s.id) AS eval_count
+        FROM employees e
+        LEFT JOIN employee_kpi_scores s 
+          ON s.employee_id = e.employee_id
+        GROUP BY e.employee_id, e.full_name, e.department, e.position
+        ORDER BY e.full_name ASC
     ";
 
     $stmt = $pdo->prepare($sql);
-    $stmt->execute([$period]);
+    $stmt->execute([]);
     $rows = $stmt->fetchAll();
 
-    if (!$rows || count($rows) === 0) {
-        $fallback = $pdo->prepare("
-            SELECT 
-                ss.employee_id,
-                ss.employee_name AS full_name,
-                ss.department,
-                ss.position,
-                COALESCE(AVG(COALESCE(s.score, 0)) / 5 * 100, 0) AS overall_competency,
-                CASE
-                    WHEN COALESCE(AVG(COALESCE(s.score, 0)) / 5 * 100, 0) <= 20 THEN 'Retrain'
-                    WHEN COALESCE(AVG(COALESCE(s.score, 0)) / 5 * 100, 0) <= 40 THEN 'Reskilling'
-                    WHEN COALESCE(AVG(COALESCE(s.score, 0)) / 5 * 100, 0) <= 60 THEN 'Refresher Training'
-                    WHEN COALESCE(AVG(COALESCE(s.score, 0)) / 5 * 100, 0) <= 80 THEN 'Upskilling'
-                    ELSE 'Succession Ready'
-                END AS status
-            FROM succession_submissions ss
-            LEFT JOIN employee_kpi_scores s
-              ON s.employee_id = ss.employee_id
-             AND s.evaluation_period = ?
-            WHERE ss.is_pushed = 1
-            GROUP BY ss.employee_id, ss.employee_name, ss.department, ss.position
-            ORDER BY ss.employee_name ASC
-        ");
-        $fallback->execute([$period]);
-        $rows = $fallback->fetchAll();
+    $byId = [];
+    foreach ($rows as $r) {
+        $byId[(string)($r['employee_id'] ?? '')] = $r;
     }
+
+    try {
+        $ess = new PDO(
+            "mysql:host=" . DB_HOST . ";dbname=hr2_employee_self_service;charset=utf8mb4",
+            DB_USER,
+            DB_PASS,
+            [
+                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+                PDO::ATTR_EMULATE_PREPARES => false
+            ]
+        );
+        $resEss = $ess->query("SELECT employee_no, first_name, last_name, department, position FROM employees");
+        $rowsEss = $resEss ? $resEss->fetchAll() : [];
+        foreach ($rowsEss as $er) {
+            $empId = trim((string)($er['employee_no'] ?? ''));
+            if ($empId === '') continue;
+            if (!isset($byId[$empId])) {
+                $full = trim((string)($er['first_name'] ?? '') . ' ' . (string)($er['last_name'] ?? ''));
+                $byId[$empId] = [
+                    'employee_id' => $empId,
+                    'full_name' => ($full !== '' ? $full : $empId),
+                    'department' => (string)($er['department'] ?? ''),
+                    'position' => (string)($er['position'] ?? ''),
+                    'overall_competency' => 0,
+                    'status' => 'Not Evaluated',
+                    'eval_count' => 0,
+                ];
+            }
+        }
+    } catch (Throwable $e) {
+        // ignore ESS fallback errors
+    }
+
+    $out = array_values($byId);
+    usort($out, static function ($a, $b) {
+        return strcasecmp((string)($a['full_name'] ?? ''), (string)($b['full_name'] ?? ''));
+    });
 
     echo json_encode([
         'success' => true,
-        'period' => $period,
-        'employees' => $rows ?: []
+        'employees' => $out
     ], JSON_UNESCAPED_SLASHES);
 } catch (Throwable $e) {
     http_response_code(500);
