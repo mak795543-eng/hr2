@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 
 
 require_once __DIR__ . '/../../COMPETENCY/criticalgaps/config.php';
@@ -32,7 +32,8 @@ try {
 }
 
 $where = [
-    'ss.is_pushed = 1'
+    'ss.is_pushed = 1',
+    "(ss.idp_status IS NULL OR ss.idp_status <> 'Created')"
 ];
 $params = [];
 
@@ -130,7 +131,7 @@ require('../../partials/header.php');
         <!-- Notification Container -->
         <div id="notificationContainer"></div>
 
-    
+        <div class="max-w-7xl mx-auto px-6">
         <div class="flex items-center justify-between mb-9">
             <div>
                 <h1 class="text-2xl font-bold">Succession Dashboard</h1>
@@ -236,6 +237,7 @@ require('../../partials/header.php');
                     </table>
                 </div>
             </div>
+        </div>
         </div>
     </div>
 

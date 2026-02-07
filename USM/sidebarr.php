@@ -157,6 +157,12 @@ if (!function_exists('hasAccess')) {
                                 Training Requests
                             </span>
                         </a>
+                        <a href="/../hr2/TRAINING/TRAINING/learningrequest.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
+                            <span class="flex items-center gap-2">
+                                <i data-lucide="monitor-play" class="w-4 h-4 text-[#F7B32B]"></i>
+                                Learning Requests
+                            </span>
+                        </a>
                         <a href="/../hr2/TRAINING/TRAINING/request_logs.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
                             <span class="flex items-center gap-2">
                                 <i data-lucide="send" class="w-4 h-4 text-[#F7B32B]"></i>
