@@ -3,6 +3,9 @@ session_start();
 
 require_once __DIR__ . '/db.php';
 
+header('Location: mydocuments.php?open_submit=1');
+exit;
+
 $employeeId = ess_employee_id($conn);
 
 $uploadDir = __DIR__ . DIRECTORY_SEPARATOR . 'uploads';

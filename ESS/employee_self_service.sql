@@ -84,6 +84,8 @@ CREATE TABLE submitted_documents (
     reviewed_by INT,
     reviewed_at TIMESTAMP NULL,
     submitted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_doc_emp_submitted (employee_id, submitted_at),
+    INDEX idx_doc_status (status),
     FOREIGN KEY (employee_id) REFERENCES employees(id)
 );
 

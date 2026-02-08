@@ -6,181 +6,183 @@ require_once __DIR__ . '/db.php';
 $employeeId = ess_employee_id($conn);
 $employeeGender = '';
 if ($conn && $employeeId) {
-    $stmtG = mysqli_prepare($conn, 'SELECT gender FROM employee_profiles WHERE employee_id = ? LIMIT 1');
-    if ($stmtG) {
-        mysqli_stmt_bind_param($stmtG, 'i', $employeeId);
-        mysqli_stmt_execute($stmtG);
-        $resG = mysqli_stmt_get_result($stmtG);
-        $rowG = $resG ? mysqli_fetch_assoc($resG) : null;
-        mysqli_stmt_close($stmtG);
-        if (is_array($rowG)) {
-            $employeeGender = strtolower(trim((string)($rowG['gender'] ?? '')));
-        }
+  $stmtG = mysqli_prepare($conn, 'SELECT gender FROM employee_profiles WHERE employee_id = ? LIMIT 1');
+  if ($stmtG) {
+    mysqli_stmt_bind_param($stmtG, 'i', $employeeId);
+    mysqli_stmt_execute($stmtG);
+    $resG = mysqli_stmt_get_result($stmtG);
+    $rowG = $resG ? mysqli_fetch_assoc($resG) : null;
+    mysqli_stmt_close($stmtG);
+    if (is_array($rowG)) {
+      $employeeGender = strtolower(trim((string)($rowG['gender'] ?? '')));
     }
+  }
 }
 
 $success_message = '';
 $error_message = '';
 
 $myReqStats = [
-    'total' => 0,
-    'pending' => 0,
-    'for_compliance' => 0,
+  'total' => 0,
+  'pending' => 0,
+  'for_compliance' => 0,
 ];
 
 $balances = [
-    ['label' => 'Vacation', 'remaining' => 80, 'used' => 40, 'total' => 120, 'color' => 'text-gray-900', 'bar' => 'progress-primary'],
-    ['label' => 'Sick Leave', 'remaining' => 64, 'used' => 16, 'total' => 80, 'color' => 'text-gray-900', 'bar' => 'progress-success'],
-    ['label' => 'Personal', 'remaining' => 16, 'used' => 8, 'total' => 24, 'color' => 'text-gray-900', 'bar' => 'progress-warning'],
+  ['label' => 'Vacation', 'remaining' => 80, 'used' => 40, 'total' => 120, 'color' => 'text-gray-900', 'bar' => 'progress-primary'],
+  ['label' => 'Sick Leave', 'remaining' => 64, 'used' => 16, 'total' => 80, 'color' => 'text-gray-900', 'bar' => 'progress-success'],
+  ['label' => 'Personal', 'remaining' => 16, 'used' => 8, 'total' => 24, 'color' => 'text-gray-900', 'bar' => 'progress-warning'],
 ];
 
 $recentRequests = [
-    ['type' => 'Vacation', 'range' => 'Feb 12 — Feb 15', 'days' => 4, 'status' => 'Pending'],
-    ['type' => 'Sick Leave', 'range' => 'Jan 05 — Jan 05', 'days' => 1, 'status' => 'Approved'],
-    ['type' => 'Personal', 'range' => 'Dec 22 — Dec 23', 'days' => 2, 'status' => 'Approved'],
+  ['type' => 'Vacation', 'range' => 'Feb 12 — Feb 15', 'days' => 4, 'status' => 'Pending'],
+  ['type' => 'Sick Leave', 'range' => 'Jan 05 — Jan 05', 'days' => 1, 'status' => 'Approved'],
+  ['type' => 'Personal', 'range' => 'Dec 22 — Dec 23', 'days' => 2, 'status' => 'Approved'],
 ];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_leave'])) {
-    $leaveType = trim((string)($_POST['leave_type'] ?? ''));
-    $startDate = trim((string)($_POST['start_date'] ?? ''));
-    $endDate = trim((string)($_POST['end_date'] ?? ''));
-    $reason = trim((string)($_POST['reason'] ?? ''));
-    $termsAccepted = (string)($_POST['terms_accepted'] ?? '') === '1';
+  $leaveType = trim((string)($_POST['leave_type'] ?? ''));
+  $startDate = trim((string)($_POST['start_date'] ?? ''));
+  $endDate = trim((string)($_POST['end_date'] ?? ''));
+  $reason = trim((string)($_POST['reason'] ?? ''));
+  $termsAccepted = (string)($_POST['terms_accepted'] ?? '') === '1';
 
-    $allowedLeaveTypes = [
-        'Vacation',
-        'Sick Leave',
-        'Emergency Leave',
-        'Service Incentive Leave',
-        'Bereavement Leave',
-        'Solo Parent Leave',
-        'Maternity Leave',
-        'Paternity Leave',
-    ];
+  $allowedLeaveTypes = [
+    'Vacation',
+    'Sick Leave',
+    'Emergency Leave',
+    'Service Incentive Leave',
+    'Bereavement Leave',
+    'Solo Parent Leave',
+    'Maternity Leave',
+    'Paternity Leave',
+  ];
 
-    $fixedDays = [
-        'Sick Leave' => 1,
-        'Emergency Leave' => 2,
-        'Service Incentive Leave' => 5,
-        'Bereavement Leave' => 3,
-        'Solo Parent Leave' => 7,
-        'Maternity Leave' => 105,
-        'Paternity Leave' => 7,
-    ];
+  $fixedDays = [
+    'Sick Leave' => 1,
+    'Emergency Leave' => 2,
+    'Service Incentive Leave' => 5,
+    'Bereavement Leave' => 3,
+    'Solo Parent Leave' => 7,
+    'Maternity Leave' => 105,
+    'Paternity Leave' => 7,
+  ];
 
-    $genderIsFemale = ($employeeGender === 'female' || $employeeGender === 'f');
-    $genderIsMale = ($employeeGender === 'male' || $employeeGender === 'm');
+  $genderIsFemale = ($employeeGender === 'female' || $employeeGender === 'f');
+  $genderIsMale = ($employeeGender === 'male' || $employeeGender === 'm');
 
-    if (!$termsAccepted) {
-        $error_message = 'You must accept the Terms and Conditions before submitting.';
-    } elseif ($leaveType === '' || $startDate === '') {
-        $error_message = 'Please fill in the required fields.';
-    } elseif ($startDate < date('Y-m-d')) {
-        $error_message = 'Start date cannot be in the past.';
-    } elseif (!in_array($leaveType, $allowedLeaveTypes, true)) {
-        $error_message = 'Invalid leave type selected.';
-    } elseif (!$employeeId) {
-        $error_message = 'Unable to identify employee. Please login again.';
-    } elseif (!$conn) {
-        $error_message = 'Database connection unavailable.';
-    } elseif ($genderIsFemale && $leaveType === 'Paternity Leave') {
-        $error_message = 'Invalid leave type selected.';
-    } elseif ($genderIsMale && $leaveType === 'Maternity Leave') {
-        $error_message = 'Invalid leave type selected.';
+  if (!$termsAccepted) {
+    $error_message = 'You must accept the Terms and Conditions before submitting.';
+  } elseif ($leaveType === '' || $startDate === '') {
+    $error_message = 'Please fill in the required fields.';
+  } elseif ($startDate < date('Y-m-d')) {
+    $error_message = 'Start date cannot be in the past.';
+  } elseif (!in_array($leaveType, $allowedLeaveTypes, true)) {
+    $error_message = 'Invalid leave type selected.';
+  } elseif (!$employeeId) {
+    $error_message = 'Unable to identify employee. Please login again.';
+  } elseif (!$conn) {
+    $error_message = 'Database connection unavailable.';
+  } elseif ($genderIsFemale && $leaveType === 'Paternity Leave') {
+    $error_message = 'Invalid leave type selected.';
+  } elseif ($genderIsMale && $leaveType === 'Maternity Leave') {
+    $error_message = 'Invalid leave type selected.';
+  } else {
+    $status = 'Pending';
+
+    $days = (int)($_POST['days'] ?? 1);
+    if ($days <= 0) $days = 1;
+
+    if ($leaveType === 'Vacation') {
+      if ($days > 5) $days = 5;
     } else {
-        $status = 'Pending';
-
-        $days = (int)($_POST['days'] ?? 1);
-        if ($days <= 0) $days = 1;
-
-        if ($leaveType === 'Vacation') {
-            if ($days > 5) $days = 5;
-        } else {
-            $days = (int)($fixedDays[$leaveType] ?? 1);
-        }
-
-        $sd = strtotime($startDate);
-        if ($sd !== false) {
-            $endDate = date('Y-m-d', $sd + (max(1, $days) - 1) * 86400);
-        }
-
-        $stmt = mysqli_prepare($conn, 'INSERT INTO leave_requests (employee_id, leave_type, start_date, end_date, reason, status) VALUES (?, ?, ?, ?, ?, ?)');
-        if (!$stmt) {
-            $error_message = 'Failed to submit leave request.';
-        } else {
-            mysqli_stmt_bind_param($stmt, 'isssss', $employeeId, $leaveType, $startDate, $endDate, $reason, $status);
-            $ok = mysqli_stmt_execute($stmt);
-            mysqli_stmt_close($stmt);
-
-            if (!$ok) {
-                $error_message = 'Failed to submit leave request.';
-            } else {
-                $success_message = 'Leave request submitted successfully.';
-            }
-        }
+      $days = (int)($fixedDays[$leaveType] ?? 1);
     }
+
+    $sd = strtotime($startDate);
+    if ($sd !== false) {
+      $endDate = date('Y-m-d', $sd + (max(1, $days) - 1) * 86400);
+    }
+
+    $stmt = mysqli_prepare($conn, 'INSERT INTO leave_requests (employee_id, leave_type, start_date, end_date, reason, status) VALUES (?, ?, ?, ?, ?, ?)');
+    if (!$stmt) {
+      $error_message = 'Failed to submit leave request.';
+    } else {
+      mysqli_stmt_bind_param($stmt, 'isssss', $employeeId, $leaveType, $startDate, $endDate, $reason, $status);
+      $ok = mysqli_stmt_execute($stmt);
+      mysqli_stmt_close($stmt);
+
+      if (!$ok) {
+        $error_message = 'Failed to submit leave request.';
+      } else {
+        $success_message = 'Leave request submitted successfully.';
+      }
+    }
+  }
 }
 
 if ($conn && $employeeId) {
-    $stmtStats = mysqli_prepare($conn, 'SELECT status, COUNT(*) AS c FROM leave_requests WHERE employee_id = ? GROUP BY status');
-    if ($stmtStats) {
-        mysqli_stmt_bind_param($stmtStats, 'i', $employeeId);
-        mysqli_stmt_execute($stmtStats);
-        $resStats = mysqli_stmt_get_result($stmtStats);
-        if ($resStats) {
-            while ($r = mysqli_fetch_assoc($resStats)) {
-                $st = strtolower(trim((string)($r['status'] ?? '')));
-                $c = (int)($r['c'] ?? 0);
-                $myReqStats['total'] += $c;
-                if ($st === 'pending') $myReqStats['pending'] = $c;
-                if ($st === 'for compliance') $myReqStats['for_compliance'] = $c;
-            }
-        }
-        mysqli_stmt_close($stmtStats);
+  $stmtStats = mysqli_prepare($conn, 'SELECT status, COUNT(*) AS c FROM leave_requests WHERE employee_id = ? GROUP BY status');
+  if ($stmtStats) {
+    mysqli_stmt_bind_param($stmtStats, 'i', $employeeId);
+    mysqli_stmt_execute($stmtStats);
+    $resStats = mysqli_stmt_get_result($stmtStats);
+    if ($resStats) {
+      while ($r = mysqli_fetch_assoc($resStats)) {
+        $st = strtolower(trim((string)($r['status'] ?? '')));
+        $c = (int)($r['c'] ?? 0);
+        $myReqStats['total'] += $c;
+        if ($st === 'pending') $myReqStats['pending'] = $c;
+        if ($st === 'for compliance') $myReqStats['for_compliance'] = $c;
+      }
     }
+    mysqli_stmt_close($stmtStats);
+  }
 
-    $recentRequests = [];
-    $stmt = mysqli_prepare($conn, 'SELECT leave_type, start_date, end_date, status FROM leave_requests WHERE employee_id = ? ORDER BY created_at DESC LIMIT 5');
-    if ($stmt) {
-        mysqli_stmt_bind_param($stmt, 'i', $employeeId);
-        mysqli_stmt_execute($stmt);
-        $res = mysqli_stmt_get_result($stmt);
-        if ($res) {
-            while ($row = mysqli_fetch_assoc($res)) {
-                $s = (string)($row['start_date'] ?? '');
-                $e = (string)($row['end_date'] ?? '');
-                $days = 0;
-                if ($s !== '' && $e !== '') {
-                    $sd = strtotime($s);
-                    $ed = strtotime($e);
-                    if ($sd !== false && $ed !== false && $ed >= $sd) {
-                        $days = (int)floor(($ed - $sd) / 86400) + 1;
-                    }
-                }
-                $recentRequests[] = [
-                    'type' => (string)($row['leave_type'] ?? ''),
-                    'range' => $s . ' — ' . $e,
-                    'days' => $days,
-                    'status' => (string)($row['status'] ?? 'Pending'),
-                ];
-            }
+  $recentRequests = [];
+  $stmt = mysqli_prepare($conn, 'SELECT leave_type, start_date, end_date, status FROM leave_requests WHERE employee_id = ? ORDER BY created_at DESC LIMIT 5');
+  if ($stmt) {
+    mysqli_stmt_bind_param($stmt, 'i', $employeeId);
+    mysqli_stmt_execute($stmt);
+    $res = mysqli_stmt_get_result($stmt);
+    if ($res) {
+      while ($row = mysqli_fetch_assoc($res)) {
+        $s = (string)($row['start_date'] ?? '');
+        $e = (string)($row['end_date'] ?? '');
+        $days = 0;
+        if ($s !== '' && $e !== '') {
+          $sd = strtotime($s);
+          $ed = strtotime($e);
+          if ($sd !== false && $ed !== false && $ed >= $sd) {
+            $days = (int)floor(($ed - $sd) / 86400) + 1;
+          }
         }
-        mysqli_stmt_close($stmt);
+        $recentRequests[] = [
+          'type' => (string)($row['leave_type'] ?? ''),
+          'range' => $s . ' — ' . $e,
+          'days' => $days,
+          'status' => (string)($row['status'] ?? 'Pending'),
+        ];
+      }
     }
+    mysqli_stmt_close($stmt);
+  }
 }
 
-function leaveStatusBadge($status) {
-    $s = strtolower(trim($status));
-    return match ($s) {
-        'approved' => 'badge-success',
-        'pending' => 'badge-warning',
-        'rejected' => 'badge-error',
-        default => 'badge-ghost',
-    };
+function leaveStatusBadge($status)
+{
+  $s = strtolower(trim($status));
+  return match ($s) {
+    'approved' => 'badge-success',
+    'pending' => 'badge-warning',
+    'rejected' => 'badge-error',
+    default => 'badge-ghost',
+  };
 }
 ?>
 <!DOCTYPE html>
 <html lang="en" data-theme="light">
+
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -190,6 +192,7 @@ function leaveStatusBadge($status) {
   <script src="https://unpkg.com/lucide@latest"></script>
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 </head>
+
 <body class="bg-gray-50 min-h-screen">
   <div class="flex h-screen">
     <?php include '../USM/sidebarr.php'; ?>
@@ -466,7 +469,7 @@ function leaveStatusBadge($status) {
   </dialog>
 
   <script>
-    (function () {
+    (function() {
       if (window.lucide) window.lucide.createIcons();
 
       const leaveTypeEl = document.getElementById('leaveTypeSelect');
@@ -487,14 +490,39 @@ function leaveStatusBadge($status) {
       const formEl = document.getElementById('leaveRequestForm');
 
       const policy = {
-        'Vacation': { days: 1, editable: true, max: 5 },
-        'Sick Leave': { days: 1, editable: false },
-        'Emergency Leave': { days: 2, editable: false },
-        'Service Incentive Leave': { days: 5, editable: false },
-        'Bereavement Leave': { days: 3, editable: false },
-        'Maternity Leave': { days: 105, editable: false },
-        'Paternity Leave': { days: 7, editable: false },
-        'Solo Parent Leave': { days: 7, editable: false },
+        'Vacation': {
+          days: 1,
+          editable: true,
+          max: 5
+        },
+        'Sick Leave': {
+          days: 1,
+          editable: false
+        },
+        'Emergency Leave': {
+          days: 2,
+          editable: false
+        },
+        'Service Incentive Leave': {
+          days: 5,
+          editable: false
+        },
+        'Bereavement Leave': {
+          days: 3,
+          editable: false
+        },
+        'Maternity Leave': {
+          days: 105,
+          editable: false
+        },
+        'Paternity Leave': {
+          days: 7,
+          editable: false
+        },
+        'Solo Parent Leave': {
+          days: 7,
+          editable: false
+        },
       };
 
       const clamp = (n, min, max) => Math.max(min, Math.min(max, n));
@@ -574,6 +602,7 @@ function leaveStatusBadge($status) {
           syncEndFromStartAndDays();
         }
       });
+
       function todayStr() {
         const d = new Date();
         const yyyy = d.getFullYear();
@@ -611,7 +640,9 @@ function leaveStatusBadge($status) {
                 title: 'Terms Required',
                 text: 'Please accept the Terms and Conditions to continue.',
                 buttonsStyling: false,
-                customClass: { confirmButton: 'btn hr2-primary-btn' }
+                customClass: {
+                  confirmButton: 'btn hr2-primary-btn'
+                }
               });
             }
             return;
@@ -631,11 +662,14 @@ function leaveStatusBadge($status) {
           title: 'Submitted',
           text: 'Leave request submitted successfully.',
           buttonsStyling: false,
-          customClass: { confirmButton: 'btn hr2-primary-btn' }
+          customClass: {
+            confirmButton: 'btn hr2-primary-btn'
+          }
         });
       }
     })();
   </script>
 </body>
+
 </html>
 <?php require('../partials/footer.php') ?>
