@@ -29,6 +29,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 require('../../partials/header.php');
 ?>
+
 <body class="bg-base-200 min-h-screen">
     <div class="flex h-screen">
         <?php include '../../USM/sidebarr.php'; ?>
@@ -52,12 +53,12 @@ require('../../partials/header.php');
                                 <label class="label"><span class="label-text">Status</span></label>
                                 <select name="status" class="select select-bordered w-full">
                                     <?php
-                                    $allowedStatuses = ['all','requested','under_review','approved','on_hold','for_compliance','cancelled','rejected'];
+                                    $allowedStatuses = ['all', 'requested', 'under_review', 'approved', 'on_hold', 'for_compliance', 'cancelled', 'rejected'];
                                     $status = (string)($_GET['status'] ?? 'all');
                                     if (!in_array($status, $allowedStatuses, true)) $status = 'all';
                                     foreach ($allowedStatuses as $st) {
                                         $sel = $status === $st ? 'selected' : '';
-                                        echo '<option value="' . htmlspecialchars($st) . '" ' . $sel . '>' . htmlspecialchars(ucwords(str_replace('_',' ',$st))) . '</option>';
+                                        echo '<option value="' . htmlspecialchars($st) . '" ' . $sel . '>' . htmlspecialchars(ucwords(str_replace('_', ' ', $st))) . '</option>';
                                     }
                                     ?>
                                 </select>
@@ -160,4 +161,5 @@ require('../../partials/header.php');
     <script src="../../soliera.js"></script>
     <script src="../../sidebar.js"></script>
 </body>
+
 </html>

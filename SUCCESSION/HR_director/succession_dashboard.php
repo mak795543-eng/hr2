@@ -92,11 +92,36 @@ $stmt = $pdo->prepare(
 $stmt->execute(array_merge([$period], $params));
 $rows = $stmt->fetchAll();
 
-function h($v) {
+$successionTotal = 0;
+$successionAvg = 0.0;
+$successionDeptCount = 0;
+try {
+    $successionTotal = (int)($pdo->query("SELECT COUNT(*) FROM succession_submissions WHERE is_pushed = 1")->fetchColumn() ?? 0);
+} catch (Throwable $e) {}
+try {
+    $stmtAvg = $pdo->prepare("
+        SELECT AVG(comp) FROM (
+            SELECT AVG(COALESCE(s2.score, 0)) / 5 * 100 AS comp
+            FROM employee_kpi_scores s2
+            JOIN succession_submissions ss ON ss.employee_id = s2.employee_id
+            WHERE ss.is_pushed = 1 AND s2.evaluation_period = ?
+            GROUP BY s2.employee_id
+        ) t
+    ");
+    $stmtAvg->execute([$period]);
+    $successionAvg = (float)($stmtAvg->fetchColumn() ?? 0.0);
+} catch (Throwable $e) {}
+try {
+    $successionDeptCount = (int)($pdo->query("SELECT COUNT(DISTINCT department) FROM succession_submissions WHERE is_pushed = 1")->fetchColumn() ?? 0);
+} catch (Throwable $e) {}
+
+function h($v)
+{
     return htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
 }
 
-function statusBadgeClass($status) {
+function statusBadgeClass($status)
+{
     $status = (string)$status;
     switch ($status) {
         case 'Retrain':
@@ -115,176 +140,213 @@ function statusBadgeClass($status) {
 }
 require('../../partials/header.php');
 ?>
+
 <body class="bg-gray-50 min-h-screen">
-  <div class="flex h-screen">
-    <!-- Sidebar -->
-    <?php 
-    // Use relative path or absolute path based on your directory structure
-    include '../../USM/sidebarr.php'; 
-    ?>
+    <div class="flex h-screen">
+        <!-- Sidebar -->
+        <?php
+        // Use relative path or absolute path based on your directory structure
+        include '../../USM/sidebarr.php';
+        ?>
 
-    <!-- Content Area -->
-    <div class="flex flex-col flex-1 overflow-auto">
-      <!-- Navbar -->
-      <?php include '../../USM/navbar.php'; ?>
+        <!-- Content Area -->
+        <div class="flex flex-col flex-1 overflow-auto">
+            <!-- Navbar -->
+            <?php include '../../USM/navbar.php'; ?>
 
-        <!-- Notification Container -->
-        <div id="notificationContainer"></div>
+            <!-- Notification Container -->
+            <div id="notificationContainer"></div>
 
-        <div class="max-w-7xl mx-auto px-6">
-        <div class="flex items-center justify-between mb-9">
-            <div>
-                <h1 class="text-2xl font-bold">Succession Dashboard</h1>
-               
-            </div>
-            <div class="flex gap-2">
-            </div>
-        </div>
-
-        <div class="card bg-base-100 shadow mb-6">
-            <div class="card-body">
-                <form method="GET" class="flex flex-col md:flex-row gap-3 md:items-end">
-                    <div class="flex-1">
-                        <label class="label"><span class="label-text">Search</span></label>
-                        <input
-                            type="text"
-                            name="search"
-                            value="<?php echo h($search); ?>"
-                            placeholder="Search employee / ID / position"
-                            class="input input-bordered w-full"
-                        />
+            <div class="max-w-7xl mx-auto px-6">
+                <div class="space-y-6">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <h1 class="text-2xl font-bold">Succession Dashboard</h1>
+                        </div>
+                        <div class="flex gap-2"></div>
                     </div>
 
-                    <div class="w-full md:w-64">
-                        <label class="label"><span class="label-text">Department</span></label>
-                        <select name="department" class="select select-bordered w-full">
-                            <option value="all" <?php echo $departmentFilter === 'all' ? 'selected' : ''; ?>>All Departments</option>
-                            <?php foreach (($departments ?? []) as $dept): ?>
-                                <option value="<?php echo h($dept); ?>" <?php echo $departmentFilter === $dept ? 'selected' : ''; ?>>
-                                    <?php echo h($dept); ?>
-                                </option>
-                            <?php endforeach; ?>
-                        </select>
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
+                        <div class="hr2-summary-card rounded-xl shadow-md p-6">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <div class="text-sm text-gray-500">Succession Candidates</div>
+                                    <div class="text-2xl font-bold text-gray-900"><?php echo (int)$successionTotal; ?></div>
+                                </div>
+                                <div class="p-3 bg-blue-100 rounded-full">
+                                    <i data-lucide="users" class="h-6 w-6 text-blue-600"></i>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="hr2-summary-card rounded-xl shadow-md p-6">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <div class="text-sm text-gray-500">Average Competency</div>
+                                    <div class="text-2xl font-bold text-gray-900"><?php echo number_format($successionAvg, 1); ?>%</div>
+                                </div>
+                                <div class="p-3 bg-emerald-100 rounded-full">
+                                    <i data-lucide="bar-chart-2" class="h-6 w-6 text-emerald-600"></i>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="hr2-summary-card rounded-xl shadow-md p-6">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <div class="text-sm text-gray-500">Departments Covered</div>
+                                    <div class="text-2xl font-bold text-gray-900"><?php echo (int)$successionDeptCount; ?></div>
+                                </div>
+                                <div class="p-3 bg-purple-100 rounded-full">
+                                    <i data-lucide="building" class="h-6 w-6 text-purple-600"></i>
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
-                    <div class="w-full md:w-56">
-                        <label class="label"><span class="label-text">Status</span></label>
-                        <select name="status" class="select select-bordered w-full">
-                            <option value="all" <?php echo $statusFilter === 'all' ? 'selected' : ''; ?>>All Status</option>
-                            <?php foreach ($allowedStatuses as $st): ?>
-                                <option value="<?php echo h($st); ?>" <?php echo $statusFilter === $st ? 'selected' : ''; ?>>
-                                    <?php echo h($st); ?>
-                                </option>
-                            <?php endforeach; ?>
-                        </select>
+                    <div class="card bg-base-100 shadow mb-6">
+                        <div class="card-body">
+                            <form action="succession_dashboard.php" method="get" class="space-y-0">
+                                <div class="flex flex-wrap items-end gap-4">
+                                    <div class="flex-1 min-w-[16rem]">
+                                        <label class="label"><span class="label-text">Search</span></label>
+                                        <input
+                                            type="text"
+                                            name="search"
+                                            value="<?php echo h($search); ?>"
+                                            placeholder="Search employee / ID / position"
+                                            class="input input-bordered w-full" />
+                                    </div>
+
+                                    <div class="w-full md:w-64">
+                                        <label class="label"><span class="label-text">Department</span></label>
+                                        <select name="department" class="select select-bordered w-full">
+                                            <option value="all" <?php echo $departmentFilter === 'all' ? 'selected' : ''; ?>>All Departments</option>
+                                            <?php foreach (($departments ?? []) as $dept): ?>
+                                                <option value="<?php echo h($dept); ?>" <?php echo $departmentFilter === $dept ? 'selected' : ''; ?>>
+                                                    <?php echo h($dept); ?>
+                                                </option>
+                                            <?php endforeach; ?>
+                                        </select>
+                                    </div>
+
+                                    <div class="w-full md:w-56">
+                                        <label class="label"><span class="label-text">Status</span></label>
+                                        <select name="status" class="select select-bordered w-full">
+                                            <option value="all" <?php echo $statusFilter === 'all' ? 'selected' : ''; ?>>All Status</option>
+                                            <?php foreach ($allowedStatuses as $st): ?>
+                                                <option value="<?php echo h($st); ?>" <?php echo $statusFilter === $st ? 'selected' : ''; ?>>
+                                                    <?php echo h($st); ?>
+                                                </option>
+                                            <?php endforeach; ?>
+                                        </select>
+                                    </div>
+
+                                    <div class="flex gap-2">
+                                        <button type="submit" class="btn bg-violet-600 text-white hover:bg-violet-700 border-0">Filter</button>
+                                        <a href="succession_dashboard.php" class="btn btn-outline">Reset</a>
+                                    </div>
+                                </div>
+                            </form>
+                        </div>
                     </div>
 
-                    <div class="flex gap-2">
-                        <button type="submit" class="btn btn-primary">Filter</button>
-                        <a href="succession_dashboard.php" class="btn btn-outline">Reset</a>
+                    <div class="card bg-base-100 shadow">
+                        <div class="card-body p-0">
+                            <div class="overflow-x-auto">
+                                <table class="table table-zebra table-sm">
+                                    <thead>
+                                        <tr>
+                                            <th>Employee</th>
+                                            <th>Position</th>
+                                            <th>Department</th>
+                                            <th>Competency Level</th>
+                                            <th>Status</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <?php if (count($rows) === 0): ?>
+                                            <tr>
+                                                <td colspan="6" class="text-center py-10 opacity-70">No records submitted yet.</td>
+                                            </tr>
+                                        <?php else: ?>
+                                            <?php foreach ($rows as $r): ?>
+                                                <tr>
+                                                    <td>
+                                                        <div class="font-semibold"><?php echo h($r['employee_name']); ?></div>
+                                                        <div class="text-xs opacity-70"><?php echo h($r['employee_id']); ?></div>
+                                                    </td>
+                                                    <td><?php echo h($r['position']); ?></td>
+                                                    <td><?php echo h($r['department']); ?></td>
+                                                    <td class="font-semibold"><?php echo number_format((float)($r['competency_level'] ?? 0), 1); ?>%</td>
+                                                    <td>
+                                                        <span class="badge badge-sm <?php echo h(statusBadgeClass($r['status'])); ?>">
+                                                            <?php echo h($r['status']); ?>
+                                                        </span>
+                                                    </td>
+                                                    <td>
+                                                        <a
+                                                            class="btn btn-primary btn-sm"
+                                                            href="individual_dev_plan.php?employee_id=<?php echo urlencode($r['employee_id']); ?>"
+                                                            data-confirm-create="1">
+                                                            Create IDP
+                                                        </a>
+                                                    </td>
+                                                </tr>
+                                            <?php endforeach; ?>
+                                        <?php endif; ?>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
                     </div>
-                </form>
-            </div>
-        </div>
-
-        <div class="card bg-base-100 shadow">
-            <div class="card-body p-0">
-                <div class="overflow-x-auto">
-                    <table class="table table-zebra">
-                        <thead>
-                            <tr>
-                                <th>Employee</th>
-                                <th>Position</th>
-                                <th>Department</th>
-                                <th>Competency Level</th>
-                                <th>Status</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php if (count($rows) === 0): ?>
-                                <tr>
-                                    <td colspan="6" class="text-center py-10 opacity-70">No records submitted yet.</td>
-                                </tr>
-                            <?php else: ?>
-                                <?php foreach ($rows as $r): ?>
-                                    <tr>
-                                        <td>
-                                            <div class="font-semibold"><?php echo h($r['employee_name']); ?></div>
-                                            <div class="text-xs opacity-70"><?php echo h($r['employee_id']); ?></div>
-                                        </td>
-                                        <td><?php echo h($r['position']); ?></td>
-                                        <td><?php echo h($r['department']); ?></td>
-                                        <td class="font-semibold"><?php echo number_format((float)($r['competency_level'] ?? 0), 1); ?>%</td>
-                                        <td>
-                                            <span class="badge badge-sm <?php echo h(statusBadgeClass($r['status'])); ?>">
-                                                <?php echo h($r['status']); ?>
-                                            </span>
-                                        </td>
-                                        <td>
-                                            <a
-                                                class="btn btn-primary btn-sm"
-                                                href="individual_dev_plan.php?employee_id=<?php echo urlencode($r['employee_id']); ?>"
-                                                data-confirm-create="1"
-                                            >
-                                                Create IDP
-                                            </a>
-                                        </td>
-                                    </tr>
-                                <?php endforeach; ?>
-                            <?php endif; ?>
-                        </tbody>
-                    </table>
                 </div>
             </div>
-        </div>
-        </div>
-    </div>
 
-    <script>
-        (function () {
-            var ok = <?php echo json_encode($flashOk); ?>;
-            var err = <?php echo json_encode($flashErr); ?>;
+            <script>
+                (function() {
+                    try { lucide.createIcons(); } catch (e) {}
+                    var ok = <?php echo json_encode($flashOk); ?>;
+                    var err = <?php echo json_encode($flashErr); ?>;
 
-            if (ok) {
-                Swal.fire({
-                    icon: 'success',
-                    title: 'Success',
-                    text: 'Action completed.',
-                    timer: 1600,
-                    showConfirmButton: false
-                });
-            }
-            if (err) {
-                Swal.fire({
-                    icon: 'error',
-                    title: 'Error',
-                    text: 'Something went wrong.'
-                });
-            }
+                    if (ok) {
+                        Swal.fire({
+                            icon: 'success',
+                            title: 'Success',
+                            text: 'Action completed.',
+                            timer: 1600,
+                            showConfirmButton: false
+                        });
+                    }
+                    if (err) {
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Error',
+                            text: 'Something went wrong.'
+                        });
+                    }
 
-            document.querySelectorAll('[data-confirm-create="1"]').forEach(function (btn) {
-                btn.addEventListener('click', function (e) {
-                    e.preventDefault();
-                    var href = btn.getAttribute('href') || '';
-                    Swal.fire({
-                        icon: 'question',
-                        title: 'Create IDP?',
-                        text: 'This will create a new IDP with status Under Review.',
-                        showCancelButton: true,
-                        confirmButtonText: 'Yes, create',
-                        cancelButtonText: 'No'
-                    }).then(function (res) {
-                        if (res.isConfirmed) {
-                            if (href) {
-                                window.location.href = href;
-                            }
-                        }
+                    document.querySelectorAll('[data-confirm-create="1"]').forEach(function(btn) {
+                        btn.addEventListener('click', function(e) {
+                            e.preventDefault();
+                            var href = btn.getAttribute('href') || '';
+                            Swal.fire({
+                                icon: 'question',
+                                title: 'Create IDP?',
+                                text: 'This will create a new IDP with status Under Review.',
+                                showCancelButton: true,
+                                confirmButtonText: 'Yes, create',
+                                cancelButtonText: 'No'
+                            }).then(function(res) {
+                                if (res.isConfirmed) {
+                                    if (href) {
+                                        window.location.href = href;
+                                    }
+                                }
+                            });
+                        });
                     });
-                });
-            });
-        })();
-    </script>
+                })();
+            </script>
+        </div>
     </div>
-  </div>
-<?php require('../../partials/footer.php') ?>
+    <?php require('../../partials/footer.php') ?>
