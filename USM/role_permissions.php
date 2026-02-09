@@ -1,7 +1,7 @@
 <?php
 // role_permissions.php
 return [
-    'supervisor' => [
+    'Admin' => [
         'dashboard',
         'learning_management',
         'training_management',
@@ -23,9 +23,9 @@ return [
         'customer_feedback',
         'analytics',
         'user_management',
-    
+
     ],
-    
+
     'superviser' => [
         'dashboard',
         'learning_management',
@@ -48,23 +48,27 @@ return [
         'customer_feedback',
         'analytics',
         'user_management',
-    
+
     ],
-    
+
     // Manager - Department head access
     'manager' => [
         'dashboard',
-        'learning_management',
-        'training_management',
-        'competency_management',
-        'succession_planning',
-        'employee_self_service',
-        'approvals' // For department-level approvals
+        'approvals',
+        'employee_self_service'
+        // For department-level approvals
     ],
-    
+
+    // Manager - Department head access
+    'HR Director' => [
+        'dashboard',
+        'Succession planning',
+        'employee_self_service' // For department-level approvals
+    ],
+
     // Employee - Regular staff access
     'sous chef' => [
-
+        'dashboard',
         'employee_self_service'
     ],
 
@@ -77,27 +81,24 @@ return [
     ],
 
     // Trainer - Training development officer
-    'trainer' => [
+    'Training & Development officer' => [
         'dashboard',
-        'learning_management',
         'training_management',
-        'approvals' // If trainers need to approve learning materials
+        'employee_self_service'
+
     ],
 
     // Competency Coordinator
-    'coordinator' => [
+    'Competency coordinator' => [
         'dashboard',
         'competency_management',
-        'training_management' // Might need to create training based on gaps
+        'employee_self_service'
     ],
 
     // HR Manager - Higher level approvals
-    'hr_manager' => [
+    'Learning & Development officer' => [
         'dashboard',
-        'approvals',
-        'employee_self_service',
         'learning_management',
-        'training_management', // Might need to review all trainings
-        'succession_planning' // HR typically handles succession
+        'employee_self_service'
     ]
 ];
