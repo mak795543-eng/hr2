@@ -488,7 +488,7 @@ if ($viewParam !== '') {
 
         <div class="form-control">
           <label class="label"><span class="label-text">Description</span></label>
-          <input name="description" type="text" class="input input-bordered w-full" placeholder="Optional description or notes" />
+          <textarea name="description" class="textarea textarea-bordered w-full resize-y min-h-24" rows="3" placeholder="Optional description or notes"></textarea>
         </div>
 
         <div class="form-control">
