@@ -54,18 +54,21 @@ return [
     // Manager - Department head access
     'manager' => [
         'dashboard',
-        'approvals' // For department-level approvals
+        'approvals',
+        'employee_self_service'
+        // For department-level approvals
     ],
 
     // Manager - Department head access
     'HR Director' => [
         'dashboard',
-        'Succession planning' // For department-level approvals
+        'Succession planning',
+        'employee_self_service' // For department-level approvals
     ],
 
     // Employee - Regular staff access
     'sous chef' => [
-
+        'dashboard',
         'employee_self_service'
     ],
 
@@ -81,6 +84,7 @@ return [
     'Training & Development officer' => [
         'dashboard',
         'training_management',
+        'employee_self_service'
 
     ],
 
@@ -88,11 +92,13 @@ return [
     'Competency coordinator' => [
         'dashboard',
         'competency_management',
+        'employee_self_service'
     ],
 
     // HR Manager - Higher level approvals
     'Learning & Development officer' => [
         'dashboard',
         'learning_management',
+        'employee_self_service'
     ]
 ];
