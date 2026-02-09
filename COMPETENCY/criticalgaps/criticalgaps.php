@@ -54,7 +54,7 @@ require('../../partials/header.php');
                     </div>
                     <div class="flex gap-2">
                         <a href="gap_analysis.php" class="btn btn-outline btn-sm">Gap Analysis</a>
-                        <button type="button" id="push-all-to-succession" class="btn btn-outline btn-sm">Push All to Succession</button>
+
                     </div>
                 </div>
 
@@ -625,7 +625,7 @@ require('../../partials/header.php');
                             <button onclick="showIDPConfirmation('${employee.employee_id}', '${employee.full_name}')" 
                                     class="btn bg-gray-900 text-white hover:bg-gray-800 border-0">
                                 <i data-lucide="clipboard-list" class="w-4 h-4 mr-2"></i>
-                                Create IDP
+                                Forward IDP
                             </button>
                             <button onclick="document.getElementById('view-modal').close()" 
                                     class="btn bg-white border border-gray-300 hover:bg-gray-50 text-gray-800">
@@ -765,16 +765,7 @@ require('../../partials/header.php');
                                 return;
                             }
 
-                            var confirmRes = await Swal.fire({
-                                icon: 'question',
-                                title: 'Push all employees?',
-                                text: `This will push ${employees.length} employee(s) to Succession Dashboard.`,
-                                showCancelButton: true,
-                                confirmButtonText: 'Yes, push all',
-                                cancelButtonText: 'Cancel',
-                                confirmButtonColor: '#1f2937',
-                                cancelButtonColor: '#6b7280'
-                            });
+
 
                             if (!confirmRes.isConfirmed) {
                                 return;
@@ -851,11 +842,11 @@ require('../../partials/header.php');
             // Function to show IDP confirmation dialog
             function showIDPConfirmation(employeeId, employeeName) {
                 Swal.fire({
-                    title: 'Create Individual Development Plan',
-                    html: `Do you want to create an Individual Development Plan for <strong>${employeeName}</strong>?`,
+                    title: 'Forward for Individual Development Plan?',
+                    html: `Do you want to Forward this to Individual Development Plan for <strong>${employeeName}</strong>?`,
                     icon: 'question',
                     showCancelButton: true,
-                    confirmButtonText: 'Create IDP',
+                    confirmButtonText: 'Forward IDP',
                     cancelButtonText: 'Cancel',
                     confirmButtonColor: '#1f2937',
                     cancelButtonColor: '#6b7280',

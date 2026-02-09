@@ -638,14 +638,16 @@ require('../../partials/header.php');
                             var raw = btn.getAttribute('data-idp') || '';
                             try {
                                 var r = JSON.parse(raw);
-                                editId.value = String(r.id || '');
-                                editPlan.value = String(r.development_plan || '');
-                                editScore.value = r.target_score === null ? '' : String(r.target_score);
-                                editDate.value = String(r.target_date || '');
-                                if (viewToggle) {
-                                    viewToggle.checked = false;
+                                var empId = String(r.employee_id || '');
+                                if (empId) {
+                                    window.location.href = 'individual_dev_plan.php?employee_id=' + encodeURIComponent(empId);
+                                    return;
                                 }
-                                modalToggle.checked = true;
+                                Swal.fire({
+                                    icon: 'error',
+                                    title: 'Error',
+                                    text: 'Missing employee ID.'
+                                });
                             } catch (e) {
                                 Swal.fire({
                                     icon: 'error',

@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 
 require_once __DIR__ . '/../../COMPETENCY/criticalgaps/config.php';
 
@@ -468,7 +468,8 @@ $DEVELOPMENT_PLANS = [
 ];
 
 if (!function_exists('getDevelopmentPlansRepo')) {
-    function getDevelopmentPlansRepo() {
+    function getDevelopmentPlansRepo()
+    {
         global $pdo;
         global $DEVELOPMENT_PLANS;
 
@@ -559,7 +560,8 @@ if (!function_exists('getDevelopmentPlansRepo')) {
 }
 
 if (!function_exists('getSuggestedPlansForDepartmentStatus')) {
-    function getSuggestedPlansForDepartmentStatus($department, $status, $role = null) {
+    function getSuggestedPlansForDepartmentStatus($department, $status, $role = null)
+    {
         global $pdo;
         global $DEVELOPMENT_PLANS;
 
@@ -626,14 +628,82 @@ if (!function_exists('getSuggestedPlansForDepartmentStatus')) {
     }
 }
 
+if (!function_exists('getDevelopmentPlansForSkill')) {
+    function getDevelopmentPlansForSkill($department, $status, $skillName)
+    {
+        global $pdo;
+        global $DEVELOPMENT_PLANS;
+
+        $department = trim((string)$department);
+        $status = trim((string)$status);
+        $skillName = trim((string)$skillName);
+
+        $allowedStatuses = ['Retrain', 'Reskilling', 'Refresher Training', 'Upskilling', 'Succession Ready'];
+        if ($department === '' || $status === '' || $skillName === '' || !in_array($status, $allowedStatuses, true)) {
+            return [];
+        }
+
+        if (!$pdo) {
+            $out = [];
+            if (
+                isset($DEVELOPMENT_PLANS[$department]) &&
+                isset($DEVELOPMENT_PLANS[$department][$skillName]) &&
+                is_array($DEVELOPMENT_PLANS[$department][$skillName])
+            ) {
+                $byStatus = $DEVELOPMENT_PLANS[$department][$skillName];
+                if (isset($byStatus[$status]) && trim((string)$byStatus[$status]) !== '') {
+                    $out[] = [
+                        'plan_text' => (string)$byStatus[$status],
+                        'delivery_mode' => 'Onsite',
+                    ];
+                }
+            }
+            return $out;
+        }
+
+        ensureDevelopmentPlansSchema();
+        seedDevelopmentPlansIfEmpty($DEVELOPMENT_PLANS);
+
+        $stmt = $pdo->prepare(
+            "SELECT dpi.plan_text, COALESCE(dpi.delivery_mode, 'Onsite') AS delivery_mode
+             FROM development_plan_items dpi
+             JOIN skills s ON s.id = dpi.skill_id
+             WHERE dpi.department = ?
+               AND dpi.status = ?
+               AND dpi.role = ''
+               AND s.category = 'General Skills'
+               AND s.skill_name = ?
+             ORDER BY dpi.id ASC"
+        );
+        $stmt->execute([$department, $status, $skillName]);
+
+        $rows = $stmt->fetchAll();
+        $out = [];
+        foreach ($rows as $r) {
+            $planText = trim((string)($r['plan_text'] ?? ''));
+            if ($planText === '') {
+                continue;
+            }
+            $out[] = [
+                'plan_text' => $planText,
+                'delivery_mode' => (string)($r['delivery_mode'] ?? 'Onsite'),
+            ];
+        }
+
+        return $out;
+    }
+}
+
 if (!function_exists('h')) {
-    function h($v) {
+    function h($v)
+    {
         return htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
     }
 }
 
 if (!function_exists('splitPlanItems')) {
-    function splitPlanItems($planText) {
+    function splitPlanItems($planText)
+    {
         $planText = trim((string)$planText);
         if ($planText === '') {
             return [];
@@ -661,7 +731,8 @@ if (!function_exists('splitPlanItems')) {
 }
 
 if (!function_exists('ensureDevelopmentPlansSchema')) {
-    function ensureDevelopmentPlansSchema() {
+    function ensureDevelopmentPlansSchema()
+    {
         global $pdo;
         static $done = false;
         if ($done) {
@@ -707,7 +778,8 @@ if (!function_exists('ensureDevelopmentPlansSchema')) {
 }
 
 if (!function_exists('seedDevelopmentPlansIfEmpty')) {
-    function seedDevelopmentPlansIfEmpty($seedRepo) {
+    function seedDevelopmentPlansIfEmpty($seedRepo)
+    {
         global $pdo;
         static $done = false;
         if ($done) {
@@ -1144,442 +1216,439 @@ try {
 }
 require('../../partials/header.php');
 ?>
- <body class="bg-gray-50 min-h-screen">
- <div class="flex h-screen">
-    <!-- Sidebar -->
-    <?php 
-    // Use relative path or absolute path based on your directory structure
-    include '../../USM/sidebarr.php'; 
-    ?>
 
-    <!-- Content Area -->
-    <div class="flex flex-col flex-1 overflow-auto">
-      <!-- Navbar -->
-      <?php include '../../USM/navbar.php'; ?>
-    
-            
+<body class="bg-gray-50 min-h-screen">
+    <div class="flex h-screen">
+        <!-- Sidebar -->
+        <?php
+        // Use relative path or absolute path based on your directory structure
+        include '../../USM/sidebarr.php';
+        ?>
+
+        <!-- Content Area -->
+        <div class="flex flex-col flex-1 overflow-auto">
+            <!-- Navbar -->
+            <?php include '../../USM/navbar.php'; ?>
+
+
             <main class="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto">
 
-    <div class="max-w-7xl mx-auto p-6">
-        <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
-            <div>
-                <h1 class="text-2xl font-bold text-base-content">Development Plans Repository</h1>
-                <div class="text-sm text-base-content/70">Editable repository per Department / General Skill / Status.</div>
-            </div>
-            <div class="w-full md:w-auto flex flex-col gap-2">
-                <input id="search" type="text" placeholder="Search department, skill, or plan..." class="input input-bordered w-full md:w-96" />
-            </div>
-        </div>
+                <div class="max-w-7xl mx-auto p-6">
+                    <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
+                        <div>
+                            <h1 class="text-2xl font-bold text-base-content">Development Plans Repository</h1>
+                            <div class="text-sm text-base-content/70">Editable repository per Department / General Skill / Status.</div>
+                        </div>
+                        <div class="w-full md:w-auto flex flex-col gap-2">
+                            <input id="search" type="text" placeholder="Search department, skill, or plan..." class="input input-bordered w-full md:w-96" />
+                        </div>
+                    </div>
 
-        <div id="dept-grid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
-            <?php foreach ($repo as $deptName => $skillsById): ?>
-                <?php
-                    $deptNameStr = (string)$deptName;
-                    $skillCount = is_array($skillsById) ? count($skillsById) : 0;
-                    $deptModalId = 'modal_dept_' . substr(md5($deptNameStr), 0, 10);
-                    $deptSearchParts = [$deptNameStr];
-                    if (is_array($skillsById)) {
-                        foreach ($skillsById as $sid => $sd) {
-                            $deptSearchParts[] = (string)($sd['skill_name'] ?? '');
-                            $rp = (array)($sd['roles'] ?? []);
-                            foreach ($rp as $rk => $rd) {
-                                $rk = (string)$rk;
-                                if ($rk !== '') {
-                                    $deptSearchParts[] = $rk;
-                                }
-                                $pmap = (array)(($rd['plans'] ?? []));
-                                foreach ($pmap as $pv) {
-                                    $deptSearchParts[] = (string)$pv;
+                    <div id="dept-grid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+                        <?php foreach ($repo as $deptName => $skillsById): ?>
+                            <?php
+                            $deptNameStr = (string)$deptName;
+                            $skillCount = is_array($skillsById) ? count($skillsById) : 0;
+                            $deptModalId = 'modal_dept_' . substr(md5($deptNameStr), 0, 10);
+                            $deptSearchParts = [$deptNameStr];
+                            if (is_array($skillsById)) {
+                                foreach ($skillsById as $sid => $sd) {
+                                    $deptSearchParts[] = (string)($sd['skill_name'] ?? '');
+                                    $rp = (array)($sd['roles'] ?? []);
+                                    foreach ($rp as $rk => $rd) {
+                                        $rk = (string)$rk;
+                                        if ($rk !== '') {
+                                            $deptSearchParts[] = $rk;
+                                        }
+                                        $pmap = (array)(($rd['plans'] ?? []));
+                                        foreach ($pmap as $pv) {
+                                            $deptSearchParts[] = (string)$pv;
+                                        }
+                                    }
                                 }
                             }
-                        }
-                    }
-                    $deptSearchText = implode(' ', $deptSearchParts);
-                ?>
-                <div class="dept-card card bg-base-100 shadow overflow-hidden" data-search="<?php echo h($deptSearchText); ?>" data-department="<?php echo h($deptNameStr); ?>">
-                    <div class="card-body p-5">
-                        <div class="flex items-start justify-between gap-3">
-                            <div>
-                                <div class="text-lg font-semibold text-base-content"><?php echo h($deptNameStr); ?></div>
-                                <div class="text-xs text-base-content/70 mt-1"><?php echo (int)$skillCount; ?> skills</div>
+                            $deptSearchText = implode(' ', $deptSearchParts);
+                            ?>
+                            <div class="dept-card card bg-base-100 shadow overflow-hidden" data-search="<?php echo h($deptSearchText); ?>" data-department="<?php echo h($deptNameStr); ?>">
+                                <div class="card-body p-5">
+                                    <div class="flex items-start justify-between gap-3">
+                                        <div>
+                                            <div class="text-lg font-semibold text-base-content"><?php echo h($deptNameStr); ?></div>
+                                            <div class="text-xs text-base-content/70 mt-1"><?php echo (int)$skillCount; ?> skills</div>
+                                        </div>
+                                        <div class="flex items-center gap-2">
+                                            <button type="button" class="btn btn-sm btn-primary" onclick="openDepartmentModal(<?php echo h(json_encode($deptModalId)); ?>, <?php echo h(json_encode($deptNameStr)); ?>);">View</button>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
-                            <div class="flex items-center gap-2">
-                                <button type="button" class="btn btn-sm btn-primary" onclick="openDepartmentModal(<?php echo h(json_encode($deptModalId)); ?>, <?php echo h(json_encode($deptNameStr)); ?>);">View</button>
-                            </div>
-                        </div>
+
+                            <dialog id="<?php echo h($deptModalId); ?>" class="modal" data-department="<?php echo h($deptNameStr); ?>">
+                                <div class="modal-box max-w-5xl">
+                                    <div class="flex items-start justify-between gap-3">
+                                        <div>
+                                            <h3 class="font-bold text-lg"><?php echo h($deptNameStr); ?></h3>
+                                            <div class="text-xs text-base-content/70 mt-1"><?php echo (int)$skillCount; ?> skills</div>
+                                        </div>
+                                        <div class="flex items-center gap-2">
+                                            <button type="button" class="btn btn-sm btn-outline" onclick="openAddGeneralSkillModal(<?php echo h(json_encode($deptNameStr)); ?>);">Add General Skill</button>
+                                            <form method="dialog"><button class="btn btn-sm">Close</button></form>
+                                        </div>
+                                    </div>
+
+                                    <div class="mt-4 max-h-[70vh] overflow-y-auto">
+                                        <div class="space-y-3">
+                                            <?php foreach ($skillsById as $skillId => $skillData): ?>
+                                                <?php
+                                                $skillName = (string)($skillData['skill_name'] ?? '');
+                                                $plans = [];
+                                                if (isset($skillData['roles']) && is_array($skillData['roles']) && isset($skillData['roles']['']) && is_array($skillData['roles']['']) && isset($skillData['roles']['']['plans']) && is_array($skillData['roles']['']['plans'])) {
+                                                    $plans = (array)$skillData['roles']['']['plans'];
+                                                }
+                                                $modes = [];
+                                                if (isset($skillData['roles']) && is_array($skillData['roles']) && isset($skillData['roles']['']) && is_array($skillData['roles']['']) && isset($skillData['roles']['']['modes']) && is_array($skillData['roles']['']['modes'])) {
+                                                    $modes = (array)$skillData['roles']['']['modes'];
+                                                }
+
+                                                $targetPercentages = [];
+                                                if (isset($skillData['roles']) && is_array($skillData['roles']) && isset($skillData['roles']['']) && is_array($skillData['roles']['']) && isset($skillData['roles']['']['targets']) && is_array($skillData['roles']['']['targets'])) {
+                                                    $targetPercentages = (array)$skillData['roles']['']['targets'];
+                                                }
+                                                ?>
+                                                <details class="skill-block border border-base-300 rounded-md">
+                                                    <summary class="cursor-pointer px-3 py-2 text-sm font-semibold text-base-content bg-base-200">
+                                                        <?php echo h($skillName); ?>
+                                                    </summary>
+                                                    <div class="p-3 space-y-3 text-sm">
+                                                        <div class="flex items-center justify-between gap-2">
+                                                            <div class="flex items-center gap-2">
+                                                                <button type="button" class="btn btn-xs btn-outline skill-edit-btn">Edit</button>
+                                                                <button type="button" class="btn btn-xs hidden skill-cancel-btn">Cancel</button>
+                                                            </div>
+                                                            <button type="button" class="btn btn-xs btn-outline" onclick="openAddSkillPlanModal(<?php echo h(json_encode($deptNameStr)); ?>, <?php echo h(json_encode((string)$skillId)); ?>, <?php echo h(json_encode($skillName)); ?>);">Add Skill Plan</button>
+                                                        </div>
+
+                                                        <div class="skill-view space-y-3">
+                                                            <?php foreach (['Retrain' => 'Retraining', 'Reskilling' => 'Reskilling', 'Refresher Training' => 'Refresher', 'Upskilling' => 'Upskilling', 'Succession Ready' => 'Succession Ready'] as $stKey => $stLabel): ?>
+                                                                <?php
+                                                                $planText = (string)($plans[$stKey] ?? '');
+                                                                $items = splitPlanItems($planText);
+                                                                $mode = (string)($modes[$stKey] ?? 'Onsite');
+                                                                $targetPercentage = (string)($targetPercentages[$stKey] ?? '');
+                                                                $targetDisplay = '';
+                                                                if ($targetPercentage !== '' && is_numeric($targetPercentage)) {
+                                                                    $targetDisplay = number_format((float)$targetPercentage, 1) . '%';
+                                                                } else {
+                                                                    $targetDisplay = 'â€”';
+                                                                }
+                                                                ?>
+                                                                <div class="border border-base-300 rounded-md p-3 bg-base-100">
+                                                                    <div class="text-xs font-semibold text-base-content/70 mb-2"><?php echo h($stLabel); ?></div>
+                                                                    <div class="text-xs text-base-content/60 mb-2">Mode: <?php echo h($mode); ?></div>
+                                                                    <div class="text-xs text-base-content/60 mb-2">Target Percentage: <?php echo h($targetDisplay); ?></div>
+                                                                    <div class="flex flex-wrap gap-2">
+                                                                        <?php if (count($items) === 0): ?>
+                                                                            <span class="text-xs text-base-content/60">No plans yet.</span>
+                                                                        <?php else: ?>
+                                                                            <?php foreach ($items as $it): ?>
+                                                                                <span class="badge badge-outline"><?php echo h($it); ?></span>
+                                                                            <?php endforeach; ?>
+                                                                        <?php endif; ?>
+                                                                    </div>
+                                                                </div>
+                                                            <?php endforeach; ?>
+                                                        </div>
+
+                                                        <div class="skill-edit hidden space-y-2">
+                                                            <?php foreach (['Retrain' => 'Retraining', 'Reskilling' => 'Reskilling', 'Refresher Training' => 'Refresher', 'Upskilling' => 'Upskilling', 'Succession Ready' => 'Succession Ready'] as $stKey => $stLabel): ?>
+                                                                <?php $planText = (string)($plans[$stKey] ?? ''); ?>
+                                                                <?php $mode = (string)($modes[$stKey] ?? 'Onsite'); ?>
+                                                                <?php $targetPercentage = (string)($targetPercentages[$stKey] ?? ''); ?>
+                                                                <form method="post" class="border border-base-300 rounded-md p-3 bg-base-100">
+                                                                    <input type="hidden" name="action" value="save_plan" />
+                                                                    <input type="hidden" name="department" value="<?php echo h($deptNameStr); ?>" />
+                                                                    <input type="hidden" name="skill_id" value="<?php echo h((string)$skillId); ?>" />
+                                                                    <input type="hidden" name="status" value="<?php echo h($stKey); ?>" />
+
+                                                                    <div class="flex items-center justify-between gap-2 mb-2">
+                                                                        <div class="text-xs font-semibold text-base-content/70"><?php echo h($stLabel); ?></div>
+                                                                        <button type="submit" class="btn btn-xs btn-primary">Save</button>
+                                                                    </div>
+
+                                                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-2 mb-2">
+                                                                        <div>
+                                                                            <label class="label"><span class="label-text">Delivery Mode</span></label>
+                                                                            <select name="delivery_mode" class="select select-bordered w-full text-sm">
+                                                                                <option value="Onsite" <?php echo $mode === 'Onsite' ? 'selected' : ''; ?>>Onsite</option>
+                                                                                <option value="Online" <?php echo $mode === 'Online' ? 'selected' : ''; ?>>Online</option>
+                                                                            </select>
+                                                                        </div>
+                                                                        <div>
+                                                                            <label class="label"><span class="label-text">Target Percentage (%)</span></label>
+                                                                            <input type="number" step="0.1" min="0" max="100" name="target_percentage" value="<?php echo h($targetPercentage); ?>" class="input input-bordered w-full text-sm" />
+                                                                        </div>
+                                                                    </div>
+
+                                                                    <textarea name="plan_text" class="textarea textarea-bordered w-full text-sm" rows="2" data-initial="<?php echo h($planText); ?>"><?php echo h($planText); ?></textarea>
+                                                                </form>
+                                                            <?php endforeach; ?>
+                                                        </div>
+                                                    </div>
+                                                </details>
+                                            <?php endforeach; ?>
+                                        </div>
+                                    </div>
+                                </div>
+                                <form method="dialog" class="modal-backdrop"><button>close</button></form>
+                            </dialog>
+                        <?php endforeach; ?>
                     </div>
                 </div>
 
-                <dialog id="<?php echo h($deptModalId); ?>" class="modal" data-department="<?php echo h($deptNameStr); ?>">
-                    <div class="modal-box max-w-5xl">
-                        <div class="flex items-start justify-between gap-3">
+                <dialog id="modal_add_general_skill" class="modal">
+                    <div class="modal-box">
+                        <h3 class="font-bold text-lg">Add General Skill</h3>
+                        <form method="post" class="mt-4 space-y-3">
+                            <input type="hidden" name="action" value="add_general_skill" />
+                            <input type="hidden" name="department" id="add_gs_department" value="" />
+
                             <div>
-                                <h3 class="font-bold text-lg"><?php echo h($deptNameStr); ?></h3>
-                                <div class="text-xs text-base-content/70 mt-1"><?php echo (int)$skillCount; ?> skills</div>
+                                <label class="label"><span class="label-text">Department</span></label>
+                                <input id="add_gs_department_display" class="input input-bordered w-full" value="" readonly />
                             </div>
-                            <div class="flex items-center gap-2">
-                                <button type="button" class="btn btn-sm btn-outline" onclick="openAddGeneralSkillModal(<?php echo h(json_encode($deptNameStr)); ?>);">Add General Skill</button>
-                                <form method="dialog"><button class="btn btn-sm">Close</button></form>
+
+                            <div>
+                                <label class="label"><span class="label-text">General Skill</span></label>
+                                <input id="add_gs_skill" name="skill_name" class="input input-bordered w-full" required />
                             </div>
-                        </div>
 
-                        <div class="mt-4 max-h-[70vh] overflow-y-auto">
-                            <div class="space-y-3">
-                                <?php foreach ($skillsById as $skillId => $skillData): ?>
-                                    <?php
-                                        $skillName = (string)($skillData['skill_name'] ?? '');
-                                        $plans = [];
-                                        if (isset($skillData['roles']) && is_array($skillData['roles']) && isset($skillData['roles']['']) && is_array($skillData['roles']['']) && isset($skillData['roles']['']['plans']) && is_array($skillData['roles']['']['plans'])) {
-                                            $plans = (array)$skillData['roles']['']['plans'];
-                                        }
-                                        $modes = [];
-                                        if (isset($skillData['roles']) && is_array($skillData['roles']) && isset($skillData['roles']['']) && is_array($skillData['roles']['']) && isset($skillData['roles']['']['modes']) && is_array($skillData['roles']['']['modes'])) {
-                                            $modes = (array)$skillData['roles']['']['modes'];
-                                        }
-
-                                        $targetPercentages = [];
-                                        if (isset($skillData['roles']) && is_array($skillData['roles']) && isset($skillData['roles']['']) && is_array($skillData['roles']['']) && isset($skillData['roles']['']['targets']) && is_array($skillData['roles']['']['targets'])) {
-                                            $targetPercentages = (array)$skillData['roles']['']['targets'];
-                                        }
-                                    ?>
-                                    <details class="skill-block border border-base-300 rounded-md">
-                                        <summary class="cursor-pointer px-3 py-2 text-sm font-semibold text-base-content bg-base-200">
-                                            <?php echo h($skillName); ?>
-                                        </summary>
-                                        <div class="p-3 space-y-3 text-sm">
-                                            <div class="flex items-center justify-between gap-2">
-                                                <div class="flex items-center gap-2">
-                                                    <button type="button" class="btn btn-xs btn-outline skill-edit-btn">Edit</button>
-                                                    <button type="button" class="btn btn-xs hidden skill-cancel-btn">Cancel</button>
-                                                </div>
-                                                <button type="button" class="btn btn-xs btn-outline" onclick="openAddSkillPlanModal(<?php echo h(json_encode($deptNameStr)); ?>, <?php echo h(json_encode((string)$skillId)); ?>, <?php echo h(json_encode($skillName)); ?>);">Add Skill Plan</button>
-                                            </div>
-
-                                            <div class="skill-view space-y-3">
-                                                <?php foreach (['Retrain' => 'Retraining','Reskilling' => 'Reskilling','Refresher Training' => 'Refresher','Upskilling' => 'Upskilling','Succession Ready' => 'Succession Ready'] as $stKey => $stLabel): ?>
-                                                    <?php
-                                                        $planText = (string)($plans[$stKey] ?? '');
-                                                        $items = splitPlanItems($planText);
-                                                        $mode = (string)($modes[$stKey] ?? 'Onsite');
-                                                        $targetPercentage = (string)($targetPercentages[$stKey] ?? '');
-                                                        $targetDisplay = '';
-                                                        if ($targetPercentage !== '' && is_numeric($targetPercentage)) {
-                                                            $targetDisplay = number_format((float)$targetPercentage, 1) . '%';
-                                                        } else {
-                                                            $targetDisplay = 'â€”';
-                                                        }
-                                                    ?>
-                                                    <div class="border border-base-300 rounded-md p-3 bg-base-100">
-                                                        <div class="text-xs font-semibold text-base-content/70 mb-2"><?php echo h($stLabel); ?></div>
-                                                        <div class="text-xs text-base-content/60 mb-2">Mode: <?php echo h($mode); ?></div>
-                                                        <div class="text-xs text-base-content/60 mb-2">Target Percentage: <?php echo h($targetDisplay); ?></div>
-                                                        <div class="flex flex-wrap gap-2">
-                                                            <?php if (count($items) === 0): ?>
-                                                                <span class="text-xs text-base-content/60">No plans yet.</span>
-                                                            <?php else: ?>
-                                                                <?php foreach ($items as $it): ?>
-                                                                    <span class="badge badge-outline"><?php echo h($it); ?></span>
-                                                                <?php endforeach; ?>
-                                                            <?php endif; ?>
-                                                        </div>
-                                                    </div>
-                                                <?php endforeach; ?>
-                                            </div>
-
-                                            <div class="skill-edit hidden space-y-2">
-                                                <?php foreach (['Retrain' => 'Retraining','Reskilling' => 'Reskilling','Refresher Training' => 'Refresher','Upskilling' => 'Upskilling','Succession Ready' => 'Succession Ready'] as $stKey => $stLabel): ?>
-                                                    <?php $planText = (string)($plans[$stKey] ?? ''); ?>
-                                                    <?php $mode = (string)($modes[$stKey] ?? 'Onsite'); ?>
-                                                    <?php $targetPercentage = (string)($targetPercentages[$stKey] ?? ''); ?>
-                                                    <form method="post" class="border border-base-300 rounded-md p-3 bg-base-100">
-                                                        <input type="hidden" name="action" value="save_plan" />
-                                                        <input type="hidden" name="department" value="<?php echo h($deptNameStr); ?>" />
-                                                        <input type="hidden" name="skill_id" value="<?php echo h((string)$skillId); ?>" />
-                                                        <input type="hidden" name="status" value="<?php echo h($stKey); ?>" />
-
-                                                        <div class="flex items-center justify-between gap-2 mb-2">
-                                                            <div class="text-xs font-semibold text-base-content/70"><?php echo h($stLabel); ?></div>
-                                                            <button type="submit" class="btn btn-xs btn-primary">Save</button>
-                                                        </div>
-
-                                                        <div class="grid grid-cols-1 md:grid-cols-2 gap-2 mb-2">
-                                                            <div>
-                                                                <label class="label"><span class="label-text">Delivery Mode</span></label>
-                                                                <select name="delivery_mode" class="select select-bordered w-full text-sm">
-                                                                    <option value="Onsite" <?php echo $mode === 'Onsite' ? 'selected' : ''; ?>>Onsite</option>
-                                                                    <option value="Online" <?php echo $mode === 'Online' ? 'selected' : ''; ?>>Online</option>
-                                                                </select>
-                                                            </div>
-                                                            <div>
-                                                                <label class="label"><span class="label-text">Target Percentage (%)</span></label>
-                                                                <input type="number" step="0.1" min="0" max="100" name="target_percentage" value="<?php echo h($targetPercentage); ?>" class="input input-bordered w-full text-sm" />
-                                                            </div>
-                                                        </div>
-
-                                                        <textarea name="plan_text" class="textarea textarea-bordered w-full text-sm" rows="2" data-initial="<?php echo h($planText); ?>"><?php echo h($planText); ?></textarea>
-                                                    </form>
-                                                <?php endforeach; ?>
-                                            </div>
-                                        </div>
-                                    </details>
-                                <?php endforeach; ?>
+                            <div class="modal-action">
+                                <button type="button" class="btn" onclick="document.getElementById('modal_add_general_skill').close();">Cancel</button>
+                                <button type="submit" class="btn btn-primary">Add</button>
                             </div>
-                        </div>
+                        </form>
                     </div>
                     <form method="dialog" class="modal-backdrop"><button>close</button></form>
                 </dialog>
-            <?php endforeach; ?>
-        </div>
-    </div>
 
-    <dialog id="modal_add_general_skill" class="modal">
-        <div class="modal-box">
-            <h3 class="font-bold text-lg">Add General Skill</h3>
-            <form method="post" class="mt-4 space-y-3">
-                <input type="hidden" name="action" value="add_general_skill" />
-                <input type="hidden" name="department" id="add_gs_department" value="" />
+                <dialog id="modal_add_skill_plan" class="modal">
+                    <div class="modal-box">
+                        <h3 class="font-bold text-lg">Add Skill Plan</h3>
+                        <form method="post" class="mt-4 space-y-3">
+                            <input type="hidden" name="action" value="add_skill_plan" />
+                            <input type="hidden" name="department" id="add_sp_department" value="" />
+                            <input type="hidden" name="skill_id" id="add_sp_skill_id" value="" />
 
-                <div>
-                    <label class="label"><span class="label-text">Department</span></label>
-                    <input id="add_gs_department_display" class="input input-bordered w-full" value="" readonly />
-                </div>
+                            <div>
+                                <label class="label"><span class="label-text">Department</span></label>
+                                <input id="add_sp_department_display" class="input input-bordered w-full" value="" readonly />
+                            </div>
 
-                <div>
-                    <label class="label"><span class="label-text">General Skill</span></label>
-                    <input id="add_gs_skill" name="skill_name" class="input input-bordered w-full" required />
-                </div>
+                            <div>
+                                <label class="label"><span class="label-text">Competency Status</span></label>
+                                <select id="add_sp_status" name="status" class="select select-bordered w-full" required>
+                                    <option value="" disabled selected>Select status</option>
+                                    <option value="Retrain">Retrain</option>
+                                    <option value="Reskilling">Reskilling</option>
+                                    <option value="Refresher Training">Refresher Training</option>
+                                    <option value="Upskilling">Upskilling</option>
+                                    <option value="Succession Ready">Succession Ready</option>
+                                </select>
+                            </div>
 
-                <div class="modal-action">
-                    <button type="button" class="btn" onclick="document.getElementById('modal_add_general_skill').close();">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Add</button>
-                </div>
-            </form>
-        </div>
-        <form method="dialog" class="modal-backdrop"><button>close</button></form>
-    </dialog>
+                            <div>
+                                <label class="label"><span class="label-text">Delivery Mode</span></label>
+                                <select id="add_sp_delivery_mode" name="delivery_mode" class="select select-bordered w-full" required>
+                                    <option value="Onsite">Onsite</option>
+                                    <option value="Online">Online</option>
+                                </select>
+                            </div>
 
-    <dialog id="modal_add_skill_plan" class="modal">
-        <div class="modal-box">
-            <h3 class="font-bold text-lg">Add Skill Plan</h3>
-            <form method="post" class="mt-4 space-y-3">
-                <input type="hidden" name="action" value="add_skill_plan" />
-                <input type="hidden" name="department" id="add_sp_department" value="" />
-                <input type="hidden" name="skill_id" id="add_sp_skill_id" value="" />
+                            <div>
+                                <label class="label"><span class="label-text">Skill</span></label>
+                                <input id="add_sp_skill_display" class="input input-bordered w-full" value="" readonly />
+                            </div>
 
-                <div>
-                    <label class="label"><span class="label-text">Department</span></label>
-                    <input id="add_sp_department_display" class="input input-bordered w-full" value="" readonly />
-                </div>
+                            <div>
+                                <label class="label"><span class="label-text">Plan Text</span></label>
+                                <textarea id="add_sp_plan_text" name="plan_text" class="textarea textarea-bordered w-full" rows="3" required></textarea>
+                            </div>
 
-                <div>
-                    <label class="label"><span class="label-text">Competency Status</span></label>
-                    <select id="add_sp_status" name="status" class="select select-bordered w-full" required>
-                        <option value="" disabled selected>Select status</option>
-                        <option value="Retrain">Retrain</option>
-                        <option value="Reskilling">Reskilling</option>
-                        <option value="Refresher Training">Refresher Training</option>
-                        <option value="Upskilling">Upskilling</option>
-                        <option value="Succession Ready">Succession Ready</option>
-                    </select>
-                </div>
+                            <div>
+                                <label class="label"><span class="label-text">Target Percentage (%)</span></label>
+                                <input id="add_sp_target_percentage" type="number" step="0.1" min="0" max="100" name="target_percentage" class="input input-bordered w-full" />
+                            </div>
 
-                <div>
-                    <label class="label"><span class="label-text">Delivery Mode</span></label>
-                    <select id="add_sp_delivery_mode" name="delivery_mode" class="select select-bordered w-full" required>
-                        <option value="Onsite">Onsite</option>
-                        <option value="Online">Online</option>
-                    </select>
-                </div>
+                            <div class="modal-action">
+                                <button type="button" class="btn" onclick="document.getElementById('modal_add_skill_plan').close();">Cancel</button>
+                                <button type="submit" class="btn btn-primary">Save</button>
+                            </div>
+                        </form>
+                    </div>
+                    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+                </dialog>
 
-                <div>
-                    <label class="label"><span class="label-text">Skill</span></label>
-                    <input id="add_sp_skill_display" class="input input-bordered w-full" value="" readonly />
-                </div>
+                <script>
+                    const DP_FLASH = <?php echo json_encode($flash, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
+                    const STANDARD_BY_SKILL_ID = <?php echo json_encode($standardsBySkillId, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
+                    const searchEl = document.getElementById('search');
+                    const deptCards = Array.from(document.querySelectorAll('.dept-card'));
+                    const normalize = (s) => String(s || '').toLowerCase();
 
-                <div>
-                    <label class="label"><span class="label-text">Plan Text</span></label>
-                    <textarea id="add_sp_plan_text" name="plan_text" class="textarea textarea-bordered w-full" rows="3" required></textarea>
-                </div>
-
-                <div>
-                    <label class="label"><span class="label-text">Target Percentage (%)</span></label>
-                    <input id="add_sp_target_percentage" type="number" step="0.1" min="0" max="100" name="target_percentage" class="input input-bordered w-full" />
-                </div>
-
-                <div class="modal-action">
-                    <button type="button" class="btn" onclick="document.getElementById('modal_add_skill_plan').close();">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Save</button>
-                </div>
-            </form>
-        </div>
-        <form method="dialog" class="modal-backdrop"><button>close</button></form>
-    </dialog>
-
-    <script>
-        const DP_FLASH = <?php echo json_encode($flash, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
-        const STANDARD_BY_SKILL_ID = <?php echo json_encode($standardsBySkillId, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
-        const searchEl = document.getElementById('search');
-        const deptCards = Array.from(document.querySelectorAll('.dept-card'));
-        const normalize = (s) => String(s || '').toLowerCase();
-
-        if (DP_FLASH && DP_FLASH.message) {
-            const isError = String(DP_FLASH.type || '').toLowerCase() === 'error';
-            Swal.fire({
-                toast: true,
-                position: 'top-end',
-                icon: isError ? 'error' : 'success',
-                title: String(DP_FLASH.message),
-                showConfirmButton: false,
-                timer: 2000,
-                timerProgressBar: true,
-            });
-        }
-
-        function setOpenDeptParam(dept) {
-            const url = new URL(window.location.href);
-            const d = String(dept || '').trim();
-            if (d !== '') {
-                url.searchParams.set('open_dept', d);
-            } else {
-                url.searchParams.delete('open_dept');
-            }
-            window.history.replaceState({}, '', url.toString());
-        }
-
-        function findDeptModalByName(dept) {
-            const d = String(dept || '').trim();
-            if (d === '') return null;
-            let found = null;
-            Array.from(document.querySelectorAll('dialog.modal[data-department]')).some(function (dlg) {
-                if (String(dlg.getAttribute('data-department') || '') === d) {
-                    found = dlg;
-                    return true;
-                }
-                return false;
-            });
-            return found;
-        }
-
-        window.openDepartmentModal = function (modalId, deptName) {
-            const id = String(modalId || '');
-            const dept = String(deptName || '').trim();
-            const dlg = id ? document.getElementById(id) : findDeptModalByName(dept);
-            if (dlg && typeof dlg.showModal === 'function') {
-                setOpenDeptParam(dept);
-                dlg.showModal();
-            }
-        };
-
-        window.openAddGeneralSkillModal = function (dept) {
-            const modal = document.getElementById('modal_add_general_skill');
-            const deptHidden = document.getElementById('add_gs_department');
-            const deptDisplay = document.getElementById('add_gs_department_display');
-            const skillInput = document.getElementById('add_gs_skill');
-
-            const d = String(dept || '').trim();
-            if (deptHidden) deptHidden.value = d;
-            if (deptDisplay) deptDisplay.value = d;
-            if (skillInput) skillInput.value = '';
-            if (modal && typeof modal.showModal === 'function') {
-                modal.showModal();
-            }
-        };
-
-        window.openAddSkillPlanModal = function (dept, skillId, skillName) {
-            const modal = document.getElementById('modal_add_skill_plan');
-            const deptHidden = document.getElementById('add_sp_department');
-            const deptDisplay = document.getElementById('add_sp_department_display');
-            const skillIdHidden = document.getElementById('add_sp_skill_id');
-            const skillDisplay = document.getElementById('add_sp_skill_display');
-            const statusSel = document.getElementById('add_sp_status');
-            const deliveryModeSel = document.getElementById('add_sp_delivery_mode');
-            const planText = document.getElementById('add_sp_plan_text');
-            const targetPctEl = document.getElementById('add_sp_target_percentage');
-
-            const d = String(dept || '').trim();
-            if (deptHidden) deptHidden.value = d;
-            if (deptDisplay) deptDisplay.value = d;
-            if (skillIdHidden) skillIdHidden.value = String(skillId || '').trim();
-            if (skillDisplay) skillDisplay.value = String(skillName || '').trim();
-            if (statusSel) statusSel.value = '';
-            if (deliveryModeSel) deliveryModeSel.value = 'Onsite';
-            if (planText) planText.value = '';
-
-            if (targetPctEl) {
-                const sid = parseInt(String(skillId || '0'), 10);
-                const v = (STANDARD_BY_SKILL_ID && sid && Object.prototype.hasOwnProperty.call(STANDARD_BY_SKILL_ID, sid)) ? STANDARD_BY_SKILL_ID[sid] : '';
-                targetPctEl.value = (v !== '' && v !== null && typeof v !== 'undefined') ? v : '';
-            }
-            if (modal && typeof modal.showModal === 'function') {
-                modal.showModal();
-            }
-        };
-
-        Array.from(document.querySelectorAll('details.skill-block')).forEach(function (details) {
-            const viewEl = details.querySelector('.skill-view');
-            const editEl = details.querySelector('.skill-edit');
-            const editBtn = details.querySelector('.skill-edit-btn');
-            const cancelBtn = details.querySelector('.skill-cancel-btn');
-
-            if (editBtn) {
-                editBtn.addEventListener('click', function () {
-                    if (viewEl) viewEl.classList.add('hidden');
-                    if (editEl) editEl.classList.remove('hidden');
-                    editBtn.classList.add('hidden');
-                    if (cancelBtn) cancelBtn.classList.remove('hidden');
-                });
-            }
-
-            if (cancelBtn) {
-                cancelBtn.addEventListener('click', function () {
-                    if (editEl) {
-                        Array.from(editEl.querySelectorAll('textarea[data-initial]')).forEach(function (ta) {
-                            ta.value = ta.getAttribute('data-initial') || '';
+                    if (DP_FLASH && DP_FLASH.message) {
+                        const isError = String(DP_FLASH.type || '').toLowerCase() === 'error';
+                        Swal.fire({
+                            toast: true,
+                            position: 'top-end',
+                            icon: isError ? 'error' : 'success',
+                            title: String(DP_FLASH.message),
+                            showConfirmButton: false,
+                            timer: 2000,
+                            timerProgressBar: true,
                         });
                     }
-                    if (editEl) editEl.classList.add('hidden');
-                    if (viewEl) viewEl.classList.remove('hidden');
-                    cancelBtn.classList.add('hidden');
-                    if (editBtn) editBtn.classList.remove('hidden');
-                });
-            }
-        });
 
-        Array.from(document.querySelectorAll('dialog.modal[data-department]')).forEach(function (dlg) {
-            dlg.addEventListener('close', function () {
-                const openDept = new URLSearchParams(window.location.search).get('open_dept') || '';
-                const dept = String(dlg.getAttribute('data-department') || '');
-                if (openDept !== '' && dept !== '' && openDept === dept) {
-                    setOpenDeptParam('');
-                }
-            });
-        });
+                    function setOpenDeptParam(dept) {
+                        const url = new URL(window.location.href);
+                        const d = String(dept || '').trim();
+                        if (d !== '') {
+                            url.searchParams.set('open_dept', d);
+                        } else {
+                            url.searchParams.delete('open_dept');
+                        }
+                        window.history.replaceState({}, '', url.toString());
+                    }
 
-        (function autoOpenDeptModal() {
-            const openDept = new URLSearchParams(window.location.search).get('open_dept') || '';
-            const dlg = findDeptModalByName(openDept);
-            if (dlg && typeof dlg.showModal === 'function') {
-                dlg.showModal();
-            }
-        })();
+                    function findDeptModalByName(dept) {
+                        const d = String(dept || '').trim();
+                        if (d === '') return null;
+                        let found = null;
+                        Array.from(document.querySelectorAll('dialog.modal[data-department]')).some(function(dlg) {
+                            if (String(dlg.getAttribute('data-department') || '') === d) {
+                                found = dlg;
+                                return true;
+                            }
+                            return false;
+                        });
+                        return found;
+                    }
 
-        function applySearch() {
-            const q = normalize(searchEl.value);
+                    window.openDepartmentModal = function(modalId, deptName) {
+                        const id = String(modalId || '');
+                        const dept = String(deptName || '').trim();
+                        const dlg = id ? document.getElementById(id) : findDeptModalByName(dept);
+                        if (dlg && typeof dlg.showModal === 'function') {
+                            setOpenDeptParam(dept);
+                            dlg.showModal();
+                        }
+                    };
 
-            deptCards.forEach(card => {
-                const deptText = normalize(card.getAttribute('data-search'));
-                const deptVisible = q === '' ? true : deptText.includes(q);
-                card.style.display = deptVisible ? '' : 'none';
-            });
-        }
+                    window.openAddGeneralSkillModal = function(dept) {
+                        const modal = document.getElementById('modal_add_general_skill');
+                        const deptHidden = document.getElementById('add_gs_department');
+                        const deptDisplay = document.getElementById('add_gs_department_display');
+                        const skillInput = document.getElementById('add_gs_skill');
 
-        searchEl.addEventListener('input', applySearch);
-        applySearch();
-    </script>
+                        const d = String(dept || '').trim();
+                        if (deptHidden) deptHidden.value = d;
+                        if (deptDisplay) deptDisplay.value = d;
+                        if (skillInput) skillInput.value = '';
+                        if (modal && typeof modal.showModal === 'function') {
+                            modal.showModal();
+                        }
+                    };
+
+                    window.openAddSkillPlanModal = function(dept, skillId, skillName) {
+                        const modal = document.getElementById('modal_add_skill_plan');
+                        const deptHidden = document.getElementById('add_sp_department');
+                        const deptDisplay = document.getElementById('add_sp_department_display');
+                        const skillIdHidden = document.getElementById('add_sp_skill_id');
+                        const skillDisplay = document.getElementById('add_sp_skill_display');
+                        const statusSel = document.getElementById('add_sp_status');
+                        const deliveryModeSel = document.getElementById('add_sp_delivery_mode');
+                        const planText = document.getElementById('add_sp_plan_text');
+                        const targetPctEl = document.getElementById('add_sp_target_percentage');
+
+                        const d = String(dept || '').trim();
+                        if (deptHidden) deptHidden.value = d;
+                        if (deptDisplay) deptDisplay.value = d;
+                        if (skillIdHidden) skillIdHidden.value = String(skillId || '').trim();
+                        if (skillDisplay) skillDisplay.value = String(skillName || '').trim();
+                        if (statusSel) statusSel.value = '';
+                        if (deliveryModeSel) deliveryModeSel.value = 'Onsite';
+                        if (planText) planText.value = '';
+
+                        if (targetPctEl) {
+                            const sid = parseInt(String(skillId || '0'), 10);
+                            const v = (STANDARD_BY_SKILL_ID && sid && Object.prototype.hasOwnProperty.call(STANDARD_BY_SKILL_ID, sid)) ? STANDARD_BY_SKILL_ID[sid] : '';
+                            targetPctEl.value = (v !== '' && v !== null && typeof v !== 'undefined') ? v : '';
+                        }
+                        if (modal && typeof modal.showModal === 'function') {
+                            modal.showModal();
+                        }
+                    };
+
+                    Array.from(document.querySelectorAll('details.skill-block')).forEach(function(details) {
+                        const viewEl = details.querySelector('.skill-view');
+                        const editEl = details.querySelector('.skill-edit');
+                        const editBtn = details.querySelector('.skill-edit-btn');
+                        const cancelBtn = details.querySelector('.skill-cancel-btn');
+
+                        if (editBtn) {
+                            editBtn.addEventListener('click', function() {
+                                if (viewEl) viewEl.classList.add('hidden');
+                                if (editEl) editEl.classList.remove('hidden');
+                                editBtn.classList.add('hidden');
+                                if (cancelBtn) cancelBtn.classList.remove('hidden');
+                            });
+                        }
+
+                        if (cancelBtn) {
+                            cancelBtn.addEventListener('click', function() {
+                                if (editEl) {
+                                    Array.from(editEl.querySelectorAll('textarea[data-initial]')).forEach(function(ta) {
+                                        ta.value = ta.getAttribute('data-initial') || '';
+                                    });
+                                }
+                                if (editEl) editEl.classList.add('hidden');
+                                if (viewEl) viewEl.classList.remove('hidden');
+                                cancelBtn.classList.add('hidden');
+                                if (editBtn) editBtn.classList.remove('hidden');
+                            });
+                        }
+                    });
+
+                    Array.from(document.querySelectorAll('dialog.modal[data-department]')).forEach(function(dlg) {
+                        dlg.addEventListener('close', function() {
+                            const openDept = new URLSearchParams(window.location.search).get('open_dept') || '';
+                            const dept = String(dlg.getAttribute('data-department') || '');
+                            if (openDept !== '' && dept !== '' && openDept === dept) {
+                                setOpenDeptParam('');
+                            }
+                        });
+                    });
+
+                    (function autoOpenDeptModal() {
+                        const openDept = new URLSearchParams(window.location.search).get('open_dept') || '';
+                        const dlg = findDeptModalByName(openDept);
+                        if (dlg && typeof dlg.showModal === 'function') {
+                            dlg.showModal();
+                        }
+                    })();
+
+                    function applySearch() {
+                        const q = normalize(searchEl.value);
+
+                        deptCards.forEach(card => {
+                            const deptText = normalize(card.getAttribute('data-search'));
+                            const deptVisible = q === '' ? true : deptText.includes(q);
+                            card.style.display = deptVisible ? '' : 'none';
+                        });
+                    }
+
+                    searchEl.addEventListener('input', applySearch);
+                    applySearch();
+                </script>
+        </div>
     </div>
-  </div>
-  <script src="../../../soliera.js"></script>
-  <script src="../../../sidebar.js"></script>
-</body>
-</html>
-
+    <?php require('../../partials/footer.php') ?>
