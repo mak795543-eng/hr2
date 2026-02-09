@@ -97,7 +97,8 @@ $successionAvg = 0.0;
 $successionDeptCount = 0;
 try {
     $successionTotal = (int)($pdo->query("SELECT COUNT(*) FROM succession_submissions WHERE is_pushed = 1")->fetchColumn() ?? 0);
-} catch (Throwable $e) {}
+} catch (Throwable $e) {
+}
 try {
     $stmtAvg = $pdo->prepare("
         SELECT AVG(comp) FROM (
@@ -110,10 +111,12 @@ try {
     ");
     $stmtAvg->execute([$period]);
     $successionAvg = (float)($stmtAvg->fetchColumn() ?? 0.0);
-} catch (Throwable $e) {}
+} catch (Throwable $e) {
+}
 try {
     $successionDeptCount = (int)($pdo->query("SELECT COUNT(DISTINCT department) FROM succession_submissions WHERE is_pushed = 1")->fetchColumn() ?? 0);
-} catch (Throwable $e) {}
+} catch (Throwable $e) {
+}
 
 function h($v)
 {
@@ -304,7 +307,9 @@ require('../../partials/header.php');
 
             <script>
                 (function() {
-                    try { lucide.createIcons(); } catch (e) {}
+                    try {
+                        lucide.createIcons();
+                    } catch (e) {}
                     var ok = <?php echo json_encode($flashOk); ?>;
                     var err = <?php echo json_encode($flashErr); ?>;
 

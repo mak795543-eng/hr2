@@ -1,10 +1,11 @@
-﻿<?php
+<?php
 require_once __DIR__ . '/../../COMPETENCY/criticalgaps/config.php';
 require_once __DIR__ . '/development_plans.php';
 
 // jjj
 if (!function_exists('h')) {
-    function h($v) {
+    function h($v)
+    {
         return htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
     }
 }
@@ -26,16 +27,6 @@ if ($errorMessage === '' && $_SERVER['REQUEST_METHOD'] === 'POST' && !$viewOnly)
     $submitAction = trim((string)($_POST['submit_action'] ?? 'save'));
     $developmentPlan = trim((string)($_POST['development_plan'] ?? ''));
     $targetScoreRaw = trim((string)($_POST['target_score'] ?? ''));
-
-    $succTargetRole = trim((string)($_POST['succ_target_role'] ?? ''));
-    $succReadinessLevel = trim((string)($_POST['succ_readiness_level'] ?? ''));
-    $targetDateRaw = trim((string)($_POST['target_date'] ?? ''));
-    $succLeadershipFocus = trim((string)($_POST['succ_leadership_focus'] ?? ''));
-    $succStretchAssignments = trim((string)($_POST['succ_stretch_assignments'] ?? ''));
-    $succMentorCoach = trim((string)($_POST['succ_mentor_coach'] ?? ''));
-    $succCoachingPlan = trim((string)($_POST['succ_coaching_plan'] ?? ''));
-    $succAssessmentPlan = trim((string)($_POST['succ_assessment_plan'] ?? ''));
-    $succFinalOutcome = trim((string)($_POST['succ_final_outcome'] ?? ''));
 
     $trainingType = trim((string)($_POST['training_type'] ?? ''));
     $trainingMode = trim((string)($_POST['training_mode'] ?? ''));
@@ -71,55 +62,6 @@ if ($errorMessage === '' && $_SERVER['REQUEST_METHOD'] === 'POST' && !$viewOnly)
     $targetDate = null;
     if ($targetDateRaw !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $targetDateRaw)) {
         $targetDate = $targetDateRaw;
-    }
-
-    $isSuccessionReadyPost = ((string)($_POST['employee_status'] ?? '')) === 'Succession Ready';
-    if ($isSuccessionReadyPost) {
-        $allowedReadiness = ['Ready Now', 'Ready in 6 Months', 'Ready in 12 Months'];
-        if ($succTargetRole === '') {
-            $errorMessage = 'Please provide the Target Succession Role.';
-        } elseif (!in_array($succReadinessLevel, $allowedReadiness, true)) {
-            $errorMessage = 'Please select a valid Readiness Level.';
-        } elseif ($targetDate === null) {
-            $errorMessage = 'Please provide the Expected Transition Timeline.';
-        }
-
-        if ($errorMessage === '') {
-            $norm = function (string $v): string {
-                $v = trim($v);
-                if ($v === '') return '';
-                $v = str_replace(["\r\n", "\r", "\n"], ' | ', $v);
-                $v = preg_replace('/\s+/', ' ', $v);
-                return trim((string)$v);
-            };
-
-            $metaLines = [];
-            $metaLines[] = '[Succession Ready IDP]';
-            $metaLines[] = 'Target Succession Role: ' . $succTargetRole;
-            $metaLines[] = 'Readiness Level: ' . $succReadinessLevel;
-            $metaLines[] = 'Expected Transition Timeline: ' . ($targetDate ?? '');
-            if ($succMentorCoach !== '') {
-                $metaLines[] = 'Assigned Mentor/Coach: ' . $succMentorCoach;
-            }
-            if ($succFinalOutcome !== '') {
-                $metaLines[] = 'Final Succession Validation Outcome: ' . $succFinalOutcome;
-            }
-            if ($succLeadershipFocus !== '') {
-                $metaLines[] = 'Leadership & Strategic Competencies: ' . $norm($succLeadershipFocus);
-            }
-            if ($succStretchAssignments !== '') {
-                $metaLines[] = 'Stretch Assignments & Exposure: ' . $norm($succStretchAssignments);
-            }
-            if ($succCoachingPlan !== '') {
-                $metaLines[] = 'Coaching & Knowledge Transfer: ' . $norm($succCoachingPlan);
-            }
-            if ($succAssessmentPlan !== '') {
-                $metaLines[] = 'Readiness Assessment & Evaluation: ' . $norm($succAssessmentPlan);
-            }
-            $metaLines[] = '';
-
-            $developmentPlan = implode("\n", $metaLines) . trim((string)$developmentPlan);
-        }
     }
 
     try {
@@ -471,6 +413,13 @@ if (!$row) {
     $errorMessage = 'Employee record not found in Succession Submissions.';
 }
 
+$kpiAnalysis = ['computed' => [], 'overall' => ['avg' => 0.0, 'pct' => 0.0, 'status' => 'Retrain']];
+if ($employeeId !== '' && function_exists('computeEmployeeKpiAnalysis')) {
+    $kpiAnalysis = computeEmployeeKpiAnalysis($employeeId, $period);
+}
+$kpiComputed = is_array($kpiAnalysis['computed'] ?? null) ? $kpiAnalysis['computed'] : [];
+$kpiOverall = is_array($kpiAnalysis['overall'] ?? null) ? $kpiAnalysis['overall'] : null;
+
 $employeeStatus = (string)($row['status'] ?? '');
 $isSuccessionReady = $employeeStatus === 'Succession Ready';
 
@@ -496,42 +445,53 @@ $succAssessmentPlanValue = $_SERVER['REQUEST_METHOD'] === 'POST' ? (string)($_PO
 
 $targetDateValue = $_SERVER['REQUEST_METHOD'] === 'POST' ? (string)($_POST['target_date'] ?? '') : (string)($row['target_date'] ?? '');
 
-$generalSkillsBreakdown = [];
-if ($row) {
-    try {
-        $stmtSkills = $pdo->prepare(
-            "SELECT k.kpi_name AS skill_name,
-                    AVG(COALESCE(s.score, 0)) / 5 * 100 AS skill_score,
-                    NULL AS assessment_date
-             FROM employee_kpi_scores s
-             JOIN kpis k
-               ON k.id = s.kpi_id
-             WHERE s.employee_id = ?
-               AND s.evaluation_period = ?
-             GROUP BY k.kpi_name
-             ORDER BY k.kpi_name ASC"
-        );
-        seedMissingKpiEvaluations((string)($row['employee_id'] ?? ''), $period);
-        $stmtSkills->execute([(string)($row['employee_id'] ?? ''), $period]);
-        $generalSkillsBreakdown = $stmtSkills->fetchAll(PDO::FETCH_ASSOC);
-    } catch (Throwable $e) {
-        $generalSkillsBreakdown = [];
-    }
-}
 
 $suggestedPlans = [];
 if ($row) {
-    $suggestedPlans = getSuggestedPlansForDepartmentStatus(
-        (string)($row['department'] ?? ''),
-        (string)($row['status'] ?? ''),
-        (string)($row['position'] ?? '')
-    );
+    if ($isSuccessionReady && !empty($kpiComputed) && function_exists('getDevelopmentPlansForSkill')) {
+        $deptForPlans = (string)($row['department'] ?? '');
+        foreach ($kpiComputed as $k) {
+            $kpiName = (string)($k['kpi_name'] ?? '');
+            if ($kpiName === '') {
+                continue;
+            }
+            $kpiPct = (float)($k['kpi_pct'] ?? 0);
+            $kpiStatus = mapCompetencyToStatus($kpiPct);
+            $plansForKpi = getDevelopmentPlansForSkill($deptForPlans, $kpiStatus, $kpiName);
+            if (!is_array($plansForKpi) || count($plansForKpi) === 0) {
+                continue;
+            }
+            $planTexts = [];
+            $deliveryMode = 'Onsite';
+            foreach ($plansForKpi as $p) {
+                $txt = trim((string)($p['plan_text'] ?? ''));
+                if ($txt === '') {
+                    continue;
+                }
+                $planTexts[] = $txt;
+                $deliveryMode = (string)($p['delivery_mode'] ?? $deliveryMode);
+            }
+            if (count($planTexts) === 0) {
+                continue;
+            }
+            $suggestedPlans[$kpiName] = [
+                'plan_text' => implode("\n", $planTexts),
+                'delivery_mode' => $deliveryMode,
+            ];
+        }
+    } else {
+        $suggestedPlans = getSuggestedPlansForDepartmentStatus(
+            (string)($row['department'] ?? ''),
+            (string)($row['status'] ?? ''),
+            (string)($row['position'] ?? '')
+        );
+    }
 }
 
 $trainingTypeValue = $_SERVER['REQUEST_METHOD'] === 'POST' ? (string)($_POST['training_type'] ?? '') : '';
 $trainingModeValue = $_SERVER['REQUEST_METHOD'] === 'POST' ? (string)($_POST['training_mode'] ?? 'Onsite') : 'Onsite';
 $idpDeliveryModeValue = $_SERVER['REQUEST_METHOD'] === 'POST' ? (string)($_POST['idp_delivery_mode'] ?? $trainingModeValue) : $trainingModeValue;
-$idpDeliveryModeValue = in_array($idpDeliveryModeValue, ['Online','Onsite','Hybrid'], true) ? $idpDeliveryModeValue : 'Onsite';
+$idpDeliveryModeValue = in_array($idpDeliveryModeValue, ['Online', 'Onsite', 'Hybrid'], true) ? $idpDeliveryModeValue : 'Onsite';
 $trainingStartDateValue = $_SERVER['REQUEST_METHOD'] === 'POST' ? (string)($_POST['training_start_date'] ?? '') : '';
 $trainingStartTimeValue = $_SERVER['REQUEST_METHOD'] === 'POST' ? (string)($_POST['training_start_time'] ?? '') : '';
 $trainingEndDateValue = $_SERVER['REQUEST_METHOD'] === 'POST' ? (string)($_POST['training_end_date'] ?? '') : '';
@@ -541,430 +501,506 @@ require('../../partials/header.php');
 
 <body class="bg-gray-50 min-h-screen">
 
-  <div class="flex h-screen">
-   
-    <!-- Content Area -->
-    <div class="flex flex-col flex-1 overflow-hidden">
-      <!-- Navbar -->
-      <?php include '../../USM/navbar.php'; ?>
+    <div class="flex h-screen">
 
-      <main class="flex-1 overflow-auto p-6">
-        <div class="max-w-4xl mx-auto">
-            <div class="flex items-center justify-between mb-6">
-                <h1 class="text-2xl font-bold text-gray-900"><?php echo $isSuccessionReady ? 'Succession Ready IDP' : 'Individual Development Plan'; ?></h1>
-                <div class="flex items-center gap-4">
-                
-                    <a href="succession_dashboard.php" class="text-sm font-semibold text-gray-700 hover:text-gray-900">Back to Dashboard</a>
-                </div>
-            </div>
+        <!-- Content Area -->
+        <div class="flex flex-col flex-1 overflow-hidden">
+            <!-- Navbar -->
+            <?php include '../../USM/navbar.php'; ?>
 
-            <?php if ($errorMessage !== ''): ?>
-                <div class="bg-white border border-red-200 text-red-700 rounded-lg p-4 mb-6">
-                    <?php echo h($errorMessage); ?>
-                </div>
-            <?php endif; ?>
+            <main class="flex-1 overflow-auto p-6">
+                <div class="max-w-4xl mx-auto">
+                    <div class="flex items-center justify-between mb-6">
+                        <h1 class="text-2xl font-bold text-gray-900"><?php echo $isSuccessionReady ? 'Succession Ready IDP' : 'Individual Development Plan'; ?></h1>
+                        <div class="flex items-center gap-4">
 
-        <?php if ($row): ?>
-            <div class="bg-white border border-gray-200 rounded-lg p-5 shadow-sm mb-6">
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    <div>
-                        <label class="block text-xs font-semibold text-gray-500">Employee</label>
-                        <input type="text" readonly value="<?php echo h($row['employee_name']); ?>" class="mt-1 w-full border border-gray-300 rounded-md p-2 text-sm bg-gray-50 text-gray-900" />
+                            <a href="succession_dashboard.php" class="text-sm font-semibold text-gray-700 hover:text-gray-900">Back to Dashboard</a>
+                        </div>
                     </div>
-                    <div>
-                        <label class="block text-xs font-semibold text-gray-500">Employee ID</label>
-                        <input type="text" readonly value="<?php echo h($row['employee_id']); ?>" class="mt-1 w-full border border-gray-300 rounded-md p-2 text-sm bg-gray-50 text-gray-900" />
-                    </div>
-                    <div>
-                        <label class="block text-xs font-semibold text-gray-500">Position</label>
-                        <input type="text" readonly value="<?php echo h($row['position']); ?>" class="mt-1 w-full border border-gray-300 rounded-md p-2 text-sm bg-gray-50 text-gray-900" />
-                    </div>
-                    <div>
-                        <label class="block text-xs font-semibold text-gray-500">Department</label>
-                        <input type="text" readonly value="<?php echo h($row['department']); ?>" class="mt-1 w-full border border-gray-300 rounded-md p-2 text-sm bg-gray-50 text-gray-900" />
-                    </div>
-                    <div>
-                        <label class="block text-xs font-semibold text-gray-500">General Skills %</label>
-                        <input type="text" readonly value="<?php echo number_format((float)$row['competency'], 1); ?>%" class="mt-1 w-full border border-gray-300 rounded-md p-2 text-sm bg-gray-50 text-gray-900" />
-                    </div>
-                    <div>
-                        <label class="block text-xs font-semibold text-gray-500">Status</label>
-                        <input type="text" readonly value="<?php echo h($row['status']); ?>" class="mt-1 w-full border border-gray-300 rounded-md p-2 text-sm bg-gray-50 text-gray-900" />
-                    </div>
-                    <div>
-                        <label class="block text-xs font-semibold text-gray-500">IDP Status</label>
-                        <input type="text" readonly value="<?php echo h($row['idp_status']); ?>" class="mt-1 w-full border border-gray-300 rounded-md p-2 text-sm bg-gray-50 text-gray-900" />
-                    </div>
-                </div>
-            </div>
 
-            <div class="bg-white border border-gray-200 rounded-lg p-5 shadow-sm mb-6">
-                <div class="flex items-center justify-between">
-                    <div class="text-sm font-semibold text-gray-900">General Skills Breakdown</div>
-                    <div class="text-xs text-gray-500">Basis (Critical Roles)</div>
-                </div>
-                <div class="mt-3 overflow-auto">
-                    <table class="min-w-full text-sm">
-                        <thead>
-                            <tr class="text-left text-xs font-semibold text-gray-500 border-b">
-                                <th class="py-2 pr-3">Skill</th>
-                                <th class="py-2 text-right">%</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php if (empty($generalSkillsBreakdown)): ?>
-                                <tr><td colspan="2" class="py-3 text-gray-500">No skills found.</td></tr>
-                            <?php else: ?>
-                                <?php foreach ($generalSkillsBreakdown as $gs): ?>
-                                    <tr class="border-b">
-                                        <td class="py-2 pr-3"><?php echo h($gs['skill_name'] ?? ''); ?></td>
-                                        <td class="py-2 text-right"><?php echo number_format((float)($gs['skill_score'] ?? 0), 1); ?>%</td>
-                                    </tr>
-                                <?php endforeach; ?>
-                            <?php endif; ?>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
+                    <?php if ($errorMessage !== ''): ?>
+                        <div class="bg-white border border-red-200 text-red-700 rounded-lg p-4 mb-6">
+                            <?php echo h($errorMessage); ?>
+                        </div>
+                    <?php endif; ?>
 
-            <?php if ($successMessage !== ''): ?>
-                <div class="bg-white border border-emerald-200 text-emerald-700 rounded-lg p-4 mb-6">
-                    <?php echo h($successMessage); ?>
-                </div>
-            <?php endif; ?>
+                    <?php if ($row): ?>
+                        <div class="bg-white border border-gray-200 rounded-lg p-5 shadow-sm mb-6">
+                            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                <div>
+                                    <label class="block text-xs font-semibold text-gray-500">Employee</label>
+                                    <input type="text" readonly value="<?php echo h($row['employee_name']); ?>" class="mt-1 w-full border border-gray-300 rounded-md p-2 text-sm bg-gray-50 text-gray-900" />
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-semibold text-gray-500">Employee ID</label>
+                                    <input type="text" readonly value="<?php echo h($row['employee_id']); ?>" class="mt-1 w-full border border-gray-300 rounded-md p-2 text-sm bg-gray-50 text-gray-900" />
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-semibold text-gray-500">Position</label>
+                                    <input type="text" readonly value="<?php echo h($row['position']); ?>" class="mt-1 w-full border border-gray-300 rounded-md p-2 text-sm bg-gray-50 text-gray-900" />
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-semibold text-gray-500">Department</label>
+                                    <input type="text" readonly value="<?php echo h($row['department']); ?>" class="mt-1 w-full border border-gray-300 rounded-md p-2 text-sm bg-gray-50 text-gray-900" />
+                                </div>
 
-            <form method="post" class="bg-white border border-gray-200 rounded-lg p-5 shadow-sm">
-                <input type="hidden" name="idp_delivery_mode" id="idp_delivery_mode" value="<?php echo h($idpDeliveryModeValue); ?>" />
-                <input type="hidden" name="employee_status" value="<?php echo h($employeeStatus); ?>" />
-
-                <?php if ($isSuccessionReady): ?>
-                    <div class="mb-6 border border-gray-200 rounded-md p-4">
-                        <div class="text-sm font-semibold text-gray-900 mb-4">Target Role Alignment</div>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                                <label class="block text-sm font-semibold text-gray-800 mb-2">Target Succession Role</label>
-                                <input type="text" name="succ_target_role" value="<?php echo h($succTargetRoleValue); ?>" class="w-full border border-gray-300 rounded-md p-3 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900" <?php echo $viewOnly ? 'readonly' : ''; ?> />
-                            </div>
-                            <div>
-                                <label class="block text-sm font-semibold text-gray-800 mb-2">Readiness Level</label>
-                                <select name="succ_readiness_level" class="w-full border border-gray-300 rounded-md p-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-gray-900" <?php echo $viewOnly ? 'disabled' : ''; ?>>
-                                    <option value="" disabled <?php echo $succReadinessLevelValue === '' ? 'selected' : ''; ?>>Select readiness</option>
-                                    <option value="Ready Now" <?php echo $succReadinessLevelValue === 'Ready Now' ? 'selected' : ''; ?>>Ready Now</option>
-                                    <option value="Ready in 6 Months" <?php echo $succReadinessLevelValue === 'Ready in 6 Months' ? 'selected' : ''; ?>>Ready in 6 Months</option>
-                                    <option value="Ready in 12 Months" <?php echo $succReadinessLevelValue === 'Ready in 12 Months' ? 'selected' : ''; ?>>Ready in 12 Months</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-semibold text-gray-800 mb-2">Expected Transition Timeline</label>
-                                <input type="date" name="target_date" value="<?php echo h($targetDateValue); ?>" class="w-full border border-gray-300 rounded-md p-3 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900" <?php echo $viewOnly ? 'readonly' : ''; ?> />
-                            </div>
-                            <div>
-                                <label class="block text-sm font-semibold text-gray-800 mb-2">Assigned Mentor or Coach</label>
-                                <input type="text" name="succ_mentor_coach" value="<?php echo h($succMentorCoachValue); ?>" class="w-full border border-gray-300 rounded-md p-3 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900" <?php echo $viewOnly ? 'readonly' : ''; ?> />
+                                <div>
+                                    <label class="block text-xs font-semibold text-gray-500">Status</label>
+                                    <input type="text" readonly value="<?php echo h($row['status']); ?>" class="mt-1 w-full border border-gray-300 rounded-md p-2 text-sm bg-gray-50 text-gray-900" />
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-semibold text-gray-500">IDP Status</label>
+                                    <input type="text" readonly value="<?php echo h($row['idp_status']); ?>" class="mt-1 w-full border border-gray-300 rounded-md p-2 text-sm bg-gray-50 text-gray-900" />
+                                </div>
                             </div>
                         </div>
 
-                        <div class="grid grid-cols-1 gap-4 mt-4">
-                            <div>
-                                <label class="block text-sm font-semibold text-gray-800 mb-2">Leadership &amp; Strategic Competencies</label>
-                                <textarea name="succ_leadership_focus" rows="3" class="w-full border border-gray-300 rounded-md p-3 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900" <?php echo $viewOnly ? 'readonly' : ''; ?>><?php echo h($succLeadershipFocusValue); ?></textarea>
+
+
+                        <?php if ($successMessage !== ''): ?>
+                            <div class="bg-white border border-emerald-200 text-emerald-700 rounded-lg p-4 mb-6">
+                                <?php echo h($successMessage); ?>
                             </div>
-                            <div>
-                                <label class="block text-sm font-semibold text-gray-800 mb-2">Stretch Assignments &amp; Exposure (OIC, project leadership, strategic meetings)</label>
-                                <textarea name="succ_stretch_assignments" rows="3" class="w-full border border-gray-300 rounded-md p-3 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900" <?php echo $viewOnly ? 'readonly' : ''; ?>><?php echo h($succStretchAssignmentsValue); ?></textarea>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-semibold text-gray-800 mb-2">Coaching &amp; Knowledge Transfer Plan</label>
-                                <textarea name="succ_coaching_plan" rows="3" class="w-full border border-gray-300 rounded-md p-3 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900" <?php echo $viewOnly ? 'readonly' : ''; ?>><?php echo h($succCoachingPlanValue); ?></textarea>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-semibold text-gray-800 mb-2">Readiness Assessment &amp; Validation</label>
-                                <textarea name="succ_assessment_plan" rows="3" class="w-full border border-gray-300 rounded-md p-3 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900" <?php echo $viewOnly ? 'readonly' : ''; ?>><?php echo h($succAssessmentPlanValue); ?></textarea>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-semibold text-gray-800 mb-2">Final Succession Validation Outcome</label>
-                                <select name="succ_final_outcome" class="w-full border border-gray-300 rounded-md p-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-gray-900" <?php echo $viewOnly ? 'disabled' : ''; ?>>
-                                    <option value="" <?php echo $succFinalOutcomeValue === '' ? 'selected' : ''; ?>>Pending</option>
-                                    <option value="Validated" <?php echo $succFinalOutcomeValue === 'Validated' ? 'selected' : ''; ?>>Validated</option>
-                                    <option value="Not Validated" <?php echo $succFinalOutcomeValue === 'Not Validated' ? 'selected' : ''; ?>>Not Validated</option>
-                                </select>
-                            </div>
-                        </div>
-                    </div>
-                <?php endif; ?>
-                <?php if (count($suggestedPlans) > 0): ?>
-                    <div class="mb-4">
-                        <label class="block text-sm font-semibold text-gray-800 mb-2"><?php echo $isSuccessionReady ? 'Strategic Development Activities' : 'Suggested Development Plans'; ?></label>
-                        <div id="suggested_plans" class="space-y-3">
-                            <?php $skillIndex = 0; ?>
-                            <?php foreach ($suggestedPlans as $skillName => $planData): ?>
+                        <?php endif; ?>
+
+                        <form method="post" class="bg-white border border-gray-200 rounded-lg p-5 shadow-sm">
+                            <input type="hidden" name="idp_delivery_mode" id="idp_delivery_mode" value="<?php echo h($idpDeliveryModeValue); ?>" />
+                            <input type="hidden" name="employee_status" value="<?php echo h($employeeStatus); ?>" />
+
+                            <?php if ($isSuccessionReady): ?>
                                 <?php
-                                    $skillIndex++;
-                                    $skillId = 's' . $skillIndex;
-                                    $planText = is_array($planData) ? (string)($planData['plan_text'] ?? '') : (string)$planData;
-                                    $deliveryMode = is_array($planData) ? (string)($planData['delivery_mode'] ?? 'Onsite') : 'Onsite';
-                                    if ($deliveryMode !== 'Online' && $deliveryMode !== 'Onsite') {
-                                        $deliveryMode = 'Onsite';
-                                    }
-                                    $items = function_exists('splitPlanItems') ? splitPlanItems($planText) : [trim((string)$planText)];
-                                    $items = array_values(array_filter(array_map('trim', $items), function ($v) { return (string)$v !== ''; }));
+                                $overallPct = 0.0;
+                                $overallStatus = (string)($row['status'] ?? '');
+                                if (is_array($kpiOverall ?? null)) {
+                                    $overallPct = (float)($kpiOverall['pct'] ?? (float)($row['competency'] ?? 0));
+                                    $overallStatus = (string)($kpiOverall['status'] ?? $overallStatus);
+                                } else {
+                                    $overallPct = (float)($row['competency'] ?? 0);
+                                }
                                 ?>
-                                <div class="border border-gray-200 rounded-md p-3">
-                                    <label class="flex items-center gap-2 text-sm font-semibold text-gray-900">
-                                        <input type="checkbox" class="skill-checkbox" data-skill-id="<?php echo h($skillId); ?>" data-skill-name="<?php echo h($skillName); ?>" data-delivery-mode="<?php echo h($deliveryMode); ?>" <?php echo $viewOnly ? 'disabled' : ''; ?> />
-                                        <span><?php echo h($skillName); ?></span>
-                                    </label>
+                                <div class="mb-6 border border-gray-200 rounded-md p-4">
+                                    <div class="text-sm font-semibold text-gray-900 mb-4">KPI Evaluation Summary</div>
+                                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
+                                        <div>
+                                            <div class="text-xs font-semibold text-gray-500">Evaluation Period</div>
+                                            <div class="mt-1 text-sm text-gray-900"><?php echo h($period); ?></div>
+                                        </div>
+                                        <div>
+                                            <div class="text-xs font-semibold text-gray-500">Overall Competency</div>
+                                            <div class="mt-1 text-2xl font-bold text-gray-900"><?php echo number_format($overallPct, 1); ?>%</div>
+                                        </div>
+                                        <div>
+                                            <div class="text-xs font-semibold text-gray-500">Status</div>
+                                            <div class="mt-1 inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold border border-gray-300 bg-gray-50 text-gray-800">
+                                                <?php echo h($overallStatus); ?>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <?php if (!empty($kpiComputed)): ?>
+                                        <div class="mt-4 overflow-x-auto">
+                                            <table class="table w-full text-sm">
+                                                <thead>
+                                                    <tr class="bg-gray-50">
+                                                        <th class="px-4 py-2 text-left text-gray-700">KPI</th>
+                                                        <th class="px-4 py-2 text-right text-gray-700">Actual</th>
+                                                        <th class="px-4 py-2 text-right text-gray-700">Required</th>
+                                                        <th class="px-4 py-2 text-right text-gray-700">Gap</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody class="divide-y divide-gray-200">
+                                                    <?php foreach ($kpiComputed as $k): ?>
+                                                        <?php
+                                                        $kpiName = (string)($k['kpi_name'] ?? '');
+                                                        $kpiPct = (float)($k['kpi_pct'] ?? 0);
+                                                        $reqPct = (float)($k['required_pct'] ?? 0);
+                                                        $gapPct = (float)($k['gap_pct'] ?? 0);
+                                                        ?>
+                                                        <tr class="hover:bg-gray-50">
+                                                            <td class="px-4 py-2 text-gray-900"><?php echo h($kpiName); ?></td>
+                                                            <td class="px-4 py-2 text-right font-semibold"><?php echo number_format($kpiPct, 1); ?>%</td>
+                                                            <td class="px-4 py-2 text-right font-semibold"><?php echo number_format($reqPct, 1); ?>%</td>
+                                                            <td class="px-4 py-2 text-right">
+                                                                <?php
+                                                                $gapBadgeClass = $gapPct > 0
+                                                                    ? 'bg-red-50 text-red-700 border border-red-200'
+                                                                    : 'bg-emerald-50 text-emerald-700 border border-emerald-200';
+                                                                ?>
+                                                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold <?php echo $gapBadgeClass; ?>">
+                                                                    <?php echo number_format($gapPct, 1); ?>%
+                                                                </span>
+                                                            </td>
+                                                        </tr>
+                                                    <?php endforeach; ?>
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    <?php endif; ?>
+                                </div>
+                                <?php if (!empty($kpiComputed)): ?>
+                                    <div class="mb-6 border border-gray-200 rounded-md p-4">
+                                        <div class="text-sm font-semibold text-gray-900 mb-4">Development Plans per KPI</div>
+                                        <div class="space-y-4">
+                                            <?php foreach ($kpiComputed as $k): ?>
+                                                <?php
+                                                $kpiName = (string)($k['kpi_name'] ?? '');
+                                                $kpiPct = (float)($k['kpi_pct'] ?? 0);
+                                                $reqPct = (float)($k['required_pct'] ?? 0);
+                                                $gapPct = (float)($k['gap_pct'] ?? 0);
+                                                $evals = is_array($k['evaluations'] ?? null) ? $k['evaluations'] : [];
+                                                $kpiStatus = mapCompetencyToStatus($kpiPct);
+                                                $plansForKpi = [];
+                                                if (function_exists('getDevelopmentPlansForSkill')) {
+                                                    $plansForKpi = getDevelopmentPlansForSkill(
+                                                        (string)($row['department'] ?? ''),
+                                                        $kpiStatus,
+                                                        $kpiName
+                                                    );
+                                                }
+                                                ?>
+                                                <div class="border border-gray-200 rounded-md p-3">
+                                                    <div class="flex flex-col md:flex-row md:items-center justify-between gap-2 mb-3">
+                                                        <div>
+                                                            <div class="text-sm font-semibold text-gray-900"><?php echo h($kpiName); ?></div>
+                                                            <div class="text-xs text-gray-500">Status: <?php echo h($kpiStatus); ?></div>
+                                                        </div>
+                                                        <div class="flex items-center gap-4 text-xs">
+                                                            <div>Actual: <span class="font-semibold"><?php echo number_format($kpiPct, 1); ?>%</span></div>
+                                                            <div>Required: <span class="font-semibold"><?php echo number_format($reqPct, 1); ?>%</span></div>
+                                                            <div>Gap: <span class="font-semibold"><?php echo number_format($gapPct, 1); ?>%</span></div>
+                                                        </div>
+                                                    </div>
+                                                    <?php if (!empty($evals)): ?>
+                                                        <div class="overflow-x-auto mb-3">
+                                                            <table class="table w-full text-xs">
+                                                                <thead>
+                                                                    <tr class="bg-gray-50">
+                                                                        <th class="px-3 py-1 text-left text-gray-700">Criteria</th>
+                                                                        <th class="px-3 py-1 text-right text-gray-700">Score</th>
+                                                                    </tr>
+                                                                </thead>
+                                                                <tbody class="divide-y divide-gray-200">
+                                                                    <?php foreach ($evals as $ev): ?>
+                                                                        <?php
+                                                                        $score = is_numeric($ev['score'] ?? null) ? (float)$ev['score'] : 0;
+                                                                        ?>
+                                                                        <tr>
+                                                                            <td class="px-3 py-1 text-gray-900"><?php echo h((string)($ev['criteria'] ?? '')); ?></td>
+                                                                            <td class="px-3 py-1 text-right"><?php echo number_format($score, 1); ?> / 5</td>
+                                                                        </tr>
+                                                                    <?php endforeach; ?>
+                                                                </tbody>
+                                                            </table>
+                                                        </div>
+                                                    <?php endif; ?>
+                                                    <div>
+                                                        <div class="text-xs font-semibold text-gray-700 mb-1">Development Plans</div>
+                                                        <?php if (!empty($plansForKpi)): ?>
+                                                            <ul class="list-disc list-inside text-xs text-gray-800 space-y-1">
+                                                                <?php foreach ($plansForKpi as $p): ?>
+                                                                    <?php
+                                                                    $planText = (string)($p['plan_text'] ?? '');
+                                                                    $items = function_exists('splitPlanItems') ? splitPlanItems($planText) : [$planText];
+                                                                    ?>
+                                                                    <?php foreach ($items as $it): ?>
+                                                                        <li><?php echo h($it); ?></li>
+                                                                    <?php endforeach; ?>
+                                                                <?php endforeach; ?>
+                                                            </ul>
+                                                        <?php else: ?>
+                                                            <div class="text-xs text-gray-500">No development plans configured for this KPI.</div>
+                                                        <?php endif; ?>
+                                                    </div>
+                                                </div>
+                                            <?php endforeach; ?>
+                                        </div>
+                                    </div>
+                                <?php endif; ?>
+                            <?php endif; ?>
+                            <?php if (count($suggestedPlans) > 0): ?>
+                                <div class="mb-4">
+                                    <label class="block text-sm font-semibold text-gray-800 mb-2"><?php echo $isSuccessionReady ? 'Strategic Development Activities' : 'Suggested Development Plans'; ?></label>
+                                    <div id="suggested_plans" class="space-y-3">
+                                        <?php $skillIndex = 0; ?>
+                                        <?php foreach ($suggestedPlans as $skillName => $planData): ?>
+                                            <?php
+                                            $skillIndex++;
+                                            $skillId = 's' . $skillIndex;
+                                            $planText = is_array($planData) ? (string)($planData['plan_text'] ?? '') : (string)$planData;
+                                            $deliveryMode = is_array($planData) ? (string)($planData['delivery_mode'] ?? 'Onsite') : 'Onsite';
+                                            if ($deliveryMode !== 'Online' && $deliveryMode !== 'Onsite') {
+                                                $deliveryMode = 'Onsite';
+                                            }
+                                            $items = function_exists('splitPlanItems') ? splitPlanItems($planText) : [trim((string)$planText)];
+                                            $items = array_values(array_filter(array_map('trim', $items), function ($v) {
+                                                return (string)$v !== '';
+                                            }));
+                                            ?>
+                                            <div class="border border-gray-200 rounded-md p-3">
+                                                <label class="flex items-center gap-2 text-sm font-semibold text-gray-900">
+                                                    <input type="checkbox" class="skill-checkbox" data-skill-id="<?php echo h($skillId); ?>" data-skill-name="<?php echo h($skillName); ?>" data-delivery-mode="<?php echo h($deliveryMode); ?>" <?php echo $viewOnly ? 'disabled' : ''; ?> />
+                                                    <span><?php echo h($skillName); ?></span>
+                                                </label>
 
-                                    <div class="mt-2 pl-6 space-y-1 hidden" data-skill-items="<?php echo h($skillId); ?>">
-                                        <?php foreach ($items as $it): ?>
-                                            <label class="flex items-center gap-2 text-sm text-gray-800">
-                                                <input type="checkbox" class="training-checkbox" data-skill-id="<?php echo h($skillId); ?>" data-skill-name="<?php echo h($skillName); ?>" data-item-text="<?php echo h($it); ?>" data-delivery-mode="<?php echo h($deliveryMode); ?>" <?php echo $viewOnly ? 'disabled' : ''; ?> />
-                                                <span><?php echo h($it); ?></span>
-                                            </label>
+                                                <div class="mt-2 pl-6 space-y-1 hidden" data-skill-items="<?php echo h($skillId); ?>">
+                                                    <?php foreach ($items as $it): ?>
+                                                        <label class="flex items-center gap-2 text-sm text-gray-800">
+                                                            <input type="checkbox" class="training-checkbox" data-skill-id="<?php echo h($skillId); ?>" data-skill-name="<?php echo h($skillName); ?>" data-item-text="<?php echo h($it); ?>" data-delivery-mode="<?php echo h($deliveryMode); ?>" <?php echo $viewOnly ? 'disabled' : ''; ?> />
+                                                            <span><?php echo h($it); ?></span>
+                                                        </label>
+                                                    <?php endforeach; ?>
+                                                </div>
+                                            </div>
                                         <?php endforeach; ?>
                                     </div>
                                 </div>
-                            <?php endforeach; ?>
-                        </div>
-                    </div>
-                <?php endif; ?>
+                            <?php endif; ?>
 
-                <div class="mb-4">
-                    <label class="block text-sm font-semibold text-gray-800 mb-2"><?php echo $isSuccessionReady ? 'Strategic Development Activity Plan' : 'Development Plan'; ?></label>
-                    <div class="w-full border border-gray-200 rounded-md p-3 bg-white mb-2">
-                        <div id="development_plan_bubbles_inner" class="flex flex-wrap gap-2"></div>
-                        <div id="development_plan_bubbles_empty" class="text-xs text-gray-500"><?php echo $isSuccessionReady ? 'No selected activities yet.' : 'No selected trainings yet.'; ?></div>
-                    </div>
-                    <textarea id="development_plan" name="development_plan" class="hidden" <?php echo $viewOnly ? 'readonly' : ''; ?>><?php echo h($row['development_plan'] ?? ''); ?></textarea>
-                </div>
-
-                <div class="grid grid-cols-1 md:grid-cols-1 gap-4 mb-6">
-                    <div>
-                        <label class="block text-sm font-semibold text-gray-800 mb-2">Target Score (%)</label>
-                        <input type="number" step="0.1" min="0" max="100" name="target_score" value="<?php echo h($row['target_score'] ?? ''); ?>" class="w-full border border-gray-300 rounded-md p-3 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900" <?php echo $viewOnly ? 'readonly' : ''; ?> />
-                    </div>
-                </div>
-
-                <div class="border-t border-gray-200 pt-6 mb-6">
-                    <div class="text-sm font-semibold text-gray-900 mb-4"><?php echo $isSuccessionReady ? 'Strategic Development Activity Request' : 'Training Request'; ?></div>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-sm font-semibold text-gray-800 mb-2"><?php echo $isSuccessionReady ? 'Activity Type' : 'Training Type'; ?></label>
-                            <select name="training_type" class="w-full border border-gray-300 rounded-md p-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-gray-900" <?php echo $viewOnly ? 'disabled' : ''; ?>>
-                                <option value="" <?php echo $trainingTypeValue === '' ? 'selected' : ''; ?> disabled>Select training type</option>
-                                <option value="Orientation" <?php echo $trainingTypeValue === 'Orientation' ? 'selected' : ''; ?>>Orientation</option>
-                                <option value="Training" <?php echo $trainingTypeValue === 'Training' ? 'selected' : ''; ?>>Training</option>
-                                <option value="Seminar" <?php echo $trainingTypeValue === 'Seminar' ? 'selected' : ''; ?>>Seminar</option>
-                                <option value="Workshop" <?php echo $trainingTypeValue === 'Workshop' ? 'selected' : ''; ?>>Workshop</option>
-                                <option value="Refresher" <?php echo $trainingTypeValue === 'Refresher' ? 'selected' : ''; ?>>Refresher</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-semibold text-gray-800 mb-2"><?php echo $isSuccessionReady ? 'Activity Mode' : 'Training Mode'; ?></label>
-                            <select name="training_mode" class="w-full border border-gray-300 rounded-md p-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-gray-900" <?php echo $viewOnly ? 'disabled' : ''; ?>>
-                                <option value="Onsite" <?php echo $trainingModeValue === 'Onsite' ? 'selected' : ''; ?>>Onsite</option>
-                                <option value="Online" <?php echo $trainingModeValue === 'Online' ? 'selected' : ''; ?>>Online</option>
-                                <option value="Hybrid" <?php echo $trainingModeValue === 'Hybrid' ? 'selected' : ''; ?>>Hybrid</option>
-                            </select>
-                        </div>
-                        <div class="md:col-span-2">
-                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div>
-                                    <label class="block text-sm font-semibold text-gray-800 mb-2">Start Date / Time</label>
-                                    <div class="grid grid-cols-2 gap-3">
-                                        <input type="date" name="training_start_date" value="<?php echo h($trainingStartDateValue); ?>" class="w-full border border-gray-300 rounded-md p-3 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900" <?php echo $viewOnly ? 'readonly' : ''; ?> />
-                                        <input type="time" name="training_start_time" value="<?php echo h($trainingStartTimeValue); ?>" class="w-full border border-gray-300 rounded-md p-3 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900" <?php echo $viewOnly ? 'readonly' : ''; ?> />
-                                    </div>
+                            <div class="mb-4">
+                                <label class="block text-sm font-semibold text-gray-800 mb-2"><?php echo $isSuccessionReady ? 'Strategic Development Activity Plan' : 'Development Plan'; ?></label>
+                                <div class="w-full border border-gray-200 rounded-md p-3 bg-white mb-2">
+                                    <div id="development_plan_bubbles_inner" class="flex flex-wrap gap-2"></div>
+                                    <div id="development_plan_bubbles_empty" class="text-xs text-gray-500"><?php echo $isSuccessionReady ? 'No selected activities yet.' : 'No selected trainings yet.'; ?></div>
                                 </div>
+                                <textarea id="development_plan" name="development_plan" class="hidden" <?php echo $viewOnly ? 'readonly' : ''; ?>><?php echo h($row['development_plan'] ?? ''); ?></textarea>
+                            </div>
+
+                            <div class="grid grid-cols-1 md:grid-cols-1 gap-4 mb-6">
                                 <div>
-                                    <label class="block text-sm font-semibold text-gray-800 mb-2">End Date / Time</label>
-                                    <div class="grid grid-cols-2 gap-3">
-                                        <input type="date" name="training_end_date" value="<?php echo h($trainingEndDateValue); ?>" class="w-full border border-gray-300 rounded-md p-3 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900" <?php echo $viewOnly ? 'readonly' : ''; ?> />
-                                        <input type="time" name="training_end_time" value="<?php echo h($trainingEndTimeValue); ?>" class="w-full border border-gray-300 rounded-md p-3 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900" <?php echo $viewOnly ? 'readonly' : ''; ?> />
+                                    <label class="block text-sm font-semibold text-gray-800 mb-2">Target Score (%)</label>
+                                    <input type="number" step="0.1" min="0" max="100" name="target_score" value="<?php echo h($row['target_score'] ?? ''); ?>" class="w-full border border-gray-300 rounded-md p-3 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900" <?php echo $viewOnly ? 'readonly' : ''; ?> />
+                                </div>
+                            </div>
+
+                            <div class="border-t border-gray-200 pt-6 mb-6">
+                                <div class="text-sm font-semibold text-gray-900 mb-4"><?php echo $isSuccessionReady ? 'Strategic Development Activity Request' : 'Training Request'; ?></div>
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <label class="block text-sm font-semibold text-gray-800 mb-2"><?php echo $isSuccessionReady ? 'Activity Type' : 'Training Type'; ?></label>
+                                        <select name="training_type" class="w-full border border-gray-300 rounded-md p-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-gray-900" <?php echo $viewOnly ? 'disabled' : ''; ?>>
+                                            <option value="" <?php echo $trainingTypeValue === '' ? 'selected' : ''; ?> disabled>Select training type</option>
+                                            <option value="Orientation" <?php echo $trainingTypeValue === 'Orientation' ? 'selected' : ''; ?>>Orientation</option>
+                                            <option value="Training" <?php echo $trainingTypeValue === 'Training' ? 'selected' : ''; ?>>Training</option>
+                                            <option value="Seminar" <?php echo $trainingTypeValue === 'Seminar' ? 'selected' : ''; ?>>Seminar</option>
+                                            <option value="Workshop" <?php echo $trainingTypeValue === 'Workshop' ? 'selected' : ''; ?>>Workshop</option>
+                                            <option value="Refresher" <?php echo $trainingTypeValue === 'Refresher' ? 'selected' : ''; ?>>Refresher</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-semibold text-gray-800 mb-2"><?php echo $isSuccessionReady ? 'Activity Mode' : 'Training Mode'; ?></label>
+                                        <select name="training_mode" class="w-full border border-gray-300 rounded-md p-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-gray-900" <?php echo $viewOnly ? 'disabled' : ''; ?>>
+                                            <option value="Onsite" <?php echo $trainingModeValue === 'Onsite' ? 'selected' : ''; ?>>Onsite</option>
+                                            <option value="Online" <?php echo $trainingModeValue === 'Online' ? 'selected' : ''; ?>>Online</option>
+                                            <option value="Hybrid" <?php echo $trainingModeValue === 'Hybrid' ? 'selected' : ''; ?>>Hybrid</option>
+                                        </select>
+                                    </div>
+                                    <div class="md:col-span-2">
+                                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <div>
+                                                <label class="block text-sm font-semibold text-gray-800 mb-2">Start Date / Time</label>
+                                                <div class="grid grid-cols-2 gap-3">
+                                                    <input type="date" name="training_start_date" value="<?php echo h($trainingStartDateValue); ?>" class="w-full border border-gray-300 rounded-md p-3 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900" <?php echo $viewOnly ? 'readonly' : ''; ?> />
+                                                    <input type="time" name="training_start_time" value="<?php echo h($trainingStartTimeValue); ?>" class="w-full border border-gray-300 rounded-md p-3 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900" <?php echo $viewOnly ? 'readonly' : ''; ?> />
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <label class="block text-sm font-semibold text-gray-800 mb-2">End Date / Time</label>
+                                                <div class="grid grid-cols-2 gap-3">
+                                                    <input type="date" name="training_end_date" value="<?php echo h($trainingEndDateValue); ?>" class="w-full border border-gray-300 rounded-md p-3 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900" <?php echo $viewOnly ? 'readonly' : ''; ?> />
+                                                    <input type="time" name="training_end_time" value="<?php echo h($trainingEndTimeValue); ?>" class="w-full border border-gray-300 rounded-md p-3 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900" <?php echo $viewOnly ? 'readonly' : ''; ?> />
+                                                </div>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
-                        </div>
-                    </div>
-                </div>
 
-                <div class="flex items-center justify-between">
-                    <a href="succession_dashboard.php" class="inline-flex items-center justify-center px-4 py-2 rounded-md text-sm font-semibold bg-white border border-gray-300 text-gray-800 hover:bg-gray-50">Back</a>
-                    <?php if (!$viewOnly): ?>
-                        <div class="flex items-center gap-3">
-                          
-                            <button type="submit" name="submit_action" value="save" class="inline-flex items-center justify-center px-4 py-2 rounded-md text-sm font-semibold bg-gray-900 text-white hover:bg-gray-800">Save IDP</button>
-                        </div>
+                            <div class="flex items-center justify-between">
+                                <a href="succession_dashboard.php" class="inline-flex items-center justify-center px-4 py-2 rounded-md text-sm font-semibold bg-white border border-gray-300 text-gray-800 hover:bg-gray-50">Back</a>
+                                <?php if (!$viewOnly): ?>
+                                    <div class="flex items-center gap-3">
+
+                                        <button type="submit" name="submit_action" value="save" class="inline-flex items-center justify-center px-4 py-2 rounded-md text-sm font-semibold bg-gray-900 text-white hover:bg-gray-800">Save IDP</button>
+                                    </div>
+                                <?php endif; ?>
+                            </div>
+                        </form>
                     <?php endif; ?>
                 </div>
-            </form>
-        <?php endif; ?>
-    </div>
 
-    <script>
-        (function () {
-            var container = document.getElementById('suggested_plans');
-            var planInput = document.getElementById('development_plan');
-            var bubblesInner = document.getElementById('development_plan_bubbles_inner');
-            var bubblesEmpty = document.getElementById('development_plan_bubbles_empty');
-            var deliveryModeHidden = document.getElementById('idp_delivery_mode');
-            var trainingModeSelect = document.querySelector('select[name="training_mode"]');
-            if (!container || !planInput || !bubblesInner || !bubblesEmpty) return;
+                <script>
+                    (function() {
+                        var container = document.getElementById('suggested_plans');
+                        var planInput = document.getElementById('development_plan');
+                        var bubblesInner = document.getElementById('development_plan_bubbles_inner');
+                        var bubblesEmpty = document.getElementById('development_plan_bubbles_empty');
+                        var deliveryModeHidden = document.getElementById('idp_delivery_mode');
+                        var trainingModeSelect = document.querySelector('select[name="training_mode"]');
+                        if (!container || !planInput || !bubblesInner || !bubblesEmpty) return;
 
-            var isViewOnly = planInput.hasAttribute('readonly');
+                        var isViewOnly = planInput.hasAttribute('readonly');
 
-            function setItemsVisible(skillId, visible) {
-                var itemsEl = container.querySelector('[data-skill-items="' + skillId + '"]');
-                if (!itemsEl) return;
-                if (visible) {
-                    itemsEl.classList.remove('hidden');
-                } else {
-                    itemsEl.classList.add('hidden');
-                }
-            }
-
-            function getTrainingCheckboxes(skillId) {
-                return Array.from(container.querySelectorAll('.training-checkbox[data-skill-id="' + skillId + '"]'));
-            }
-
-            function renderBubbles(items) {
-                bubblesInner.innerHTML = '';
-                items.forEach(function (t) {
-                    var el = document.createElement('span');
-                    el.className = 'inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold border border-gray-200 bg-gray-100 text-gray-800';
-                    el.textContent = t;
-                    bubblesInner.appendChild(el);
-                });
-                bubblesEmpty.style.display = items.length > 0 ? 'none' : '';
-            }
-
-            function renderBubblesFromPlanText() {
-                var raw = String(planInput.value || '');
-                var items = raw
-                    .split(/\r?\n/)
-                    .map(function (l) { return String(l || '').trim(); })
-                    .filter(function (l) { return l.indexOf('- ') === 0; })
-                    .map(function (l) { return l.slice(2).trim(); })
-                    .filter(function (l) { return l !== ''; });
-                renderBubbles(items);
-            }
-
-            function rebuildTextarea() {
-                if (isViewOnly) return;
-
-                var lines = [];
-                var bubbles = [];
-                var modes = {};
-                Array.from(container.querySelectorAll('.skill-checkbox')).forEach(function (skillCb) {
-                    var skillId = skillCb.getAttribute('data-skill-id') || '';
-                    var skillName = skillCb.getAttribute('data-skill-name') || '';
-                    if (!skillId || !skillName) return;
-
-                    var selected = getTrainingCheckboxes(skillId).filter(function (cb) { return cb.checked; });
-                    if (selected.length === 0) return;
-
-                    lines.push(skillName + ':');
-                    selected.forEach(function (cb) {
-                        var itemText = cb.getAttribute('data-item-text') || '';
-                        var dm = cb.getAttribute('data-delivery-mode') || '';
-                        if (!itemText) return;
-                        lines.push('- ' + itemText);
-                        bubbles.push(itemText);
-                        if (dm === 'Online' || dm === 'Onsite') {
-                            modes[dm] = true;
+                        function setItemsVisible(skillId, visible) {
+                            var itemsEl = container.querySelector('[data-skill-items="' + skillId + '"]');
+                            if (!itemsEl) return;
+                            if (visible) {
+                                itemsEl.classList.remove('hidden');
+                            } else {
+                                itemsEl.classList.add('hidden');
+                            }
                         }
-                    });
-                    lines.push('');
-                });
 
-                var v = lines.join('\n').trim();
-                planInput.value = v;
-                renderBubbles(bubbles);
+                        function getTrainingCheckboxes(skillId) {
+                            return Array.from(container.querySelectorAll('.training-checkbox[data-skill-id="' + skillId + '"]'));
+                        }
 
-                var keys = Object.keys(modes);
-                var selectedMode = '';
-                if (keys.length === 1) {
-                    selectedMode = keys[0];
-                } else if (keys.length > 1) {
-                    selectedMode = 'Hybrid';
-                }
-                if (selectedMode !== '') {
-                    if (trainingModeSelect) trainingModeSelect.value = selectedMode;
-                    if (deliveryModeHidden) deliveryModeHidden.value = selectedMode;
-                }
-            }
+                        function renderBubbles(items) {
+                            bubblesInner.innerHTML = '';
+                            items.forEach(function(t) {
+                                var el = document.createElement('span');
+                                el.className = 'inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold border border-gray-200 bg-gray-100 text-gray-800';
+                                el.textContent = t;
+                                bubblesInner.appendChild(el);
+                            });
+                            bubblesEmpty.style.display = items.length > 0 ? 'none' : '';
+                        }
 
-            container.addEventListener('change', function (e) {
-                var t = e.target;
-                if (!t || t.tagName !== 'INPUT') return;
+                        function renderBubblesFromPlanText() {
+                            var raw = String(planInput.value || '');
+                            var items = raw
+                                .split(/\r?\n/)
+                                .map(function(l) {
+                                    return String(l || '').trim();
+                                })
+                                .filter(function(l) {
+                                    return l.indexOf('- ') === 0;
+                                })
+                                .map(function(l) {
+                                    return l.slice(2).trim();
+                                })
+                                .filter(function(l) {
+                                    return l !== '';
+                                });
+                            renderBubbles(items);
+                        }
 
-                if (t.classList.contains('skill-checkbox')) {
-                    var skillId = t.getAttribute('data-skill-id') || '';
-                    var visible = !!t.checked;
+                        function rebuildTextarea() {
+                            if (isViewOnly) return;
 
-                    setItemsVisible(skillId, visible);
-                    if (!visible) {
-                        getTrainingCheckboxes(skillId).forEach(function (cb) {
-                            cb.checked = false;
+                            var lines = [];
+                            var bubbles = [];
+                            var modes = {};
+                            Array.from(container.querySelectorAll('.skill-checkbox')).forEach(function(skillCb) {
+                                var skillId = skillCb.getAttribute('data-skill-id') || '';
+                                var skillName = skillCb.getAttribute('data-skill-name') || '';
+                                if (!skillId || !skillName) return;
+
+                                var selected = getTrainingCheckboxes(skillId).filter(function(cb) {
+                                    return cb.checked;
+                                });
+                                if (selected.length === 0) return;
+
+                                lines.push(skillName + ':');
+                                selected.forEach(function(cb) {
+                                    var itemText = cb.getAttribute('data-item-text') || '';
+                                    var dm = cb.getAttribute('data-delivery-mode') || '';
+                                    if (!itemText) return;
+                                    lines.push('- ' + itemText);
+                                    bubbles.push(itemText);
+                                    if (dm === 'Online' || dm === 'Onsite') {
+                                        modes[dm] = true;
+                                    }
+                                });
+                                lines.push('');
+                            });
+
+                            var v = lines.join('\n').trim();
+                            planInput.value = v;
+                            renderBubbles(bubbles);
+
+                            var keys = Object.keys(modes);
+                            var selectedMode = '';
+                            if (keys.length === 1) {
+                                selectedMode = keys[0];
+                            } else if (keys.length > 1) {
+                                selectedMode = 'Hybrid';
+                            }
+                            if (selectedMode !== '') {
+                                if (trainingModeSelect) trainingModeSelect.value = selectedMode;
+                                if (deliveryModeHidden) deliveryModeHidden.value = selectedMode;
+                            }
+                        }
+
+                        container.addEventListener('change', function(e) {
+                            var t = e.target;
+                            if (!t || t.tagName !== 'INPUT') return;
+
+                            if (t.classList.contains('skill-checkbox')) {
+                                var skillId = t.getAttribute('data-skill-id') || '';
+                                var visible = !!t.checked;
+
+                                setItemsVisible(skillId, visible);
+                                if (!visible) {
+                                    getTrainingCheckboxes(skillId).forEach(function(cb) {
+                                        cb.checked = false;
+                                    });
+                                }
+
+                                rebuildTextarea();
+                                return;
+                            }
+
+                            if (t.classList.contains('training-checkbox')) {
+                                var skillId2 = t.getAttribute('data-skill-id') || '';
+                                var skillCb = container.querySelector('.skill-checkbox[data-skill-id="' + skillId2 + '"]');
+                                if (skillCb && t.checked) {
+                                    skillCb.checked = true;
+                                    setItemsVisible(skillId2, true);
+                                }
+                                rebuildTextarea();
+                            }
                         });
-                    }
 
-                    rebuildTextarea();
-                    return;
-                }
+                        renderBubblesFromPlanText();
+                    })();
+                </script>
 
-                if (t.classList.contains('training-checkbox')) {
-                    var skillId2 = t.getAttribute('data-skill-id') || '';
-                    var skillCb = container.querySelector('.skill-checkbox[data-skill-id="' + skillId2 + '"]');
-                    if (skillCb && t.checked) {
-                        skillCb.checked = true;
-                        setItemsVisible(skillId2, true);
-                    }
-                    rebuildTextarea();
-                }
-            });
+                <script>
+                    (function() {
+                        var form = document.querySelector('form[method="post"]');
+                        if (!form) return;
 
-            renderBubblesFromPlanText();
-        })();
-    </script>
+                        var deliveryModeHidden = document.getElementById('idp_delivery_mode');
 
-    <script>
-        (function () {
-            var form = document.querySelector('form[method="post"]');
-            if (!form) return;
+                        var reqFields = [
+                            'training_type',
+                            'training_mode',
+                            'training_start_date',
+                            'training_start_time',
+                            'training_end_date',
+                            'training_end_time'
+                        ];
 
-            var deliveryModeHidden = document.getElementById('idp_delivery_mode');
+                        function setTrainingRequired(on) {
+                            reqFields.forEach(function(name) {
+                                var el = form.querySelector('[name="' + name + '"]');
+                                if (!el) return;
+                                if (on) {
+                                    el.setAttribute('required', 'required');
+                                } else {
+                                    el.removeAttribute('required');
+                                }
+                            });
+                        }
 
-            var reqFields = [
-                'training_type',
-                'training_mode',
-                'training_start_date',
-                'training_start_time',
-                'training_end_date',
-                'training_end_time'
-            ];
-
-            function setTrainingRequired(on) {
-                reqFields.forEach(function (name) {
-                    var el = form.querySelector('[name="' + name + '"]');
-                    if (!el) return;
-                    if (on) {
-                        el.setAttribute('required', 'required');
-                    } else {
-                        el.removeAttribute('required');
-                    }
-                });
-            }
-
-            form.addEventListener('submit', function (e) {
-                var submitter = e.submitter;
-                var action = submitter ? String(submitter.value || '') : '';
-                var dm = deliveryModeHidden ? String(deliveryModeHidden.value || '') : '';
-                setTrainingRequired(action === 'request_training' && dm !== 'Online');
-            });
-        })();
-    </script>
+                        form.addEventListener('submit', function(e) {
+                            var submitter = e.submitter;
+                            var action = submitter ? String(submitter.value || '') : '';
+                            var dm = deliveryModeHidden ? String(deliveryModeHidden.value || '') : '';
+                            setTrainingRequired(action === 'request_training' && dm !== 'Online');
+                        });
+                    })();
+                </script>
+        </div>
+        </main>
     </div>
-    </main>
-  </div>
-  <?php require('../../partials/footer.php') ?>
+    <?php require('../../partials/footer.php') ?>
