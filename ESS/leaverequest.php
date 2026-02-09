@@ -6,181 +6,200 @@ require_once __DIR__ . '/db.php';
 $employeeId = ess_employee_id($conn);
 $employeeGender = '';
 if ($conn && $employeeId) {
-    $stmtG = mysqli_prepare($conn, 'SELECT gender FROM employee_profiles WHERE employee_id = ? LIMIT 1');
-    if ($stmtG) {
-        mysqli_stmt_bind_param($stmtG, 'i', $employeeId);
-        mysqli_stmt_execute($stmtG);
-        $resG = mysqli_stmt_get_result($stmtG);
-        $rowG = $resG ? mysqli_fetch_assoc($resG) : null;
-        mysqli_stmt_close($stmtG);
-        if (is_array($rowG)) {
-            $employeeGender = strtolower(trim((string)($rowG['gender'] ?? '')));
-        }
+  $stmtG = mysqli_prepare($conn, 'SELECT gender FROM employee_profiles WHERE employee_id = ? LIMIT 1');
+  if ($stmtG) {
+    mysqli_stmt_bind_param($stmtG, 'i', $employeeId);
+    mysqli_stmt_execute($stmtG);
+    $resG = mysqli_stmt_get_result($stmtG);
+    $rowG = $resG ? mysqli_fetch_assoc($resG) : null;
+    mysqli_stmt_close($stmtG);
+    if (is_array($rowG)) {
+      $employeeGender = strtolower(trim((string)($rowG['gender'] ?? '')));
     }
+  }
 }
 
 $success_message = '';
 $error_message = '';
 
 $myReqStats = [
-    'total' => 0,
-    'pending' => 0,
-    'for_compliance' => 0,
+  'total' => 0,
+  'pending' => 0,
+  'for_compliance' => 0,
 ];
 
 $balances = [
-    ['label' => 'Vacation', 'remaining' => 80, 'used' => 40, 'total' => 120, 'color' => 'text-gray-900', 'bar' => 'progress-primary'],
-    ['label' => 'Sick Leave', 'remaining' => 64, 'used' => 16, 'total' => 80, 'color' => 'text-gray-900', 'bar' => 'progress-success'],
-    ['label' => 'Personal', 'remaining' => 16, 'used' => 8, 'total' => 24, 'color' => 'text-gray-900', 'bar' => 'progress-warning'],
+  ['label' => 'Vacation', 'remaining' => 80, 'used' => 40, 'total' => 120, 'color' => 'text-gray-900', 'bar' => 'progress-primary'],
+  ['label' => 'Sick Leave', 'remaining' => 64, 'used' => 16, 'total' => 80, 'color' => 'text-gray-900', 'bar' => 'progress-success'],
+  ['label' => 'Personal', 'remaining' => 16, 'used' => 8, 'total' => 24, 'color' => 'text-gray-900', 'bar' => 'progress-warning'],
 ];
 
 $recentRequests = [
-    ['type' => 'Vacation', 'range' => 'Feb 12 — Feb 15', 'days' => 4, 'status' => 'Pending'],
-    ['type' => 'Sick Leave', 'range' => 'Jan 05 — Jan 05', 'days' => 1, 'status' => 'Approved'],
-    ['type' => 'Personal', 'range' => 'Dec 22 — Dec 23', 'days' => 2, 'status' => 'Approved'],
+  ['type' => 'Vacation', 'range' => 'Feb 12 — Feb 15', 'days' => 4, 'status' => 'Pending'],
+  ['type' => 'Sick Leave', 'range' => 'Jan 05 — Jan 05', 'days' => 1, 'status' => 'Approved'],
+  ['type' => 'Personal', 'range' => 'Dec 22 — Dec 23', 'days' => 2, 'status' => 'Approved'],
 ];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_leave'])) {
-    $leaveType = trim((string)($_POST['leave_type'] ?? ''));
-    $startDate = trim((string)($_POST['start_date'] ?? ''));
-    $endDate = trim((string)($_POST['end_date'] ?? ''));
-    $reason = trim((string)($_POST['reason'] ?? ''));
-    $termsAccepted = (string)($_POST['terms_accepted'] ?? '') === '1';
+  $leaveType = trim((string)($_POST['leave_type'] ?? ''));
+  $startDate = trim((string)($_POST['start_date'] ?? ''));
+  $endDate = trim((string)($_POST['end_date'] ?? ''));
+  $reason = trim((string)($_POST['reason'] ?? ''));
+  $termsAccepted = (string)($_POST['terms_accepted'] ?? '') === '1';
 
-    $allowedLeaveTypes = [
-        'Vacation',
-        'Sick Leave',
-        'Emergency Leave',
-        'Service Incentive Leave',
-        'Bereavement Leave',
-        'Solo Parent Leave',
-        'Maternity Leave',
-        'Paternity Leave',
-    ];
+  $allowedLeaveTypes = [
+    'Vacation',
+    'Sick Leave',
+    'Emergency Leave',
+    'Service Incentive Leave',
+    'Bereavement Leave',
+    'Solo Parent Leave',
+    'Maternity Leave',
+    'Paternity Leave',
+  ];
 
-    $fixedDays = [
-        'Sick Leave' => 1,
-        'Emergency Leave' => 2,
-        'Service Incentive Leave' => 5,
-        'Bereavement Leave' => 3,
-        'Solo Parent Leave' => 7,
-        'Maternity Leave' => 105,
-        'Paternity Leave' => 7,
-    ];
+  $maxDays = [
+    'Vacation' => 15,
+    'Sick Leave' => 15,
+    'Emergency Leave' => 5,
+    'Service Incentive Leave' => 5,
+    'Bereavement Leave' => 5,
+    'Solo Parent Leave' => 7,
+    'Maternity Leave' => 105,
+    'Paternity Leave' => 7,
+  ];
 
-    $genderIsFemale = ($employeeGender === 'female' || $employeeGender === 'f');
-    $genderIsMale = ($employeeGender === 'male' || $employeeGender === 'm');
+  $genderIsFemale = ($employeeGender === 'female' || $employeeGender === 'f');
+  $genderIsMale = ($employeeGender === 'male' || $employeeGender === 'm');
 
-    if (!$termsAccepted) {
-        $error_message = 'You must accept the Terms and Conditions before submitting.';
-    } elseif ($leaveType === '' || $startDate === '') {
-        $error_message = 'Please fill in the required fields.';
-    } elseif ($startDate < date('Y-m-d')) {
-        $error_message = 'Start date cannot be in the past.';
-    } elseif (!in_array($leaveType, $allowedLeaveTypes, true)) {
-        $error_message = 'Invalid leave type selected.';
-    } elseif (!$employeeId) {
-        $error_message = 'Unable to identify employee. Please login again.';
-    } elseif (!$conn) {
-        $error_message = 'Database connection unavailable.';
-    } elseif ($genderIsFemale && $leaveType === 'Paternity Leave') {
-        $error_message = 'Invalid leave type selected.';
-    } elseif ($genderIsMale && $leaveType === 'Maternity Leave') {
-        $error_message = 'Invalid leave type selected.';
-    } else {
-        $status = 'Pending';
+  if (!$termsAccepted) {
+    $error_message = 'You must accept the Terms and Conditions before submitting.';
+  } elseif ($leaveType === '' || $startDate === '') {
+    $error_message = 'Please fill in the required fields.';
+  } elseif ($startDate < date('Y-m-d')) {
+    $error_message = 'Start date cannot be in the past.';
+  } elseif (!in_array($leaveType, $allowedLeaveTypes, true)) {
+    $error_message = 'Invalid leave type selected.';
+  } elseif (!$employeeId) {
+    $error_message = 'Unable to identify employee. Please login again.';
+  } elseif (!$conn) {
+    $error_message = 'Database connection unavailable.';
+  } elseif ($genderIsFemale && $leaveType === 'Paternity Leave') {
+    $error_message = 'Invalid leave type selected.';
+  } elseif ($genderIsMale && $leaveType === 'Maternity Leave') {
+    $error_message = 'Invalid leave type selected.';
+  } else {
+    $status = 'Pending';
 
-        $days = (int)($_POST['days'] ?? 1);
-        if ($days <= 0) $days = 1;
+    $days = (int)($_POST['days'] ?? 1);
+    if ($days <= 0) $days = 1;
+    $max = (int)($maxDays[$leaveType] ?? 15);
+    if ($days > $max) $days = $max;
 
-        if ($leaveType === 'Vacation') {
-            if ($days > 5) $days = 5;
-        } else {
-            $days = (int)($fixedDays[$leaveType] ?? 1);
-        }
-
-        $sd = strtotime($startDate);
-        if ($sd !== false) {
-            $endDate = date('Y-m-d', $sd + (max(1, $days) - 1) * 86400);
-        }
-
-        $stmt = mysqli_prepare($conn, 'INSERT INTO leave_requests (employee_id, leave_type, start_date, end_date, reason, status) VALUES (?, ?, ?, ?, ?, ?)');
-        if (!$stmt) {
-            $error_message = 'Failed to submit leave request.';
-        } else {
-            mysqli_stmt_bind_param($stmt, 'isssss', $employeeId, $leaveType, $startDate, $endDate, $reason, $status);
-            $ok = mysqli_stmt_execute($stmt);
-            mysqli_stmt_close($stmt);
-
-            if (!$ok) {
-                $error_message = 'Failed to submit leave request.';
-            } else {
-                $success_message = 'Leave request submitted successfully.';
-            }
-        }
+    $sd = strtotime($startDate);
+    if ($sd !== false) {
+      $endDate = date('Y-m-d', $sd + (max(1, $days) - 1) * 86400);
     }
+
+    $dupFound = false;
+    $stmtDup = mysqli_prepare($conn, 'SELECT id FROM leave_requests WHERE employee_id = ? AND leave_type = ? AND start_date = ? AND end_date = ? AND status = ? LIMIT 1');
+    if ($stmtDup) {
+      $pending = 'Pending';
+      mysqli_stmt_bind_param($stmtDup, 'issss', $employeeId, $leaveType, $startDate, $endDate, $pending);
+      mysqli_stmt_execute($stmtDup);
+      $resDup = mysqli_stmt_get_result($stmtDup);
+      $dupFound = (bool)($resDup && mysqli_fetch_assoc($resDup));
+      mysqli_stmt_close($stmtDup);
+    }
+
+    if ($dupFound) {
+      $error_message = 'Duplicate request detected for the same dates and type.';
+    } else {
+      $stmt = mysqli_prepare($conn, 'INSERT INTO leave_requests (employee_id, leave_type, start_date, end_date, reason, status) VALUES (?, ?, ?, ?, ?, ?)');
+      if (!$stmt) {
+        $error_message = 'Failed to submit leave request.';
+      } else {
+        mysqli_stmt_bind_param($stmt, 'isssss', $employeeId, $leaveType, $startDate, $endDate, $reason, $status);
+        $ok = mysqli_stmt_execute($stmt);
+        mysqli_stmt_close($stmt);
+
+        if (!$ok) {
+          $error_message = 'Failed to submit leave request.';
+        } else {
+          header('Location: leaverequest.php?submitted=1');
+          exit;
+        }
+      }
+    }
+  }
+}
+
+if (((string)($_GET['submitted'] ?? '')) === '1') {
+  $success_message = 'Leave request submitted successfully.';
 }
 
 if ($conn && $employeeId) {
-    $stmtStats = mysqli_prepare($conn, 'SELECT status, COUNT(*) AS c FROM leave_requests WHERE employee_id = ? GROUP BY status');
-    if ($stmtStats) {
-        mysqli_stmt_bind_param($stmtStats, 'i', $employeeId);
-        mysqli_stmt_execute($stmtStats);
-        $resStats = mysqli_stmt_get_result($stmtStats);
-        if ($resStats) {
-            while ($r = mysqli_fetch_assoc($resStats)) {
-                $st = strtolower(trim((string)($r['status'] ?? '')));
-                $c = (int)($r['c'] ?? 0);
-                $myReqStats['total'] += $c;
-                if ($st === 'pending') $myReqStats['pending'] = $c;
-                if ($st === 'for compliance') $myReqStats['for_compliance'] = $c;
-            }
-        }
-        mysqli_stmt_close($stmtStats);
+  $stmtStats = mysqli_prepare($conn, 'SELECT status, COUNT(*) AS c FROM leave_requests WHERE employee_id = ? GROUP BY status');
+  if ($stmtStats) {
+    mysqli_stmt_bind_param($stmtStats, 'i', $employeeId);
+    mysqli_stmt_execute($stmtStats);
+    $resStats = mysqli_stmt_get_result($stmtStats);
+    if ($resStats) {
+      while ($r = mysqli_fetch_assoc($resStats)) {
+        $st = strtolower(trim((string)($r['status'] ?? '')));
+        $c = (int)($r['c'] ?? 0);
+        $myReqStats['total'] += $c;
+        if ($st === 'pending') $myReqStats['pending'] = $c;
+        if ($st === 'for compliance') $myReqStats['for_compliance'] = $c;
+      }
     }
+    mysqli_stmt_close($stmtStats);
+  }
 
-    $recentRequests = [];
-    $stmt = mysqli_prepare($conn, 'SELECT leave_type, start_date, end_date, status FROM leave_requests WHERE employee_id = ? ORDER BY created_at DESC LIMIT 5');
-    if ($stmt) {
-        mysqli_stmt_bind_param($stmt, 'i', $employeeId);
-        mysqli_stmt_execute($stmt);
-        $res = mysqli_stmt_get_result($stmt);
-        if ($res) {
-            while ($row = mysqli_fetch_assoc($res)) {
-                $s = (string)($row['start_date'] ?? '');
-                $e = (string)($row['end_date'] ?? '');
-                $days = 0;
-                if ($s !== '' && $e !== '') {
-                    $sd = strtotime($s);
-                    $ed = strtotime($e);
-                    if ($sd !== false && $ed !== false && $ed >= $sd) {
-                        $days = (int)floor(($ed - $sd) / 86400) + 1;
-                    }
-                }
-                $recentRequests[] = [
-                    'type' => (string)($row['leave_type'] ?? ''),
-                    'range' => $s . ' — ' . $e,
-                    'days' => $days,
-                    'status' => (string)($row['status'] ?? 'Pending'),
-                ];
-            }
+  $recentRequests = [];
+  $stmt = mysqli_prepare($conn, 'SELECT leave_type, start_date, end_date, status FROM leave_requests WHERE employee_id = ? ORDER BY created_at DESC LIMIT 5');
+  if ($stmt) {
+    mysqli_stmt_bind_param($stmt, 'i', $employeeId);
+    mysqli_stmt_execute($stmt);
+    $res = mysqli_stmt_get_result($stmt);
+    if ($res) {
+      while ($row = mysqli_fetch_assoc($res)) {
+        $s = (string)($row['start_date'] ?? '');
+        $e = (string)($row['end_date'] ?? '');
+        $days = 0;
+        if ($s !== '' && $e !== '') {
+          $sd = strtotime($s);
+          $ed = strtotime($e);
+          if ($sd !== false && $ed !== false && $ed >= $sd) {
+            $days = (int)floor(($ed - $sd) / 86400) + 1;
+          }
         }
-        mysqli_stmt_close($stmt);
+        $recentRequests[] = [
+          'type' => (string)($row['leave_type'] ?? ''),
+          'range' => $s . ' — ' . $e,
+          'days' => $days,
+          'status' => (string)($row['status'] ?? 'Pending'),
+        ];
+      }
     }
+    mysqli_stmt_close($stmt);
+  }
 }
 
-function leaveStatusBadge($status) {
-    $s = strtolower(trim($status));
-    return match ($s) {
-        'approved' => 'badge-success',
-        'pending' => 'badge-warning',
-        'rejected' => 'badge-error',
-        default => 'badge-ghost',
-    };
+function leaveStatusBadge($status)
+{
+  $s = strtolower(trim($status));
+  return match ($s) {
+    'approved' => 'badge-success',
+    'pending' => 'badge-warning',
+    'rejected' => 'badge-error',
+    default => 'badge-ghost',
+  };
 }
 ?>
 <!DOCTYPE html>
 <html lang="en" data-theme="light">
+
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -189,7 +208,13 @@ function leaveStatusBadge($status) {
   <link href="https://cdn.jsdelivr.net/npm/daisyui@4.6.0/dist/full.css" rel="stylesheet" type="text/css" />
   <script src="https://unpkg.com/lucide@latest"></script>
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <style>
+    .swal2-container {
+      z-index: 5000 !important;
+    }
+  </style>
 </head>
+
 <body class="bg-gray-50 min-h-screen">
   <div class="flex h-screen">
     <?php include '../USM/sidebarr.php'; ?>
@@ -306,6 +331,7 @@ function leaveStatusBadge($status) {
                     <div class="form-control">
                       <label class="label"><span class="label-text text-xs font-semibold text-gray-500">NUMBER OF DAYS</span></label>
                       <input name="days" id="leaveDays" class="input input-bordered" type="number" min="1" value="1" />
+                      <label class="label"><span id="leaveDaysWarning" class="label-text-alt text-error hidden"></span></label>
                     </div>
 
                     <div class="form-control">
@@ -387,50 +413,66 @@ function leaveStatusBadge($status) {
       <div class="divider my-4"></div>
 
       <div class="prose max-w-none text-sm text-gray-700" style="max-height: 55vh; overflow: auto;">
-        <h4>1. General Provisions</h4>
+        <h4><strong>1. General Provisions</strong></h4>
         <p>Leave requests must be submitted through the ESS portal and approved by the appropriate supervisor or HR representative.</p>
         <p>Employees are responsible for ensuring that their leave request is accurate, complete, and filed within the required timeframe.</p>
         <p>Leave will be credited and deducted based on the company’s approved leave balances and policies.</p>
 
-        <h4>2. Vacation Leave (VL)</h4>
+        <h4><strong>2. Vacation Leave (VL)</strong></h4>
         <p>Employees are entitled to 10–15 days of vacation leave per year, depending on tenure and company policy.</p>
         <p>Leave requests cannot exceed the employee’s available vacation leave balance.</p>
         <p>Maximum per request is generally 5 consecutive working days.</p>
         <p>Requests beyond this may require additional approval from HR or management.</p>
 
-        <h4>3. Sick Leave (SL)</h4>
+        <h4><strong>3. Sick Leave (SL)</strong></h4>
         <p>Employees are entitled to 10–15 days of sick leave per year.</p>
         <p>Medical certificates may be required for absences of 2 or more consecutive days.</p>
         <p>Sick leave cannot exceed the employee’s available sick leave balance.</p>
 
-        <h4>4. Emergency Leave (EL)</h4>
+        <h4><strong>4. Emergency Leave (EL)</strong></h4>
         <p>Emergency leave is intended for unforeseen personal or family emergencies.</p>
         <p>Employees may request 1–2 days per occurrence, with a maximum of 3–5 days per year.</p>
         <p>Requests exceeding this limit require supervisor approval.</p>
 
-        <h4>5. Service Incentive Leave (SIL)</h4>
+        <h4><strong>5. Service Incentive Leave (SIL)</strong></h4>
         <p>Employees are entitled to 5 days of service incentive leave per year in accordance with Philippine labor law.</p>
         <p>Unused SIL may be converted to cash or carried over according to company policy.</p>
 
-        <h4>6. Bereavement Leave</h4>
+        <h4><strong>6. Bereavement Leave</strong></h4>
         <p>Bereavement leave of 3–5 days per incident is granted for the death of an immediate family member.</p>
         <p>Proper documentation may be required.</p>
 
-        <h4>7. Maternity / Paternity Leave</h4>
+        <h4><strong>7. Maternity / Paternity Leave</strong></h4>
         <p>Maternity Leave: Eligible female employees are entitled to 105 days of leave per childbirth as mandated by law, with additional benefits per company policy.</p>
         <p>Paternity Leave: Eligible married male employees are entitled to 7 days of leave per childbirth as mandated by law.</p>
 
-        <h4>8. Solo Parent Leave</h4>
+        <h4><strong>8. Solo Parent Leave</strong></h4>
         <p>Eligible solo parent employees are entitled to 7 days of leave per year in accordance with RA 8972.</p>
         <p>This leave may be used for parental responsibilities, including child care and related activities.</p>
         <p>Supporting documentation may be required to confirm eligibility.</p>
 
-        <h4>9. Leave Approval &amp; Responsibility</h4>
+        <h4><strong>9. Leave Approval &amp; Responsibility</strong></h4>
         <p>Submission of leave does not guarantee approval; all requests are subject to verification and supervisor/HR approval.</p>
         <p>Employees must ensure that leave does not interfere with operational requirements unless otherwise approved.</p>
         <p>Employees must update their leave request in the ESS if circumstances change.</p>
 
-        <h4>10. Acknowledgment</h4>
+        <h4><strong>10. Governing Law</strong></h4>
+        <p>All leave requests submitted through the ESS shall be governed by and construed in accordance with the laws of the Republic of the Philippines, including but not limited to:</p>
+        <p>Presidential Decree No. 442 – Labor Code of the Philippines</p>
+        <p>Republic Act No. 11210 – 105-Day Expanded Maternity Leave Law</p>
+        <p>Republic Act No. 8187 – Paternity Leave Act of 1996</p>
+        <p>Republic Act No. 9710 – Magna Carta of Women</p>
+        <p>Republic Act No. 8972, as amended by RA 11861 – Solo Parents’ Welfare Act</p>
+        <p>Republic Act No. 10173 – Data Privacy Act of 2012</p>
+        <p>Applicable DOLE issuances and company policies</p>
+
+        <h4><strong>11. Data Privacy and Confidentiality</strong></h4>
+        <p>All personal information and documents submitted shall be processed in compliance with the Data Privacy Act of 2012 and used solely for leave administration, payroll processing, and legal compliance.</p>
+
+        <h4><strong>12. Documentation and Verification</strong></h4>
+        <p>Management reserves the right to require supporting documents (e.g., medical certificates, proof of emergency, government-issued documents) to validate the leave request. Failure to provide required documents may result in denial or adjustment of the leave.</p>
+
+        <h4><strong>13. Acknowledgment</strong></h4>
         <p>By clicking “I Accept” below, I acknowledge that I have read, understood, and agree to comply with these Terms and Conditions regarding leave requests through the Employee Self-Service system.</p>
       </div>
 
@@ -450,7 +492,7 @@ function leaveStatusBadge($status) {
   </dialog>
 
   <script>
-    (function () {
+    (function() {
       if (window.lucide) window.lucide.createIcons();
 
       const leaveTypeEl = document.getElementById('leaveTypeSelect');
@@ -471,15 +513,53 @@ function leaveStatusBadge($status) {
       const formEl = document.getElementById('leaveRequestForm');
 
       const policy = {
-        'Vacation': { days: 1, editable: true, max: 5 },
-        'Sick Leave': { days: 1, editable: false },
-        'Emergency Leave': { days: 2, editable: false },
-        'Service Incentive Leave': { days: 5, editable: false },
-        'Bereavement Leave': { days: 3, editable: false },
-        'Maternity Leave': { days: 105, editable: false },
-        'Paternity Leave': { days: 7, editable: false },
-        'Solo Parent Leave': { days: 7, editable: false },
+        'Vacation': {
+          max: 15
+        },
+        'Sick Leave': {
+          max: 15
+        },
+        'Emergency Leave': {
+          max: 5
+        },
+        'Service Incentive Leave': {
+          max: 5
+        },
+        'Bereavement Leave': {
+          max: 5
+        },
+        'Maternity Leave': {
+          max: 105
+        },
+        'Paternity Leave': {
+          max: 7
+        },
+        'Solo Parent Leave': {
+          max: 7
+        },
       };
+
+      const warningEl = document.getElementById('leaveDaysWarning');
+
+      function updateDaysWarning() {
+        if (!leaveTypeEl || !daysEl || !warningEl) return;
+        const t = String(leaveTypeEl.value || 'Vacation');
+        const p = policy[t];
+        if (!p) {
+          warningEl.classList.add('hidden');
+          warningEl.textContent = '';
+          return;
+        }
+        const v = getDayInt();
+        const exceeded = v > (p.max || 1);
+        if (exceeded) {
+          warningEl.classList.remove('hidden');
+          warningEl.textContent = 'Maximum ' + String(p.max) + ' days for ' + t;
+        } else {
+          warningEl.classList.add('hidden');
+          warningEl.textContent = '';
+        }
+      }
 
       const clamp = (n, min, max) => Math.max(min, Math.min(max, n));
 
@@ -522,18 +602,12 @@ function leaveStatusBadge($status) {
         if (!leaveTypeEl || !daysEl || !endEl) return;
         const t = String(leaveTypeEl.value || 'Vacation');
         const p = policy[t] || policy['Vacation'];
-
-        if (p.editable) {
-          daysEl.readOnly = false;
-          daysEl.max = String(p.max || 5);
-          daysEl.value = String(clamp(getDayInt(), 1, p.max || 5));
-        } else {
-          daysEl.readOnly = true;
-          daysEl.removeAttribute('max');
-          daysEl.value = String(p.days);
-        }
+        daysEl.readOnly = false;
+        daysEl.max = String(p.max);
+        if (getDayInt() < 1) daysEl.value = '1';
         endEl.readOnly = true;
         syncEndFromStartAndDays();
+        updateDaysWarning();
       }
 
       function openTerms(mode) {
@@ -552,12 +626,10 @@ function leaveStatusBadge($status) {
 
       if (leaveTypeEl) leaveTypeEl.addEventListener('change', applyPolicy);
       if (daysEl) daysEl.addEventListener('input', () => {
-        if (!leaveTypeEl) return;
-        if (String(leaveTypeEl.value || '') === 'Vacation') {
-          daysEl.value = String(clamp(getDayInt(), 1, 5));
-          syncEndFromStartAndDays();
-        }
+        syncEndFromStartAndDays();
+        updateDaysWarning();
       });
+
       function todayStr() {
         const d = new Date();
         const yyyy = d.getFullYear();
@@ -578,14 +650,91 @@ function leaveStatusBadge($status) {
       if (startEl) startEl.addEventListener('change', () => {
         applyMinDates();
         syncEndFromStartAndDays();
+        updateDaysWarning();
       });
 
       if (openTermsBtn) openTermsBtn.addEventListener('click', () => openTerms('view'));
-      if (openTermsSubmitBtn) openTermsSubmitBtn.addEventListener('click', () => openTerms('submit'));
+
+      function validateAndOpenTerms() {
+        if (!leaveTypeEl || !daysEl || !startEl || !endEl) {
+          if (window.Swal) {
+            Swal.fire({
+              icon: 'error',
+              title: 'Incomplete Form',
+              text: 'Please complete all required fields.',
+              buttonsStyling: false,
+              customClass: {
+                confirmButton: 'btn hr2-primary-btn'
+              }
+            });
+          }
+          return;
+        }
+        const t = String(leaveTypeEl.value || '').trim();
+        const s = String(startEl.value || '').trim();
+        const p = policy[t];
+        const d = getDayInt();
+        const max = p ? (p.max || 1) : 1;
+        if (!t || !s || d < 1) {
+          if (window.Swal) {
+            Swal.fire({
+              icon: 'error',
+              title: 'Incomplete Form',
+              text: 'Leave type, start date, and days are required.',
+              buttonsStyling: false,
+              customClass: {
+                confirmButton: 'btn hr2-primary-btn'
+              }
+            });
+          }
+          return;
+        }
+        if (d > max) {
+          if (window.Swal) {
+            Swal.fire({
+              icon: 'warning',
+              title: 'Days Exceeded',
+              text: 'Maximum ' + String(max) + ' days allowed for ' + t + '.',
+              buttonsStyling: false,
+              customClass: {
+                confirmButton: 'btn hr2-primary-btn'
+              }
+            });
+          }
+          return;
+        }
+        const reasonEl = document.querySelector('textarea[name="reason"]');
+        const reasonEmpty = !reasonEl || String(reasonEl.value || '').trim() === '';
+        if (reasonEmpty && window.Swal) {
+          Swal.fire({
+            icon: 'info',
+            title: 'Reason Recommended',
+            text: 'It is recommended to provide a reason for your request.',
+            showCancelButton: true,
+            confirmButtonText: 'Fill In',
+            cancelButtonText: 'Continue',
+            buttonsStyling: false,
+            customClass: {
+              confirmButton: 'btn hr2-primary-btn',
+              cancelButton: 'btn hr2-outline-btn'
+            }
+          }).then((res) => {
+            if (res.isConfirmed && reasonEl) {
+              reasonEl.focus();
+            } else {
+              openTerms('submit');
+            }
+          });
+          return;
+        }
+        openTerms('submit');
+      }
+      if (openTermsSubmitBtn) openTermsSubmitBtn.addEventListener('click', validateAndOpenTerms);
       if (termsCloseBtn) termsCloseBtn.addEventListener('click', closeTerms);
       if (termsCancelBtn) termsCancelBtn.addEventListener('click', closeTerms);
 
       if (termsSubmitBtn) {
+        let isSubmitting = false;
         termsSubmitBtn.addEventListener('click', () => {
           if (!formEl) return;
           if (!termsAcceptCheckbox || !termsAcceptCheckbox.checked) {
@@ -595,11 +744,16 @@ function leaveStatusBadge($status) {
                 title: 'Terms Required',
                 text: 'Please accept the Terms and Conditions to continue.',
                 buttonsStyling: false,
-                customClass: { confirmButton: 'btn hr2-primary-btn' }
+                customClass: {
+                  confirmButton: 'btn hr2-primary-btn'
+                }
               });
             }
             return;
           }
+          if (isSubmitting) return;
+          isSubmitting = true;
+          if (termsSubmitBtn) termsSubmitBtn.setAttribute('disabled', 'disabled');
           if (termsAcceptedInput) termsAcceptedInput.value = '1';
           formEl.submit();
         });
@@ -615,11 +769,14 @@ function leaveStatusBadge($status) {
           title: 'Submitted',
           text: 'Leave request submitted successfully.',
           buttonsStyling: false,
-          customClass: { confirmButton: 'btn hr2-primary-btn' }
+          customClass: {
+            confirmButton: 'btn hr2-primary-btn'
+          }
         });
       }
     })();
   </script>
 </body>
+
 </html>
 <?php require('../partials/footer.php') ?>

@@ -278,25 +278,63 @@ $conn->close();
   </dialog>
 
   <dialog id="exam_modal" class="modal">
-    <div class="modal-box w-11/12 max-w-5xl">
-      <form method="dialog">
-        <button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2" aria-label="Close">✕</button>
-      </form>
-
-      <div class="flex items-start justify-between gap-4">
-        <div>
-          <h3 class="font-bold text-lg" id="modal_title">Examination</h3>
-          <p class="text-sm text-gray-500" id="modal_meta"></p>
+    <div class="modal-box max-w-6xl p-0 overflow-hidden">
+      <div class="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-6">
+        <div class="flex justify-between items-start">
+          <div class="flex-1">
+            <h3 class="font-bold text-2xl mb-2" id="modal_title">Examination</h3>
+            <div class="flex flex-wrap gap-3 text-sm" id="modal_meta_badges">
+              <span class="bg-white/20 px-3 py-1 rounded-full flex items-center gap-2">
+                <i data-lucide="building-2" class="w-4 h-4"></i>
+                <span id="meta_department">Department</span>
+              </span>
+              <span class="bg-white/20 px-3 py-1 rounded-full flex items-center gap-2">
+                <i data-lucide="users" class="w-4 h-4"></i>
+                <span id="meta_roles">Roles</span>
+              </span>
+              <span class="bg-white/20 px-3 py-1 rounded-full flex items-center gap-2">
+                <i data-lucide="timer" class="w-4 h-4"></i>
+                <span id="meta_duration">0</span> min
+              </span>
+              <span class="bg-white/20 px-3 py-1 rounded-full flex items-center gap-2">
+                <i data-lucide="check-circle-2" class="w-4 h-4"></i>
+                Passing <span id="meta_passing">0</span>%
+              </span>
+            </div>
+          </div>
+          <form method="dialog">
+            <button class="btn btn-sm btn-circle btn-ghost text-white hover:bg-white/20" aria-label="Close">✕</button>
+          </form>
         </div>
-        <span class="badge badge-info badge-outline">Assigned</span>
       </div>
 
-      <div class="mt-4" id="modal_questions"></div>
+      <div class="p-6 max-h-[60vh] overflow-y-auto">
+        <div class="mb-6">
+          <div class="flex items-center mb-4">
+            <i data-lucide="file-text" class="w-5 h-5 text-blue-600 mr-2"></i>
+            <h4 class="font-semibold text-lg text-gray-800">Examination Preview</h4>
+            <span class="ml-auto text-sm text-gray-500" id="question_count">0 Questions</span>
+          </div>
 
-      <div class="modal-action">
-        <form method="dialog">
-          <button class="btn">Close</button>
-        </form>
+          <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+            <h5 class="font-semibold text-blue-800 mb-2 flex items-center">
+              <i data-lucide="info" class="w-4 h-4 mr-2"></i>
+              Instructions:
+            </h5>
+            <ul class="text-blue-700 text-sm space-y-1">
+              <li>• Read each question carefully before answering</li>
+              <li>• Select the best answer for each question</li>
+              <li>• Ensure all answers are final before submitting</li>
+            </ul>
+          </div>
+
+          <div id="modal_questions" class="space-y-4">
+            <div class="text-center py-8">
+              <span class="loading loading-spinner loading-sm"></span>
+              <p class="mt-2 text-gray-500">Loading examination questions...</p>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
     <form method="dialog" class="modal-backdrop">
@@ -340,7 +378,12 @@ $conn->close();
       metaEl.textContent = '';
       qEl.innerHTML = '<div class="flex items-center gap-2 text-gray-500"><span class="loading loading-spinner loading-sm"></span><span>Loading examination...</span></div>';
 
-      modal.showModal();
+      try { window.hrCloseDialogs && window.hrCloseDialogs(); } catch(e) {}
+      if (typeof modal.showModal === 'function') {
+        modal.showModal();
+      } else {
+        modal.setAttribute('open','');
+      }
 
       fetch(`myexamination.php?exam_id=${examId}`)
         .then(r => r.json())
@@ -349,23 +392,101 @@ $conn->close();
             throw new Error((data && data.message) ? data.message : 'Failed to load');
           }
 
-          const exam = data.exam;
+          const exam = data.exam || {};
           titleEl.textContent = exam.title || 'Untitled';
-          metaEl.textContent = `Department: ${exam.department || ''} | Duration: ${exam.duration || ''} mins | Passing: ${exam.passing_score || ''}%`;
+          document.getElementById('meta_department').textContent = String(exam.department || '');
+          document.getElementById('meta_roles').textContent = String(exam.roles || '');
+          document.getElementById('meta_duration').textContent = String(exam.duration || '0');
+          document.getElementById('meta_passing').textContent = String(exam.passing_score || '0');
 
           const questions = Array.isArray(exam.questions) ? exam.questions : [];
+          document.getElementById('question_count').textContent = `${questions.length} Questions`;
           if (!questions.length) {
-            qEl.innerHTML = '<p class="text-sm text-gray-500">No questions found.</p>';
+            qEl.innerHTML = `
+              <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-6 text-center">
+                <i data-lucide="help-circle" class="w-8 h-8 text-yellow-500 mx-auto mb-3"></i>
+                <p class="text-yellow-700 font-medium">No questions found in this examination.</p>
+              </div>
+            `;
             return;
           }
 
-          const html = questions.map(q => {
-            const n = escapeHtml(q.question_number);
+          function getBadge(type) {
+            switch(String(type||'').toLowerCase()) {
+              case 'multiple': return { cls: 'bg-blue-100 text-blue-800', icon: 'list' , label: 'Multiple Choice' };
+              case 'truefalse': return { cls: 'bg-purple-100 text-purple-800', icon: 'toggle-left' , label: 'True/False' };
+              case 'shortanswer': return { cls: 'bg-green-100 text-green-800', icon: 'align-left' , label: 'Short Answer' };
+              case 'identification': return { cls: 'bg-orange-100 text-orange-800', icon: 'type' , label: 'Identification' };
+              default: return { cls: 'bg-gray-100 text-gray-800', icon: 'help-circle' , label: String(type||'') };
+            }
+          }
+
+          const html = questions.map((q, idx) => {
+            const n = Number(q.question_number || (idx+1));
             const text = escapeHtml(q.question_text);
-            return `<div class="border rounded-lg p-3 mb-3 bg-white"><div class="font-semibold">${n}. ${text}</div></div>`;
+            const badge = getBadge(q.question_type);
+            let answerKey = { correctAnswers: [], points: Number(q.points||1) };
+            try { if (q.answer_key) answerKey = JSON.parse(q.answer_key); } catch(_){}
+            let options = [];
+            try { if (q.options) options = JSON.parse(q.options); } catch(_){}
+            const points = Number(answerKey.points||q.points||1);
+
+            let body = '';
+            if ((String(q.question_type).toLowerCase() === 'multiple' || String(q.question_type).toLowerCase() === 'truefalse') && options.length) {
+              body += `<div class="space-y-2 mb-3">`;
+              options.forEach((opt, oi) => {
+                const isCorrect = Array.isArray(answerKey.correctAnswers) && answerKey.correctAnswers.includes(opt);
+                const optionClass = isCorrect ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-200';
+                const letter = String.fromCharCode(65 + oi);
+                body += `
+                  <div class="flex items-start p-2 rounded border ${optionClass}">
+                    <span class="flex-shrink-0 w-6 h-6 flex items-center justify-center rounded-full ${isCorrect ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-700'} text-xs font-semibold mr-2 mt-0.5">
+                      ${letter}
+                    </span>
+                    <span class="text-sm ${isCorrect ? 'text-green-700 font-medium' : 'text-gray-700'}">${escapeHtml(String(opt||''))}</span>
+                    ${isCorrect ? '<span class="ml-auto text-green-600 text-xs font-semibold"><i data-lucide="check" class="w-3 h-3 mr-1 inline-block"></i>Correct</span>' : ''}
+                  </div>
+                `;
+              });
+              body += `</div>`;
+            } else if (String(q.question_type).toLowerCase() === 'shortanswer' || String(q.question_type).toLowerCase() === 'identification') {
+              const correctAnswer = (Array.isArray(answerKey.correctAnswers) && answerKey.correctAnswers.length > 0) ? answerKey.correctAnswers[0] : (q.expected_answer || 'No answer provided');
+              body += `
+                <div class="mb-3">
+                  <div class="bg-green-50 border border-green-200 rounded p-3">
+                    <div class="flex items-center mb-1">
+                      <i data-lucide="check-circle-2" class="w-4 h-4 text-green-600 mr-2"></i>
+                      <span class="font-medium text-green-800 text-sm">Expected Answer:</span>
+                    </div>
+                    <p class="text-green-700 text-sm pl-6">${escapeHtml(String(correctAnswer||''))}</p>
+                  </div>
+                </div>
+              `;
+            }
+
+            return `
+              <div class="bg-white rounded-lg border border-gray-200 p-4">
+                <div class="flex justify-between items-start mb-3">
+                  <div class="flex items-center">
+                    <span class="font-bold text-lg text-gray-800 mr-3">Q${n}</span>
+                    <span class="px-2 py-1 rounded-full text-xs ${badge.cls} flex items-center gap-1">
+                      <i data-lucide="${badge.icon}" class="w-3.5 h-3.5"></i>
+                      ${badge.label}
+                    </span>
+                  </div>
+                  <div class="flex items-center">
+                    <span class="text-xs text-gray-500 mr-2">Points:</span>
+                    <span class="bg-blue-600 text-white text-xs font-semibold px-2 py-1 rounded-full">${points}</span>
+                  </div>
+                </div>
+                <h3 class="text-base font-semibold text-gray-800 mb-3">${text || 'No question text'}</h3>
+                ${body}
+              </div>
+            `;
           }).join('');
 
           qEl.innerHTML = html;
+          setTimeout(() => lucide.createIcons(), 50);
         })
         .catch(err => {
           titleEl.textContent = 'Error';

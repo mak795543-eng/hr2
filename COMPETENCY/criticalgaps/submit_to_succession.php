@@ -25,6 +25,8 @@ function action() {
 
         $allowedStatuses = ['Retrain', 'Reskilling', 'Refresher Training', 'Upskilling', 'Succession Ready'];
 
+        $period = date('Y') . '-Q' . (string)ceil((int)date('n') / 3);
+
         $calcStatus = function (float $competency): string {
             if ($competency <= 20) return 'Retrain';
             if ($competency <= 40) return 'Reskilling';
@@ -35,14 +37,11 @@ function action() {
 
         $stmtCompute = $pdo->prepare(
             "SELECT e.department,
-                    AVG(COALESCE(es.skill_score, 0)) AS competency
+                    AVG(COALESCE(s.score, 0)) / 5 * 100 AS competency
              FROM employees e
-             JOIN skills s
-               ON s.category = 'General Skills'
-              AND s.department = e.department
-             LEFT JOIN employee_skills es
-               ON es.employee_id = e.employee_id
-              AND es.skill_id = s.id
+             LEFT JOIN employee_kpi_scores s
+               ON s.employee_id = e.employee_id
+              AND s.evaluation_period = ?
              WHERE e.employee_id = ?
              GROUP BY e.employee_id, e.department"
         );
@@ -92,7 +91,8 @@ function action() {
                 $competency = 0;
                 $status = 'Retrain';
                 try {
-                    $stmtCompute->execute([$employeeId]);
+                    seedMissingKpiEvaluations($employeeId, $period);
+                    $stmtCompute->execute([$period, $employeeId]);
                     $compRow = $stmtCompute->fetch(PDO::FETCH_ASSOC);
                     if ($compRow) {
                         $department = $department !== '' ? $department : (string)($compRow['department'] ?? '');
@@ -127,7 +127,8 @@ function action() {
         $competency = 0;
         $status = 'Retrain';
         try {
-            $stmtCompute->execute([$employeeId]);
+            seedMissingKpiEvaluations($employeeId, $period);
+            $stmtCompute->execute([$period, $employeeId]);
             $compRow = $stmtCompute->fetch(PDO::FETCH_ASSOC);
             if ($compRow) {
                 $department = $department !== '' ? $department : (string)($compRow['department'] ?? '');

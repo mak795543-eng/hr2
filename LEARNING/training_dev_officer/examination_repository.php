@@ -8,7 +8,7 @@ $conn = usm_db_connect('hr2_learning_db');
 
 // Check connection
 if ($conn->connect_error) {
-    die("Connection failed: " . $conn->connect_error);
+  die("Connection failed: " . $conn->connect_error);
 }
 
 // Fetch posted modules for the examination modal
@@ -17,22 +17,22 @@ $sql_modules = "SELECT * FROM learning_modules WHERE status = 'posted' ORDER BY 
 $result_modules = $conn->query($sql_modules);
 
 if ($result_modules && $result_modules->num_rows > 0) {
-    while($row = $result_modules->fetch_assoc()) {
-        $posted_modules[] = $row;
-    }
+  while ($row = $result_modules->fetch_assoc()) {
+    $posted_modules[] = $row;
+  }
 }
 
 // Fetch unique departments and roles for filtering
 $departments = [
-    'front-office',
-    'housekeeping',
-    'food-beverage',
-    'kitchen',
-    'sales-marketing',
-    'hr',
-    'finance',
-    'engineering',
-    'security'
+  'front-office',
+  'housekeeping',
+  'food-beverage',
+  'kitchen',
+  'sales-marketing',
+  'hr',
+  'finance',
+  'engineering',
+  'security'
 ];
 $roles = [];
 
@@ -47,9 +47,9 @@ $sql = "SELECT e.*, COUNT(eq.id) AS question_count
 $result = $conn->query($sql);
 
 if ($result && $result->num_rows > 0) {
-    while($row = $result->fetch_assoc()) {
-        $examinations[] = $row;
-    }
+  while ($row = $result->fetch_assoc()) {
+    $examinations[] = $row;
+  }
 }
 
 $conn->close();
@@ -58,6 +58,7 @@ $conn->close();
 
 <!DOCTYPE html>
 <html lang="en" data-theme="light">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -67,7 +68,7 @@ $conn->close();
   <script src="https://unpkg.com/lucide@latest"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <!-- SweetAlert2 CSS -->
-      <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
   <link rel="stylesheet" href="../../CSS/learning_theme.css">
   <style>
@@ -79,43 +80,55 @@ $conn->close();
       transform: translateY(-5px);
       box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
     }
+
     .status-pending {
       @apply bg-yellow-100 text-yellow-800;
     }
+
     .status-approved {
       @apply bg-green-100 text-green-800;
     }
+
     .status-hold {
       @apply bg-orange-100 text-orange-800;
     }
+
     .status-rejected {
       @apply bg-red-100 text-red-800;
     }
+
     .status-compliance {
       @apply bg-blue-100 text-blue-800;
     }
+
     .status-posted {
       @apply bg-purple-100 text-purple-800;
     }
+
     .status-cancelled {
       @apply bg-gray-200 text-gray-700;
     }
+
     .btn-custom {
       @apply bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-colors duration-200;
     }
+
     .btn-success {
       @apply bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded-lg transition-colors duration-200;
     }
+
     .btn-warning {
       @apply bg-yellow-600 hover:bg-yellow-700 text-white font-medium py-2 px-4 rounded-lg transition-colors duration-200;
     }
+
     .btn-danger {
       @apply bg-red-600 hover:bg-red-700 text-white font-medium py-2 px-4 rounded-lg transition-colors duration-200;
     }
+
     .btn-info {
       @apply bg-cyan-600 hover:bg-cyan-700 text-white font-medium py-2 px-4 rounded-lg transition-colors duration-200;
     }
-    
+
     /* First Modal - View Document Modal - Make bigger and centered */
     #view_document_modal .modal-box {
       max-width: 85vw;
@@ -149,7 +162,8 @@ $conn->close();
       display: grid;
       grid-template-columns: 1fr 1fr;
       gap: 2rem;
-      height: calc(100% - 80px); /* Account for header and actions */
+      height: calc(100% - 80px);
+      /* Account for header and actions */
       overflow: hidden;
     }
 
@@ -283,8 +297,8 @@ $conn->close();
       width: min(8.5in, 100%);
       max-width: 100%;
       min-height: 0;
-      margin: 0 auto;
-      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+      margin: 0.75rem auto;
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
       background: white;
       position: relative;
     }
@@ -310,20 +324,22 @@ $conn->close();
       z-index: 2147483647 !important;
       pointer-events: auto !important;
     }
-    
+
     .swal2-popup {
       z-index: 2147483647 !important;
       font-size: 1rem !important;
     }
-    
+
     .swal2-actions {
       display: flex !important;
       flex-direction: row !important;
       gap: 0.5rem !important;
       justify-content: center !important;
     }
-    
-    .swal2-confirm, .swal2-cancel, .swal2-deny {
+
+    .swal2-confirm,
+    .swal2-cancel,
+    .swal2-deny {
       display: inline-block !important;
       visibility: visible !important;
       opacity: 1 !important;
@@ -359,7 +375,7 @@ $conn->close();
     .modal {
       z-index: 10040;
     }
-    
+
     .modal-box {
       z-index: 10041;
     }
@@ -387,7 +403,7 @@ $conn->close();
       border-radius: 0.5rem;
       padding: 1.5rem;
       margin-bottom: 1rem;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
     }
 
     .preview-question h4 {
@@ -404,6 +420,26 @@ $conn->close();
       border-radius: 0.375rem;
       background: #f9fafb;
       transition: all 0.2s ease;
+    }
+
+    .preview-option {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.75rem;
+      word-break: break-word;
+      overflow-wrap: anywhere;
+    }
+
+    .preview-option span {
+      white-space: normal;
+      word-break: break-word;
+      line-height: 1.5;
+    }
+
+    .preview-question .question-text {
+      white-space: normal;
+      word-break: break-word;
+      line-height: 1.6;
     }
 
     .preview-option.correct {
@@ -435,26 +471,26 @@ $conn->close();
         grid-template-columns: 1fr;
         gap: 1.5rem;
       }
-      
+
       .modules-section {
         border-left: none;
         border-top: 1px solid #e5e7eb;
         padding-left: 0;
         padding-top: 1.5rem;
       }
-      
+
       .document-content {
         width: 100%;
         min-height: auto;
       }
-      
+
       #view_document_modal .modal-box,
       #create_examination_modal .modal-box {
         max-width: 95vw;
         width: 98%;
         height: 95vh;
       }
-      
+
       #previewExamModal .modal-box {
         max-width: 95vw;
         width: 98%;
@@ -467,43 +503,43 @@ $conn->close();
         width: 98%;
         height: 95vh;
       }
-      
+
       .document-content {
         padding: 1rem;
         height: 65vh;
       }
-      
+
       #view_document_modal .modal-box,
       #create_examination_modal .modal-box {
         max-width: 98vw;
         width: 99%;
         height: 98vh;
       }
-      
+
       .examination-grid {
         gap: 1rem;
       }
-      
+
       .filter-section {
         flex-direction: column;
       }
-      
+
       .form-actions {
         flex-direction: column;
       }
-      
+
       .form-actions button {
         width: 100%;
       }
-      
+
       .preview-exam-header {
         padding: 1rem;
       }
-      
+
       .preview-question {
         padding: 1rem;
       }
-      
+
       .preview-meta {
         flex-direction: column;
         gap: 0.5rem;
@@ -512,6 +548,7 @@ $conn->close();
     }
 
     @media (max-width: 480px) {
+
       #view_document_modal .modal-box,
       #create_examination_modal .modal-box {
         max-width: 99vw;
@@ -519,24 +556,24 @@ $conn->close();
         height: 99vh;
         margin: 0.5rem;
       }
-      
+
       .examination-grid {
         height: calc(100% - 100px);
       }
-      
+
       .modules-list {
         padding: 0.5rem;
       }
-      
+
       .module-item {
         padding: 0.75rem;
       }
-      
+
       .module-meta {
         flex-direction: column;
         gap: 0.5rem;
       }
-      
+
       #previewExamModal .modal-box {
         max-width: 99vw;
         width: 100%;
@@ -611,8 +648,13 @@ $conn->close();
     }
 
     @keyframes spin {
-      0% { transform: rotate(0deg); }
-      100% { transform: rotate(360deg); }
+      0% {
+        transform: rotate(0deg);
+      }
+
+      100% {
+        transform: rotate(360deg);
+      }
     }
 
     /* Focus states for accessibility */
@@ -635,30 +677,31 @@ $conn->close();
         border: none;
         padding: 0;
       }
-      
+
       .no-print {
         display: none !important;
       }
-      
+
       #previewExamModal .modal-box {
         box-shadow: none;
         border: none;
       }
-      
+
       .preview-exam-header {
         background: white !important;
         color: black !important;
         border: 1px solid #000;
       }
     }
-</style>
+  </style>
 </head>
+
 <body class="bg-gray-50 min-h-screen">
-<div class="flex h-screen">
+  <div class="flex h-screen">
     <!-- Sidebar -->
-    <?php 
+    <?php
     // Use relative path or absolute path based on your directory structure
-    include '../../USM/sidebarr.php'; 
+    include '../../USM/sidebarr.php';
     ?>
 
     <!-- Content Area -->
@@ -666,111 +709,111 @@ $conn->close();
       <!-- Navbar -->
       <?php include '../../USM/navbar.php'; ?>
 
-        <!-- Main Content -->
-        <div class="container mx-auto px-4 py-8">
-          <!-- Examinations Section -->
-          <div class="mb-12">
-            <div class="flex justify-between items-center mb-6">
-              <div>
-                <h1 class="text-2xl font-bold mb-2">Examination Management</h1>
-                <p class="text-gray-600">Manage examinations in the repository</p>
-              </div>
-              <div class="flex gap-2">
-                <button class="btn btn-custom" id="createExaminationBtn">
-                  <i class="fas fa-plus mr-2"></i>Create Examination</button>
-  
-              </div>
+      <!-- Main Content -->
+      <div class="container mx-auto px-4 py-8">
+        <!-- Examinations Section -->
+        <div class="mb-12">
+          <div class="flex justify-between items-center mb-6">
+            <div>
+              <h1 class="text-2xl font-bold mb-2">Examination Management</h1>
+              <p class="text-gray-600">Manage examinations in the repository</p>
             </div>
-            
-            <!-- Filter Section -->
-            <div class="bg-white p-4 rounded-lg shadow-sm mb-6">
-              <div class="flex flex-wrap gap-4">
-                <div class="form-control">
-                  <label class="label">
-                    <span class="label-text font-medium">Status</span>
-                  </label>
-                  <select class="select select-bordered w-40" id="statusFilter">
-                    <option value="all">All Status</option>
-                    <option value="pending">Under Review</option>
-                    <option value="approved">Approved</option>
-                    <option value="hold">Hold</option>
-                    <option value="rejected">Rejected</option>
-                    <option value="compliance">For Compliance</option>
-                    <option value="cancelled">Canceled</option>
-                  </select>
-                </div>
-                
-                <div class="form-control">
-                  <label class="label">
-                    <span class="label-text font-medium">Department</span>
-                  </label>
-                  <select class="select select-bordered w-48" id="departmentFilter">
-                    <option value="all">All Departments</option>
-                    <option value="front-office">Front Office / Reception</option>
-                    <option value="housekeeping">Housekeeping</option>
-                    <option value="food-beverage">Food &amp; Beverage (F&amp;B)</option>
-                    <option value="kitchen">Kitchen / Culinary</option>
-                    <option value="sales-marketing">Sales &amp; Marketing</option>
-                    <option value="hr">Human Resources (HR)</option>
-                    <option value="human-resources">Human Resources (HR)</option>
-                    <option value="finance">Finance / Accounting</option>
-                    <option value="engineering">Engineering / Maintenance</option>
-                    <option value="security">Security</option>
-                  </select>
-                </div>
-                
-                <div class="form-control self-end">
-                  <button class="btn btn-custom" onclick="applyFilters()">
-                    <i class="fas fa-filter mr-2"></i>Apply Filters
-                  </button>
-                </div>
-                
-                <div class="form-control self-end">
-                  <button class="btn btn-custom" onclick="clearFilters()">
-                    <i class="fas fa-times mr-2"></i>Clear
-                  </button>
-                </div>
-              </div>
-            </div>
-            
-            <!-- Examination Cards -->
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8" id="examinationCards">
-<?php if (empty($examinations)): ?>
-                    <div class="col-span-full text-center py-8">
-                        <i class="fas fa-file-alt text-4xl text-gray-400 mb-4"></i>
-                        <p class="text-gray-500">No examinations found. Create your first examination!</p>
-                        <p class="text-sm text-gray-400 mt-2">Pending examinations are displayed in the Review Page</p>
-                    </div>
-<?php else: ?>
-<?php foreach ($examinations as $exam): ?>
-                        <div class="card bg-base-100 shadow-md examination-card" data-status="<?php echo $exam['status']; ?>" data-department="<?php echo $exam['department']; ?>">
-                            <div class="card-body">
-                                <div class="flex justify-between items-start">
-                                    <h3 class="card-title"><?php echo htmlspecialchars($exam['title']); ?></h3>
-                                    <div class="badge status-<?php echo $exam['status']; ?>">
-<?php echo $exam['status'] === 'pending' ? 'Under Review' : ($exam['status'] === 'cancelled' ? 'Canceled' : ucfirst($exam['status'])); ?>
-                                    </div>
-                                </div>
-                                <div class="flex flex-wrap gap-2 my-2">
-                                    <div class="badge badge-outline"><?php echo ucfirst(str_replace('-', ' ', $exam['department'])); ?></div>
-                                    <div class="badge badge-outline"><?php echo htmlspecialchars($exam['question_count']); ?> Questions</div>
-                                </div>
-                                <p class="text-sm text-gray-500">Created: <?php echo date('Y-m-d', strtotime($exam['created_at'])); ?></p>
-                                <p class="text-sm text-gray-500">Duration: <?php echo htmlspecialchars($exam['duration']); ?> minutes</p>
-                                <p class="text-sm text-gray-500">Passing Score: <?php echo htmlspecialchars($exam['passing_score']); ?>%</p>
-                                
-                                <div class="card-actions justify-end mt-4">
-                                    <button class="btn btn-sm btn-custom" onclick="viewDocument(<?php echo $exam['id']; ?>, '<?php echo $exam['status']; ?>')">
-                                        <i class="fas fa-eye mr-1"></i> View Document
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-<?php endforeach; ?>
-<?php endif; ?>
+            <div class="flex gap-2">
+              <button class="btn btn-custom" id="createExaminationBtn">
+                <i class="fas fa-plus mr-2"></i>Create Examination</button>
+
             </div>
           </div>
+
+          <!-- Filter Section -->
+          <div class="bg-white p-4 rounded-lg shadow-sm mb-6">
+            <div class="flex flex-wrap gap-4">
+              <div class="form-control">
+                <label class="label">
+                  <span class="label-text font-medium">Status</span>
+                </label>
+                <select class="select select-bordered w-40" id="statusFilter">
+                  <option value="all">All Status</option>
+                  <option value="pending">Under Review</option>
+                  <option value="approved">Approved</option>
+                  <option value="hold">Hold</option>
+                  <option value="rejected">Rejected</option>
+                  <option value="compliance">For Compliance</option>
+                  <option value="cancelled">Canceled</option>
+                </select>
+              </div>
+
+              <div class="form-control">
+                <label class="label">
+                  <span class="label-text font-medium">Department</span>
+                </label>
+                <select class="select select-bordered w-48" id="departmentFilter">
+                  <option value="all">All Departments</option>
+                  <option value="front-office">Front Office / Reception</option>
+                  <option value="housekeeping">Housekeeping</option>
+                  <option value="food-beverage">Food &amp; Beverage (F&amp;B)</option>
+                  <option value="kitchen">Kitchen / Culinary</option>
+                  <option value="sales-marketing">Sales &amp; Marketing</option>
+                  <option value="hr">Human Resources (HR)</option>
+                  <option value="human-resources">Human Resources (HR)</option>
+                  <option value="finance">Finance / Accounting</option>
+                  <option value="engineering">Engineering / Maintenance</option>
+                  <option value="security">Security</option>
+                </select>
+              </div>
+
+              <div class="form-control self-end">
+                <button class="btn btn-custom" onclick="applyFilters()">
+                  <i class="fas fa-filter mr-2"></i>Apply Filters
+                </button>
+              </div>
+
+              <div class="form-control self-end">
+                <button class="btn btn-custom" onclick="clearFilters()">
+                  <i class="fas fa-times mr-2"></i>Clear
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Examination Cards -->
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8" id="examinationCards">
+            <?php if (empty($examinations)): ?>
+              <div class="col-span-full text-center py-8">
+                <i class="fas fa-file-alt text-4xl text-gray-400 mb-4"></i>
+                <p class="text-gray-500">No examinations found. Create your first examination!</p>
+                <p class="text-sm text-gray-400 mt-2">Pending examinations are displayed in the Review Page</p>
+              </div>
+            <?php else: ?>
+              <?php foreach ($examinations as $exam): ?>
+                <div class="card bg-base-100 shadow-md examination-card" data-status="<?php echo $exam['status']; ?>" data-department="<?php echo $exam['department']; ?>">
+                  <div class="card-body">
+                    <div class="flex justify-between items-start">
+                      <h3 class="card-title"><?php echo htmlspecialchars($exam['title']); ?></h3>
+                      <div class="badge status-<?php echo $exam['status']; ?>">
+                        <?php echo $exam['status'] === 'pending' ? 'Under Review' : ($exam['status'] === 'cancelled' ? 'Canceled' : ucfirst($exam['status'])); ?>
+                      </div>
+                    </div>
+                    <div class="flex flex-wrap gap-2 my-2">
+                      <div class="badge badge-outline"><?php echo ucfirst(str_replace('-', ' ', $exam['department'])); ?></div>
+                      <div class="badge badge-outline"><?php echo htmlspecialchars($exam['question_count']); ?> Questions</div>
+                    </div>
+                    <p class="text-sm text-gray-500">Created: <?php echo date('Y-m-d', strtotime($exam['created_at'])); ?></p>
+                    <p class="text-sm text-gray-500">Duration: <?php echo htmlspecialchars($exam['duration']); ?> minutes</p>
+                    <p class="text-sm text-gray-500">Passing Score: <?php echo htmlspecialchars($exam['passing_score']); ?>%</p>
+
+                    <div class="card-actions justify-end mt-4">
+                      <button class="btn btn-sm btn-custom" onclick="viewDocument(<?php echo $exam['id']; ?>, '<?php echo $exam['status']; ?>')">
+                        <i class="fas fa-eye mr-1"></i> View Document
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              <?php endforeach; ?>
+            <?php endif; ?>
+          </div>
         </div>
+      </div>
     </div>
   </div>
 
@@ -785,7 +828,7 @@ $conn->close();
           <button class="btn btn-sm btn-circle btn-ghost" type="submit">✕</button>
         </form>
       </div>
-      
+
       <!-- Document Preview Section -->
       <div class="bg-base-200 p-5 rounded-lg mb-4">
         <div class="flex justify-between items-start mb-4">
@@ -798,7 +841,7 @@ $conn->close();
             </div>
           </div>
         </div>
-        
+
         <div class="grid grid-cols-2 gap-4 mb-4">
           <div>
             <p class="text-sm text-gray-500">Duration</p>
@@ -809,12 +852,12 @@ $conn->close();
             <p class="font-medium" id="previewPassingScore">70%</p>
           </div>
         </div>
-        
+
         <div class="mb-4">
           <p class="text-sm text-gray-500">Description</p>
           <p id="previewDescription">This examination tests knowledge of company policies and procedures.</p>
         </div>
-        
+
         <div class="card bg-white">
           <div class="card-body p-4">
             <div class="flex items-center justify-between mb-2">
@@ -824,7 +867,7 @@ $conn->close();
           </div>
         </div>
       </div>
-      
+
       <!-- CRUD Operations Section - Dynamic based on status -->
       <div class="view-doc-actions mt-2 pt-4 border-t border-gray-200 flex flex-wrap gap-2 justify-end items-center">
         <div id="crudOperations" class="flex flex-wrap gap-2 justify-end items-center">
@@ -914,17 +957,16 @@ $conn->close();
           </div>
 
           <div id="modulesList" class="modules-list">
-<?php if (empty($posted_modules)): ?>
+            <?php if (empty($posted_modules)): ?>
               <div class="no-modules">No posted modules available.</div>
-<?php else: ?>
-<?php foreach ($posted_modules as $m): ?>
+            <?php else: ?>
+              <?php foreach ($posted_modules as $m): ?>
                 <div
                   class="module-item"
                   data-id="<?php echo htmlspecialchars((string)$m['id']); ?>"
                   data-department="<?php echo htmlspecialchars((string)($m['department'] ?? '')); ?>"
                   data-role="<?php echo htmlspecialchars((string)($m['roles'] ?? '')); ?>"
-                  data-content="<?php echo htmlspecialchars((string)($m['content'] ?? '')); ?>"
-                >
+                  data-content="<?php echo htmlspecialchars((string)($m['content'] ?? '')); ?>">
                   <div class="flex justify-between items-start gap-2">
                     <div>
                       <div class="module-title"><?php echo htmlspecialchars((string)($m['title'] ?? 'Untitled Module')); ?></div>
@@ -938,8 +980,8 @@ $conn->close();
                     </button>
                   </div>
                 </div>
-<?php endforeach; ?>
-<?php endif; ?>
+              <?php endforeach; ?>
+            <?php endif; ?>
           </div>
         </div>
       </div>
@@ -967,11 +1009,11 @@ $conn->close();
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
   <script>
-    (function () {
+    (function() {
       if (!window.Swal || Swal.__hrPatched) return;
 
       const origFire = Swal.fire.bind(Swal);
-      Swal.fire = function () {
+      Swal.fire = function() {
         let opts = null;
         if (arguments.length === 1 && arguments[0] && typeof arguments[0] === 'object') {
           opts = Object.assign({}, arguments[0]);
@@ -989,8 +1031,7 @@ $conn->close();
           if (topDialog && !opts.target) {
             opts.target = topDialog;
           }
-        } catch (e) {
-        }
+        } catch (e) {}
 
         if (typeof opts.heightAuto === 'undefined') {
           opts.heightAuto = false;
@@ -1038,9 +1079,9 @@ $conn->close();
         fd.append('remarks', '');
 
         fetch('../hr_manager/update_exam_status.php', {
-          method: 'POST',
-          body: fd
-        })
+            method: 'POST',
+            body: fd
+          })
           .then(r => r.json())
           .then(data => {
             if (!data?.success) {
@@ -1082,9 +1123,9 @@ $conn->close();
         fd.append('original_exam_id', id);
 
         fetch('delete_examination.php', {
-          method: 'POST',
-          body: fd
-        })
+            method: 'POST',
+            body: fd
+          })
           .then(r => r.json())
           .then(data => {
             if (!data?.success) {
@@ -1231,11 +1272,11 @@ $conn->close();
         document.getElementById('questionCount').value = parsedState.questionCount || '10';
         document.getElementById('modalDepartmentFilter').value = parsedState.departmentFilter || '';
         populateModalRoleOptions(parsedState.departmentFilter || '', parsedState.roleFilter || '');
-        
+
         if (parsedState.selectedModuleId) {
           selectedModuleId = parsedState.selectedModuleId;
           selectedModuleData = parsedState.selectedModuleData;
-          
+
           // Restore selected module UI
           document.querySelectorAll('.module-item').forEach(item => {
             if (item.dataset.id === selectedModuleId) {
@@ -1273,20 +1314,20 @@ $conn->close();
     function loadLocalStorageExaminations() {
       const examinations = JSON.parse(localStorage.getItem('examinations')) || [];
       const examinationCards = document.getElementById('examinationCards');
-      
+
       // Clear existing cards except database ones
       const dbCards = examinationCards.querySelectorAll('[data-source="database"]');
       const localStorageCards = examinationCards.querySelectorAll('[data-source="localstorage"]');
       localStorageCards.forEach(card => card.remove());
-      
+
       // Add localStorage examinations (only approved, rejected, hold, compliance)
-      const filteredExams = examinations.filter(exam => 
-        exam.status === 'approved' || 
-        exam.status === 'rejected' || 
-        exam.status === 'hold' || 
+      const filteredExams = examinations.filter(exam =>
+        exam.status === 'approved' ||
+        exam.status === 'rejected' ||
+        exam.status === 'hold' ||
         exam.status === 'compliance'
       );
-      
+
       filteredExams.forEach(exam => {
         const examCard = createExamCard(exam, 'localstorage');
         examinationCards.appendChild(examCard);
@@ -1300,9 +1341,9 @@ $conn->close();
       card.setAttribute('data-status', exam.status);
       card.setAttribute('data-department', exam.department || 'general');
       card.setAttribute('data-source', source);
-      
+
       const formattedDate = new Date(exam.created_at).toLocaleDateString();
-      
+
       card.innerHTML = `
         <div class="card-body">
           <div class="flex justify-between items-start">
@@ -1326,7 +1367,7 @@ $conn->close();
           </div>
         </div>
       `;
-      
+
       return card;
     }
 
@@ -1334,7 +1375,7 @@ $conn->close();
     function viewLocalStorageDocument(id, status) {
       const examinations = JSON.parse(localStorage.getItem('examinations')) || [];
       const exam = examinations.find(e => e.id === id);
-      
+
       if (!exam) {
         Swal.fire({
           title: 'Error',
@@ -1344,11 +1385,11 @@ $conn->close();
         });
         return;
       }
-      
+
       currentExamId = id;
       currentExamStatus = status;
       currentExamSource = 'local';
-      
+
       // Update modal content
       document.getElementById('previewExamTitle').textContent = exam.examTitle || 'Untitled Examination';
       document.getElementById('previewDepartment').textContent = exam.department ? exam.department.charAt(0).toUpperCase() + exam.department.slice(1) : 'General';
@@ -1356,7 +1397,7 @@ $conn->close();
       document.getElementById('previewDuration').textContent = `${exam.duration || 60} minutes`;
       document.getElementById('previewPassingScore').textContent = `${exam.passing_score || 70}%`;
       document.getElementById('previewDescription').textContent = exam.examDescription || 'No description provided.';
-      
+
       renderStudentExamPreviewToDocumentModal({
         title: exam.examTitle || 'Untitled Examination',
         description: exam.examDescription || '',
@@ -1365,15 +1406,15 @@ $conn->close();
         passing_score: exam.passing_score || 70,
         questions: exam.questions || []
       }, 'local');
-      
+
       // Update status badge
       const statusBadge = document.getElementById('previewStatusBadge');
       statusBadge.textContent = formatExamStatusLabel(status);
       statusBadge.className = 'badge status-' + status;
-      
+
       // Set CRUD operations based on status
       setupCrudOperations(status);
-      
+
       view_document_modal.showModal();
     }
 
@@ -1456,7 +1497,7 @@ $conn->close();
               <span class="preview-points">${q.points} point${q.points > 1 ? 's' : ''}</span>
             </div>
 
-            <h3 class="text-lg font-semibold text-gray-800 mb-4">${q.question_text || `Question ${idx + 1}`}</h3>
+            <h3 class="text-lg font-semibold text-gray-800 mb-4 question-text">${q.question_text || `Question ${idx + 1}`}</h3>
         `;
 
         if (q.question_type === 'multiple' || q.question_type === 'truefalse') {
@@ -1513,35 +1554,79 @@ $conn->close();
         passingScore: 70,
         questionCount: 10,
         description: "This examination tests knowledge of company policies and procedures.",
-        questions: [
-          {
+        questions: [{
             id: 1,
             question: "What is the company's policy regarding remote work?",
-            options: [
-              { id: 'A', text: "Remote work is not allowed", correct: false },
-              { id: 'B', text: "Remote work is allowed only on Fridays", correct: false },
-              { id: 'C', text: "Remote work can be arranged with manager approval", correct: true },
-              { id: 'D', text: "Remote work is mandatory twice a week", correct: false }
+            options: [{
+                id: 'A',
+                text: "Remote work is not allowed",
+                correct: false
+              },
+              {
+                id: 'B',
+                text: "Remote work is allowed only on Fridays",
+                correct: false
+              },
+              {
+                id: 'C',
+                text: "Remote work can be arranged with manager approval",
+                correct: true
+              },
+              {
+                id: 'D',
+                text: "Remote work is mandatory twice a week",
+                correct: false
+              }
             ]
           },
           {
             id: 2,
             question: "How should employees report safety concerns?",
-            options: [
-              { id: 'A', text: "Directly to their supervisor", correct: false },
-              { id: 'B', text: "Through the online safety portal", correct: true },
-              { id: 'C', text: "Via email to HR", correct: false },
-              { id: 'D', text: "All of the above", correct: true }
+            options: [{
+                id: 'A',
+                text: "Directly to their supervisor",
+                correct: false
+              },
+              {
+                id: 'B',
+                text: "Through the online safety portal",
+                correct: true
+              },
+              {
+                id: 'C',
+                text: "Via email to HR",
+                correct: false
+              },
+              {
+                id: 'D',
+                text: "All of the above",
+                correct: true
+              }
             ]
           },
           {
             id: 3,
             question: "What is the deadline for submitting expense reports?",
-            options: [
-              { id: 'A', text: "Within 7 days of incurring the expense", correct: false },
-              { id: 'B', text: "By the 15th of each month", correct: false },
-              { id: 'C', text: "Within 30 days of the expense date", correct: true },
-              { id: 'D', text: "There is no deadline", correct: false }
+            options: [{
+                id: 'A',
+                text: "Within 7 days of incurring the expense",
+                correct: false
+              },
+              {
+                id: 'B',
+                text: "By the 15th of each month",
+                correct: false
+              },
+              {
+                id: 'C',
+                text: "Within 30 days of the expense date",
+                correct: true
+              },
+              {
+                id: 'D',
+                text: "There is no deadline",
+                correct: false
+              }
             ]
           }
         ]
@@ -1562,7 +1647,7 @@ $conn->close();
           </div>
         `;
       }
-      
+
       fetch(`fetch_exam_data.php?exam_id=${encodeURIComponent(examId)}`)
         .then(r => r.json())
         .then(exam => {
@@ -1594,7 +1679,7 @@ $conn->close();
     function viewLocalStoragePreview(id, title) {
       const examinations = JSON.parse(localStorage.getItem('examinations')) || [];
       const exam = examinations.find(e => e.id === id);
-      
+
       if (!exam) {
         Swal.fire({
           title: 'Error',
@@ -1604,7 +1689,7 @@ $conn->close();
         });
         return;
       }
-      
+
       // Show loading state
       const container = document.getElementById('documentPreviewContent');
       if (container) {
@@ -1615,7 +1700,7 @@ $conn->close();
           </div>
         `;
       }
-      
+
       // Render the preview
       setTimeout(() => {
         renderStudentExamPreviewToDocumentModal(exam, 'local');
@@ -1758,35 +1843,79 @@ $conn->close();
         passingScore: 70,
         questionCount: 10,
         description: "This examination tests knowledge of company policies and procedures.",
-        questions: [
-          {
+        questions: [{
             id: 1,
             question: "What is the company's policy regarding remote work?",
-            options: [
-              { id: 'A', text: "Remote work is not allowed", correct: false },
-              { id: 'B', text: "Remote work is allowed only on Fridays", correct: false },
-              { id: 'C', text: "Remote work can be arranged with manager approval", correct: true },
-              { id: 'D', text: "Remote work is mandatory twice a week", correct: false }
+            options: [{
+                id: 'A',
+                text: "Remote work is not allowed",
+                correct: false
+              },
+              {
+                id: 'B',
+                text: "Remote work is allowed only on Fridays",
+                correct: false
+              },
+              {
+                id: 'C',
+                text: "Remote work can be arranged with manager approval",
+                correct: true
+              },
+              {
+                id: 'D',
+                text: "Remote work is mandatory twice a week",
+                correct: false
+              }
             ]
           },
           {
             id: 2,
             question: "How should employees report safety concerns?",
-            options: [
-              { id: 'A', text: "Directly to their supervisor", correct: false },
-              { id: 'B', text: "Through the online safety portal", correct: true },
-              { id: 'C', text: "Via email to HR", correct: false },
-              { id: 'D', text: "All of the above", correct: true }
+            options: [{
+                id: 'A',
+                text: "Directly to their supervisor",
+                correct: false
+              },
+              {
+                id: 'B',
+                text: "Through the online safety portal",
+                correct: true
+              },
+              {
+                id: 'C',
+                text: "Via email to HR",
+                correct: false
+              },
+              {
+                id: 'D',
+                text: "All of the above",
+                correct: true
+              }
             ]
           },
           {
             id: 3,
             question: "What is the deadline for submitting expense reports?",
-            options: [
-              { id: 'A', text: "Within 7 days of incurring the expense", correct: false },
-              { id: 'B', text: "By the 15th of each month", correct: false },
-              { id: 'C', text: "Within 30 days of the expense date", correct: true },
-              { id: 'D', text: "There is no deadline", correct: false }
+            options: [{
+                id: 'A',
+                text: "Within 7 days of incurring the expense",
+                correct: false
+              },
+              {
+                id: 'B',
+                text: "By the 15th of each month",
+                correct: false
+              },
+              {
+                id: 'C',
+                text: "Within 30 days of the expense date",
+                correct: true
+              },
+              {
+                id: 'D',
+                text: "There is no deadline",
+                correct: false
+              }
             ]
           }
         ]
@@ -1807,7 +1936,7 @@ $conn->close();
           </div>
         `;
       }
-      
+
       fetch(`fetch_exam_data.php?exam_id=${encodeURIComponent(examId)}`)
         .then(r => r.json())
         .then(exam => {
@@ -1839,7 +1968,7 @@ $conn->close();
     function viewLocalStoragePreview(id, title) {
       const examinations = JSON.parse(localStorage.getItem('examinations')) || [];
       const exam = examinations.find(e => e.id === id);
-      
+
       if (!exam) {
         Swal.fire({
           title: 'Error',
@@ -1849,7 +1978,7 @@ $conn->close();
         });
         return;
       }
-      
+
       // Show loading state
       const container = document.getElementById('documentPreviewContent');
       if (container) {
@@ -1860,7 +1989,7 @@ $conn->close();
           </div>
         `;
       }
-      
+
       // Render the preview
       setTimeout(() => {
         renderStudentExamPreviewToDocumentModal(exam, 'local');
@@ -1870,22 +1999,22 @@ $conn->close();
     function filterModules() {
       const departmentFilter = document.getElementById('modalDepartmentFilter').value;
       const roleFilter = document.getElementById('modalRoleFilter').value;
-      
+
       const modules = document.querySelectorAll('.module-item');
-      
+
       modules.forEach(module => {
         let show = true;
-        
+
         // Department filter
         if (departmentFilter && module.dataset.department !== departmentFilter) {
           show = false;
         }
-        
+
         // Role filter
         if (roleFilter && module.dataset.role !== roleFilter) {
           show = false;
         }
-        
+
         module.style.display = show ? 'block' : 'none';
       });
     }
@@ -1894,36 +2023,36 @@ $conn->close();
     function applyFilters() {
       const statusFilter = document.getElementById('statusFilter').value;
       const departmentFilter = document.getElementById('departmentFilter').value;
-      
+
       const cards = document.querySelectorAll('.examination-card');
-      
+
       cards.forEach(card => {
         let show = true;
-        
+
         // Status filter
         if (statusFilter !== 'all' && card.dataset.status !== statusFilter) {
           show = false;
         }
-        
+
         // Department filter
         if (departmentFilter !== 'all' && card.dataset.department !== departmentFilter) {
           show = false;
         }
-        
+
         card.style.display = show ? 'block' : 'none';
       });
     }
-    
+
     function clearFilters() {
       document.getElementById('statusFilter').value = 'all';
       document.getElementById('departmentFilter').value = 'all';
-      
+
       const cards = document.querySelectorAll('.examination-card');
       cards.forEach(card => {
         card.style.display = 'block';
       });
     }
-    
+
     // View Document with CRUD operations based on status
     function viewDocument(id, status) {
       currentExamId = id;
@@ -1940,7 +2069,7 @@ $conn->close();
           </div>
         `;
       }
-      
+
       fetch(`fetch_exam_data.php?exam_id=${encodeURIComponent(id)}`)
         .then(r => r.json())
         .then(exam => {
@@ -1966,24 +2095,24 @@ $conn->close();
             confirmButtonColor: '#3b82f6'
           });
         });
-      
+
       // Update status badge
       const statusBadge = document.getElementById('previewStatusBadge');
       statusBadge.textContent = formatExamStatusLabel(status);
       statusBadge.className = 'badge status-' + status;
-      
+
       // Set CRUD operations based on status
       setupCrudOperations(status);
-      
+
       view_document_modal.showModal();
     }
-    
+
     // Setup CRUD operations based on status
     function setupCrudOperations(status) {
       const crudContainer = document.getElementById('crudOperations');
       let html = '';
-      
-      switch(status) {
+
+      switch (status) {
         case 'pending':
           html += `
             <button class="btn btn-success" style="min-width: 140px" onclick="editExam('${currentExamId}')">
@@ -2016,7 +2145,7 @@ $conn->close();
             </button>
           `;
           break;
-          
+
         case 'hold':
           html += `
             <button class="btn btn-success" style="min-width: 140px" onclick="postExam('${currentExamId}')">
@@ -2024,7 +2153,7 @@ $conn->close();
             </button>
           `;
           break;
-          
+
         case 'rejected':
           html += `
             <button class="btn btn-danger" style="min-width: 140px" onclick="deleteLocalStorageExam('${currentExamId}')">
@@ -2032,7 +2161,7 @@ $conn->close();
             </button>
           `;
           break;
-          
+
         case 'compliance':
           html += `
             <button class="btn btn-custom" style="min-width: 140px" onclick="showComplianceReason('${currentExamId}')">
@@ -2046,13 +2175,13 @@ $conn->close();
             </button>
           `;
           break;
-          
+
         default:
           html += '<p>No actions available for this status.</p>';
       }
       crudContainer.innerHTML = html;
     }
-    
+
     // CRUD Operations for localStorage exams
     function deleteLocalStorageExam(id) {
       Swal.fire({
@@ -2070,7 +2199,7 @@ $conn->close();
           let examinations = JSON.parse(localStorage.getItem('examinations')) || [];
           examinations = examinations.filter(exam => exam.id !== id);
           localStorage.setItem('examinations', JSON.stringify(examinations));
-          
+
           Swal.fire(
             'Deleted!',
             'Examination has been deleted.',
@@ -2082,7 +2211,7 @@ $conn->close();
         }
       });
     }
-    
+
     function cancelRequest(id) {
       Swal.fire({
         title: 'Cancel Examination Request?',
@@ -2102,7 +2231,7 @@ $conn->close();
             examinations[examIndex].status = 'cancelled';
             localStorage.setItem('examinations', JSON.stringify(examinations));
           }
-          
+
           Swal.fire(
             'Cancelled!',
             'Examination request has been cancelled.',
@@ -2114,12 +2243,12 @@ $conn->close();
         }
       });
     }
-    
+
     function reviewDocument(id) {
       // Redirect to review dashboard
       window.location.href = '../hr_manager/review_dashboard.php?id=' + id;
     }
-    
+
     function postExam(id) {
       Swal.fire({
         title: 'Post Examination?',
@@ -2138,7 +2267,10 @@ $conn->close();
             fd.append('original_exam_id', id);
             fd.append('action', 'post');
 
-            fetch('post_examination.php', { method: 'POST', body: fd })
+            fetch('post_examination.php', {
+                method: 'POST',
+                body: fd
+              })
               .then(r => r.json())
               .then(data => {
                 if (!data?.success) {
@@ -2181,7 +2313,7 @@ $conn->close();
         }
       });
     }
-    
+
     function holdExam(id) {
       Swal.fire({
         title: 'Hold Examination?',
@@ -2201,7 +2333,7 @@ $conn->close();
             examinations[examIndex].status = 'hold';
             localStorage.setItem('examinations', JSON.stringify(examinations));
           }
-          
+
           Swal.fire(
             'On Hold!',
             'Examination has been put on hold.',
@@ -2213,18 +2345,18 @@ $conn->close();
         }
       });
     }
-    
+
     function editExam(id) {
       window.location.href = 'create_examination.php?exam_id=' + encodeURIComponent(id);
     }
-    
+
     function showComplianceReason(id) {
-      document.getElementById('complianceRemarksText').textContent = 
+      document.getElementById('complianceRemarksText').textContent =
         'The examination needs updated questions according to the latest industry standards. Please ensure all references to company policies are from the 2023 revision.';
-      
+
       compliance_reason_modal.showModal();
     }
-    
+
     function saveComplianceRemarks() {
       const additionalRemarks = document.getElementById('additionalRemarks').value;
       Swal.fire({
@@ -2256,7 +2388,7 @@ $conn->close();
       // Load saved modal state
       loadModalState();
       filterModules();
-      
+
       // Load localStorage examinations
       loadLocalStorageExaminations();
 
@@ -2300,14 +2432,14 @@ $conn->close();
           const moduleItem = viewBtn.closest('.module-item');
           const moduleTitle = moduleItem.querySelector('.module-title').textContent;
           const moduleContent = moduleItem.dataset.content;
-          
+
           // Display module content in modal
           moduleContentTitle.textContent = moduleTitle;
           moduleContentDisplay.innerHTML = moduleContent || '<p class="text-gray-500">No content available for this module.</p>';
           moduleContentModal.showModal();
           return;
         }
-        
+
         // Handle module selection
         const moduleItem = e.target.closest('.module-item');
         if (moduleItem && !e.target.closest('.view-module-btn')) {
@@ -2315,10 +2447,10 @@ $conn->close();
           document.querySelectorAll('.module-item').forEach(item => {
             item.classList.remove('selected');
           });
-          
+
           // Add selection to clicked item
           moduleItem.classList.add('selected');
-          
+
           // Store selected module data
           selectedModuleId = moduleItem.dataset.id;
           selectedModuleData = {
@@ -2328,11 +2460,11 @@ $conn->close();
             role: moduleItem.dataset.role,
             content: moduleItem.dataset.content
           };
-          
+
           // Update selected module info
           selectedModuleTitle.textContent = selectedModuleData.title;
           selectedModuleInfo.style.display = 'block';
-          
+
           // Enable buttons
           startExaminationBtn.disabled = false;
           convertModuleBtn.disabled = false;
@@ -2470,14 +2602,14 @@ $conn->close();
       function filterModules() {
         const departmentValue = departmentFilter.value;
         const roleValue = roleFilter.value;
-        
+
         document.querySelectorAll('.module-item').forEach(item => {
           const itemDept = item.dataset.department;
           const itemRole = item.dataset.role;
-          
+
           let deptMatch = !departmentValue || itemDept === departmentValue;
           let roleMatch = !roleValue || itemRole === roleValue;
-          
+
           if (deptMatch && roleMatch) {
             item.style.display = 'block';
           } else {
@@ -2495,12 +2627,12 @@ $conn->close();
         document.getElementById('questionCount').value = '10';
         departmentFilter.value = '';
         populateModalRoleOptions('', '');
-        
+
         selectedModuleId = null;
         selectedModuleData = null;
         document.querySelectorAll('.module-item').forEach(item => {
           item.classList.remove('selected');
-          
+
           item.style.display = 'block';
         });
         selectedModuleInfo.style.display = 'none';
@@ -2514,13 +2646,13 @@ $conn->close();
       });
     });
   </script>
-    <script>
+  <script>
     lucide.createIcons();
   </script>
-   <!-- Include JavaScript file -->
+  <!-- Include JavaScript file -->
   <script src="../../JS/learning_modules_repository.js"></script>
-   <script src="../../soliera.js"></script>
+  <script src="../../soliera.js"></script>
   <script src="../../sidebar.js"></script>
 </body>
-</html>
 
+</html>

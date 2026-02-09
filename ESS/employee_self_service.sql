@@ -84,6 +84,8 @@ CREATE TABLE submitted_documents (
     reviewed_by INT,
     reviewed_at TIMESTAMP NULL,
     submitted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_doc_emp_submitted (employee_id, submitted_at),
+    INDEX idx_doc_status (status),
     FOREIGN KEY (employee_id) REFERENCES employees(id)
 );
 
@@ -144,6 +146,11 @@ CREATE TABLE complaints (
     resolution TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     resolved_at TIMESTAMP NULL,
+    meeting_date DATE NULL,
+    meeting_time TIME NULL,
+    meeting_place VARCHAR(255) NULL,
+    meeting_scheduled_by INT NULL,
+    meeting_scheduled_at TIMESTAMP NULL,
     FOREIGN KEY (employee_id) REFERENCES employees(id)
 );
 

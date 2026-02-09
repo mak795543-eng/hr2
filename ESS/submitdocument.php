@@ -3,6 +3,9 @@ session_start();
 
 require_once __DIR__ . '/db.php';
 
+header('Location: mydocuments.php?open_submit=1');
+exit;
+
 $employeeId = ess_employee_id($conn);
 
 $uploadDir = __DIR__ . DIRECTORY_SEPARATOR . 'uploads';
@@ -174,36 +177,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_document'])) {
               <span><?php echo htmlspecialchars($error_message); ?></span>
             </div>
           <?php endif; ?>
+             
 
-          <div class="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <div class="card bg-base-100 border border-base-200 shadow-sm">
-              <div class="card-body">
-                <h2 class="font-semibold text-gray-800">Required Documents</h2>
-                <div class="mt-3 space-y-2">
-                  <?php foreach ($requiredDocs as $rd): ?>
-                    <?php $st = computeRequiredStatus($conn, $employeeId, $rd); ?>
-                    <div class="flex items-center justify-between rounded-xl border border-base-200 px-4 py-3">
-                      <div class="text-sm font-medium text-gray-800"><?php echo htmlspecialchars($rd); ?></div>
-                      <div class="flex items-center gap-2">
-                        <?php if ($st['state'] === 'done'): ?>
-                          <i data-lucide="check-circle-2" class="w-5 h-5 text-green-600"></i>
-                        <?php elseif ($st['state'] === 'rejected'): ?>
-                          <i data-lucide="x-circle" class="w-5 h-5 text-red-600"></i>
-                        <?php elseif ($st['state'] === 'compliance'): ?>
-                          <i data-lucide="clipboard-check" class="w-5 h-5 text-blue-600"></i>
-                        <?php else: ?>
-                          <i data-lucide="clock" class="w-5 h-5 text-yellow-500"></i>
-                        <?php endif; ?>
-                        <span class="text-xs text-gray-500"><?php echo htmlspecialchars($st['label']); ?></span>
-                      </div>
-                    </div>
-                  <?php endforeach; ?>
-                </div>
-              </div>
-            </div>
-
-            <div class="card bg-base-100 border border-base-200 shadow-sm">
-              <div class="card-body">
+          
                 <div class="flex items-center justify-center">
                   <div class="w-full max-w-md">
                     <div class="flex flex-col items-center text-center">
@@ -211,7 +187,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_document'])) {
                         <i data-lucide="cloud-upload" class="w-7 h-7 text-blue-600"></i>
                       </div>
                       <h2 class="mt-4 font-semibold text-gray-900">Upload New Document</h2>
-                      <p class="text-sm text-gray-500 mt-1">Upload any certificates, identification or policy documents requested by HR.</p>
+                      <p class="text-sm text-gray-500 mt-1"></p>
                     </div>
 
                     <form method="POST" enctype="multipart/form-data" class="mt-6 space-y-3">
@@ -220,7 +196,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_document'])) {
                       <div class="form-control">
                         <label class="label"><span class="label-text">Document Type</span></label>
                         <select name="required_type" class="select select-bordered" required>
-                          <option value="" selected disabled>Select required document</option>
+                          <option value="" selected disabled>Select Document Type</option>
                           <?php foreach ($requiredDocs as $rd): ?>
                             <option value="<?php echo htmlspecialchars($rd); ?>"><?php echo htmlspecialchars($rd); ?></option>
                           <?php endforeach; ?>
@@ -239,7 +215,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_document'])) {
                       </button>
 
                       <div class="text-center">
-                        <a href="mydocuments.php" class="link link-primary text-sm">Go to Document Repository</a>
+                        <a href="mydocuments.php" class="link link-primary text-sm"></a>
                       </div>
                     </form>
                   </div>

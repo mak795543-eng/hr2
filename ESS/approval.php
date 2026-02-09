@@ -68,8 +68,54 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_complaint_work
                 mysqli_stmt_bind_param($stmt, 'sssi', $assignRole, $assignTo, $now, $cid);
                 $ok = mysqli_stmt_execute($stmt);
                 mysqli_stmt_close($stmt);
-                if ($ok) $success_message = 'Complaint assigned.';
-                else $error_message = 'Failed to assign complaint.';
+
+                if ($ok) {
+                    $assigneeId = 0;
+                    $stmtA = mysqli_prepare($conn, 'SELECT id FROM employees WHERE employee_no = ? LIMIT 1');
+                    if ($stmtA) {
+                        mysqli_stmt_bind_param($stmtA, 's', $assignTo);
+                        mysqli_stmt_execute($stmtA);
+                        $resA = mysqli_stmt_get_result($stmtA);
+                        $rowA = $resA ? mysqli_fetch_assoc($resA) : null;
+                        mysqli_stmt_close($stmtA);
+                        if (is_array($rowA)) {
+                            $assigneeId = (int)($rowA['id'] ?? 0);
+                        }
+                    }
+
+                    if ($assigneeId > 0) {
+                        $notifKey = sha1('complaint_assigned|' . $cid . '|' . $assignTo . '|' . $now);
+                        $notifType = 'Complaint';
+                        $notifTitle = 'Complaint Assigned';
+                        $notifMeta = 'A complaint has been assigned to you. Complaint ID: ' . $cid . '.';
+                        $notifLink = 'dashboard.php';
+                        $notifDate = $now;
+
+                        $stmtNotif = mysqli_prepare(
+                            $conn,
+                            "INSERT INTO notification_states (employee_id, notif_key, status, deleted, notif_type, notif_title, notif_meta, notif_link, notif_date)
+                             VALUES (?, ?, 'unread', 0, ?, ?, ?, ?, ?)
+                             ON DUPLICATE KEY UPDATE
+                               status = 'unread',
+                               deleted = 0,
+                               notif_type = VALUES(notif_type),
+                               notif_title = VALUES(notif_title),
+                               notif_meta = VALUES(notif_meta),
+                               notif_link = VALUES(notif_link),
+                               notif_date = VALUES(notif_date),
+                               updated_at = CURRENT_TIMESTAMP"
+                        );
+                        if ($stmtNotif) {
+                            mysqli_stmt_bind_param($stmtNotif, 'issssss', $assigneeId, $notifKey, $notifType, $notifTitle, $notifMeta, $notifLink, $notifDate);
+                            @mysqli_stmt_execute($stmtNotif);
+                            mysqli_stmt_close($stmtNotif);
+                        }
+                    }
+
+                    $success_message = 'Complaint assigned.';
+                } else {
+                    $error_message = 'Failed to assign complaint.';
+                }
             } else {
                 $error_message = 'Failed to assign complaint.';
             }
@@ -758,7 +804,7 @@ if ($conn) {
         $where = "WHERE c.workflow_status = 'Assigned'";
     }
 
-    $sql = "SELECT c.id, c.employee_id, e.employee_no, e.first_name, e.last_name, c.subject, c.description, c.category, c.category_other, c.incident_date, c.attachment_path, c.workflow_status, c.returned_reason, c.created_at, c.accepted_at, c.assigned_role, c.assigned_to_employee_no, c.assigned_at FROM complaints c LEFT JOIN employees e ON e.id = c.employee_id {$where} ORDER BY c.created_at DESC";
+    $sql = "SELECT c.id, c.employee_id, e.employee_no, e.first_name, e.last_name, c.subject, c.description, c.category, c.category_other, c.incident_date, c.attachment_path, c.workflow_status, c.returned_reason, c.created_at, c.accepted_at, c.assigned_role, c.assigned_to_employee_no, c.assigned_at, c.meeting_date, c.meeting_place FROM complaints c LEFT JOIN employees e ON e.id = c.employee_id {$where} ORDER BY c.created_at DESC";
     $res = mysqli_query($conn, $sql);
     if ($res) {
         while ($row = mysqli_fetch_assoc($res)) {
@@ -1112,9 +1158,12 @@ try {
                         $wfStatus = (string)($r['workflow_status'] ?? 'For Approval');
                         $wfLower = strtolower(trim($wfStatus));
                         $returnedReason = (string)($r['returned_reason'] ?? '');
+                        $meetingDate = (string)($r['meeting_date'] ?? '');
+                        $meetingPlace = (string)($r['meeting_place'] ?? '');
                         $attachmentPath = (string)($r['attachment_path'] ?? '');
                         $categoryDisplay = $cat;
-                        if (strtolower(trim($cat)) === 'other' && $catOther !== '') {
+                        $catLower = strtolower(trim($cat));
+                        if (in_array($catLower, ['other', 'others'], true) && $catOther !== '') {
                             $categoryDisplay = 'Other - ' . $catOther;
                         }
                         $employeeLabel = ($empNo !== '' ? $empNo : 'Employee') . ($name !== '' ? (' - ' . $name) : '');
@@ -1155,6 +1204,9 @@ try {
                               data-complaint-view-returned="<?php echo htmlspecialchars($returnedReason); ?>"
                               data-complaint-view-desc="<?php echo htmlspecialchars($desc); ?>"
                               data-complaint-view-has-attachment="<?php echo $hasAttachment ? '1' : '0'; ?>"
+                              data-complaint-view-attachment-path="<?php echo htmlspecialchars($attachmentPath); ?>"
+                              data-complaint-view-meeting-date="<?php echo htmlspecialchars($meetingDate); ?>"
+                              data-complaint-view-meeting-place="<?php echo htmlspecialchars($meetingPlace); ?>"
                             >
                               <i data-lucide="eye" class="w-4 h-4"></i>
                               <span class="hidden sm:inline ml-1">View</span>
@@ -1277,9 +1329,12 @@ try {
 
         <div>
           <div class="text-xs font-semibold text-gray-500">ATTACHMENT</div>
-          <div class="mt-2 flex items-center gap-2">
-            <a id="complaintViewAttachmentOpen" class="btn btn-outline btn-sm" href="#" target="_blank" rel="noopener">Open</a>
-            <a id="complaintViewAttachmentDownload" class="btn btn-primary btn-sm" href="#">Download</a>
+          <div class="mt-2">
+            <img id="complaintViewAttachmentImg" class="hidden w-full max-h-[320px] object-contain rounded-lg border border-base-200 bg-white" alt="Attachment" />
+            <div id="complaintViewAttachmentNone" class="text-sm text-gray-500">No attachment.</div>
+            <div class="mt-2 flex items-center gap-2" id="complaintViewAttachmentActions">
+              <a id="complaintViewAttachmentDownload" class="btn btn-sm hr2-outline-btn" href="#">Download</a>
+            </div>
           </div>
         </div>
       </div>
@@ -1847,7 +1902,9 @@ try {
       const complaintViewDesc = document.getElementById('complaintViewDesc');
       const complaintViewReturnedWrap = document.getElementById('complaintViewReturnedWrap');
       const complaintViewReturned = document.getElementById('complaintViewReturned');
-      const complaintViewAttachmentOpen = document.getElementById('complaintViewAttachmentOpen');
+      const complaintViewAttachmentImg = document.getElementById('complaintViewAttachmentImg');
+      const complaintViewAttachmentNone = document.getElementById('complaintViewAttachmentNone');
+      const complaintViewAttachmentActions = document.getElementById('complaintViewAttachmentActions');
       const complaintViewAttachmentDownload = document.getElementById('complaintViewAttachmentDownload');
 
       document.querySelectorAll('[data-complaint-view-id]').forEach((btn) => {
@@ -1863,6 +1920,8 @@ try {
           const returned = this.getAttribute('data-complaint-view-returned') || '';
           const desc = this.getAttribute('data-complaint-view-desc') || '';
           const hasAttachment = (this.getAttribute('data-complaint-view-has-attachment') || '0') === '1';
+          const meetingDate = this.getAttribute('data-complaint-view-meeting-date') || '';
+          const meetingPlace = this.getAttribute('data-complaint-view-meeting-place') || '';
 
           if (complaintViewEmployee) complaintViewEmployee.textContent = employee;
           if (complaintViewSubject) complaintViewSubject.textContent = subject;
@@ -1883,14 +1942,27 @@ try {
 
           const cur = document.getElementById('complaintStatusFilter');
           const st = cur && cur.value ? cur.value : 'all';
-          const openUrl = '?section=complaints&complaint_attachment_view=' + encodeURIComponent(id) + '&cstatus=' + encodeURIComponent(st);
           const dlUrl = '?section=complaints&complaint_attachment_download=' + encodeURIComponent(id) + '&cstatus=' + encodeURIComponent(st);
 
-          if (complaintViewAttachmentOpen) {
-            complaintViewAttachmentOpen.setAttribute('href', openUrl);
-            complaintViewAttachmentOpen.classList.toggle('btn-disabled', !hasAttachment);
-            complaintViewAttachmentOpen.setAttribute('aria-disabled', (!hasAttachment).toString());
+          const rawPath = String(this.getAttribute('data-complaint-view-attachment-path') || '').trim();
+          const lowerPath = rawPath.toLowerCase();
+          const isImg = lowerPath.endsWith('.png') || lowerPath.endsWith('.jpg') || lowerPath.endsWith('.jpeg') || lowerPath.endsWith('.gif') || lowerPath.endsWith('.webp');
+
+          if (complaintViewAttachmentNone) complaintViewAttachmentNone.style.display = hasAttachment ? 'none' : '';
+          if (complaintViewAttachmentActions) complaintViewAttachmentActions.style.display = hasAttachment ? '' : 'none';
+          if (complaintViewAttachmentImg) {
+            complaintViewAttachmentImg.classList.add('hidden');
+            complaintViewAttachmentImg.removeAttribute('src');
           }
+
+          if (hasAttachment && isImg && complaintViewAttachmentImg && rawPath !== '') {
+            complaintViewAttachmentImg.onerror = function () {
+              this.classList.add('hidden');
+            };
+            complaintViewAttachmentImg.src = rawPath;
+            complaintViewAttachmentImg.classList.remove('hidden');
+          }
+
           if (complaintViewAttachmentDownload) {
             complaintViewAttachmentDownload.setAttribute('href', dlUrl);
             complaintViewAttachmentDownload.classList.toggle('btn-disabled', !hasAttachment);

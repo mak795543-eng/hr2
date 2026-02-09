@@ -2,7 +2,7 @@
 
 require __DIR__ . '/db.php';
 
-$getOwnerKey = function(): string {
+$getOwnerKey = function (): string {
     $candidates = [
         'user_id' => 'user:',
         'employee_id' => 'emp:',
@@ -20,7 +20,7 @@ $getOwnerKey = function(): string {
 
 $ownerKey = $getOwnerKey();
 
-$ensureTrainingProgramsTable = function(mysqli $conn): void {
+$ensureTrainingProgramsTable = function (mysqli $conn): void {
     try {
         $conn->query(
             "CREATE TABLE IF NOT EXISTS training_programs (
@@ -65,8 +65,8 @@ $ensureTrainingProgramsTable = function(mysqli $conn): void {
 
 $ensureTrainingProgramsTable($conn);
 
-$ensureReviewSchema = function(mysqli $conn): void {
-    $tableHasColumn = function(mysqli $conn, string $table, string $column): bool {
+$ensureReviewSchema = function (mysqli $conn): void {
+    $tableHasColumn = function (mysqli $conn, string $table, string $column): bool {
         $stmt = $conn->prepare("SELECT 1 FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = ? AND column_name = ? LIMIT 1");
         $stmt->bind_param('ss', $table, $column);
         $stmt->execute();
@@ -88,15 +88,15 @@ $ensureReviewSchema = function(mysqli $conn): void {
 
 $ensureReviewSchema($conn);
 
-$ensureDepartmentRequestSchema = function(mysqli $conn): void {
-    $tableHasColumn = function(mysqli $conn, string $table, string $column): bool {
+$ensureDepartmentRequestSchema = function (mysqli $conn): void {
+    $tableHasColumn = function (mysqli $conn, string $table, string $column): bool {
         $stmt = $conn->prepare("SELECT 1 FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = ? AND column_name = ? LIMIT 1");
         $stmt->bind_param('ss', $table, $column);
         $stmt->execute();
         return (bool)$stmt->get_result()->fetch_row();
     };
 
-    $tableHasColumnInDb = function(mysqli $conn, string $db, string $table, string $column): bool {
+    $tableHasColumnInDb = function (mysqli $conn, string $db, string $table, string $column): bool {
         $stmt = $conn->prepare("SELECT 1 FROM information_schema.columns WHERE table_schema = ? AND table_name = ? AND column_name = ? LIMIT 1");
         $stmt->bind_param('sss', $db, $table, $column);
         $stmt->execute();
@@ -241,8 +241,8 @@ $ensureDepartmentRequestSchema = function(mysqli $conn): void {
 
 $ensureDepartmentRequestSchema($conn);
 
-$ensurePostSchema = function(mysqli $conn): void {
-    $tableHasColumn = function(mysqli $conn, string $table, string $column): bool {
+$ensurePostSchema = function (mysqli $conn): void {
+    $tableHasColumn = function (mysqli $conn, string $table, string $column): bool {
         $stmt = $conn->prepare("SELECT 1 FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = ? AND column_name = ? LIMIT 1");
         $stmt->bind_param('ss', $table, $column);
         $stmt->execute();
@@ -395,7 +395,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         echo json_encode(['success' => true]);
         exit;
     } catch (Throwable $e) {
-        try { $conn->rollback(); } catch (Throwable $e2) {}
+        try {
+            $conn->rollback();
+        } catch (Throwable $e2) {
+        }
         $err = $e->getMessage();
         $msg = (is_string($err) && trim($err) !== '') ? $err : 'Failed to post training.';
         echo json_encode(['success' => false, 'message' => $msg]);
@@ -484,7 +487,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_program_requests') {
         $requestsDb = $trainingDb;
     }
 
-    $getOne = function(mysqli $conn, string $table, int $programId, int $submissionNo): ?array {
+    $getOne = function (mysqli $conn, string $table, int $programId, int $submissionNo): ?array {
         $sql = "SELECT id, status, rejection_reason FROM {$table} WHERE program_id = ? AND submission_no = ? ORDER BY id DESC LIMIT 1";
         $stmt = $conn->prepare($sql);
         $stmt->bind_param('ii', $programId, $submissionNo);
@@ -576,7 +579,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     header('Content-Type: application/json; charset=utf-8');
 
     try {
-        $tableHasColumn = function(mysqli $conn, string $table, string $column): bool {
+        $tableHasColumn = function (mysqli $conn, string $table, string $column): bool {
             $stmt = $conn->prepare("SELECT 1 FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = ? AND column_name = ? LIMIT 1");
             $stmt->bind_param('ss', $table, $column);
             $stmt->execute();
@@ -759,7 +762,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     header('Content-Type: application/json; charset=utf-8');
 
     try {
-        $tableHasColumn = function(mysqli $conn, string $table, string $column): bool {
+        $tableHasColumn = function (mysqli $conn, string $table, string $column): bool {
             $stmt = $conn->prepare("SELECT 1 FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = ? AND column_name = ? LIMIT 1");
             $stmt->bind_param('ss', $table, $column);
             $stmt->execute();
@@ -1032,7 +1035,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
     try {
         error_log("update_program_status called: " . print_r($_POST, true));
-        
+
         $programId = (int)($_POST['program_id'] ?? 0);
         $status = trim((string)($_POST['status'] ?? ''));
         $reason = trim((string)($_POST['reason'] ?? ''));
@@ -1219,857 +1222,928 @@ try {
 require('../../partials/header.php');
 ?>
 
-    <script>
-        (function () {
-            if (!window.Swal || window.__SWAL_DAISY_PATCHED__) return;
-            window.__SWAL_DAISY_PATCHED__ = true;
-            const orig = window.Swal.fire.bind(window.Swal);
-            window.Swal.fire = function (opts) {
-                const inOpts = opts || {};
-                const inCustom = (inOpts && inOpts.customClass) ? inOpts.customClass : {};
-                const customClass = {
-                    popup: 'bg-base-100 text-base-content rounded-box',
-                    title: 'text-base-content',
-                    htmlContainer: 'text-base-content',
-                    actions: 'flex gap-2',
-                    confirmButton: 'btn btn-primary',
-                    cancelButton: 'btn btn-ghost',
-                    denyButton: 'btn btn-ghost',
-                    ...(inCustom || {})
-                };
-                return orig({
-                    returnFocus: false,
-                    buttonsStyling: false,
-                    ...inOpts,
-                    customClass
-                });
+<script>
+    (function() {
+        if (!window.Swal || window.__SWAL_DAISY_PATCHED__) return;
+        window.__SWAL_DAISY_PATCHED__ = true;
+        const orig = window.Swal.fire.bind(window.Swal);
+        window.Swal.fire = function(opts) {
+            const inOpts = opts || {};
+            const inCustom = (inOpts && inOpts.customClass) ? inOpts.customClass : {};
+            const customClass = {
+                popup: 'bg-base-100 text-base-content rounded-box',
+                title: 'text-base-content',
+                htmlContainer: 'text-base-content',
+                actions: 'flex gap-2',
+                confirmButton: 'btn btn-primary',
+                cancelButton: 'btn btn-ghost',
+                denyButton: 'btn btn-ghost',
+                ...(inCustom || {})
             };
-        })();
-    </script>
-    <style>
-        .fade-in { animation: fadeIn 0.3s ease-in-out; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-        .training-card { transition: all 0.2s ease; }
-        
-        .training-card:hover { transform: translateY(-5px); box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1); }
-        .swal2-container { z-index: 2147483647 !important; }
-        
-        .progress-bar {
-            height: 8px;
-            background-color: #e5e7eb;
-            border-radius: 4px;
-            overflow: hidden;
+            return orig({
+                returnFocus: false,
+                buttonsStyling: false,
+                ...inOpts,
+                customClass
+            });
+        };
+    })();
+</script>
+<style>
+    .fade-in {
+        animation: fadeIn 0.3s ease-in-out;
+    }
+
+    @keyframes fadeIn {
+        from {
+            opacity: 0;
+            transform: translateY(10px);
         }
-        
-        .progress-fill {
-            height: 100%;
-            background-color: #10b981;
-            transition: width 0.3s ease;
+
+        to {
+            opacity: 1;
+            transform: translateY(0);
         }
-        
-        .stats-card {
-            transition: all 0.2s ease;
-        }
-        
-        .stats-card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
-        }
-        
-        .input-error {
-            border-color: #ef4444 !important;
-            background-color: #fef2f2 !important;
-        }
-        
-        .error-message {
-            color: #ef4444;
-            font-size: 0.875rem;
-            margin-top: 0.25rem;
-        }
-        
-        .status-badge {
-            font-size: 0.75rem;
-            padding: 0.25rem 0.75rem;
-            border-radius: 9999px;
-            font-weight: 600;
-        }
-        
-        .status-planned { background-color: #fef3c7; color: #92400e; }
-        .status-scheduled { background-color: #dbeafe; color: #1e40af; }
-        .status-ongoing { background-color: #dcfce7; color: #166534; }
-        .status-completed { background-color: #f3f4f6; color: #374151; }
-        .status-cancelled { background-color: #fee2e2; color: #991b1b; }
-        .status-review { background-color: #e0f2fe; color: #075985; }
-        .status-pending { background-color: #fef9c3; color: #854d0e; }
-        .status-approved { background-color: #dcfce7; color: #166534; }
-        .status-rejected { background-color: #fee2e2; color: #991b1b; }
-        .status-compliance { background-color: #f3e8ff; color: #6b21a8; }
-        .status-onhold { background-color: #ffedd5; color: #9a3412; }
-        .status-posted { background-color: #cffafe; color: #155e75; }
-        
+    }
+
+    .training-card {
+        transition: all 0.2s ease;
+    }
+
+    .training-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+    }
+
+    .swal2-container {
+        z-index: 2147483647 !important;
+    }
+
+    .progress-bar {
+        height: 8px;
+        background-color: #e5e7eb;
+        border-radius: 4px;
+        overflow: hidden;
+    }
+
+    .progress-fill {
+        height: 100%;
+        background-color: #10b981;
+        transition: width 0.3s ease;
+    }
+
+    .stats-card {
+        transition: all 0.2s ease;
+    }
+
+    .stats-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+    }
+
+    .input-error {
+        border-color: #ef4444 !important;
+        background-color: #fef2f2 !important;
+    }
+
+    .error-message {
+        color: #ef4444;
+        font-size: 0.875rem;
+        margin-top: 0.25rem;
+    }
+
+    .status-badge {
+        font-size: 0.75rem;
+        padding: 0.25rem 0.75rem;
+        border-radius: 9999px;
+        font-weight: 600;
+    }
+
+    .status-planned {
+        background-color: #fef3c7;
+        color: #92400e;
+    }
+
+    .status-scheduled {
+        background-color: #dbeafe;
+        color: #1e40af;
+    }
+
+    .status-ongoing {
+        background-color: #dcfce7;
+        color: #166534;
+    }
+
+    .status-completed {
+        background-color: #f3f4f6;
+        color: #374151;
+    }
+
+    .status-cancelled {
+        background-color: #fee2e2;
+        color: #991b1b;
+    }
+
+    .status-review {
+        background-color: #e0f2fe;
+        color: #075985;
+    }
+
+    .status-pending {
+        background-color: #fef9c3;
+        color: #854d0e;
+    }
+
+    .status-approved {
+        background-color: #dcfce7;
+        color: #166534;
+    }
+
+    .status-rejected {
+        background-color: #fee2e2;
+        color: #991b1b;
+    }
+
+    .status-compliance {
+        background-color: #f3e8ff;
+        color: #6b21a8;
+    }
+
+    .status-onhold {
+        background-color: #ffedd5;
+        color: #9a3412;
+    }
+
+    .status-posted {
+        background-color: #cffafe;
+        color: #155e75;
+    }
+
+    .datetime-container {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.75rem;
+    }
+
+    @media (max-width: 640px) {
         .datetime-container {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 0.75rem;
+            grid-template-columns: 1fr;
         }
-        
-        @media (max-width: 640px) {
-            .datetime-container {
-                grid-template-columns: 1fr;
-            }
-        }
-    </style>
+    }
+</style>
 </head>
+
 <body class="bg-gray-50 min-h-screen" data-owner-key="<?= htmlspecialchars($ownerKey) ?>">
- <body class="bg-gray-50 min-h-screen">
- <div class="flex h-screen">
-    <!-- Sidebar -->
-    <?php 
-    // Use relative path or absolute path based on your directory structure
-    include '../../USM/sidebarr.php'; 
-    ?>
 
-    <!-- Content Area -->
-    <div class="flex flex-col flex-1 overflow-auto">
-      <!-- Navbar -->
-      <?php include '../../USM/navbar.php'; ?>
-    
-            
-            <main class="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto">
+    <body class="bg-gray-50 min-h-screen">
+        <div class="flex h-screen">
+            <!-- Sidebar -->
+            <?php
+            // Use relative path or absolute path based on your directory structure
+            include '../../USM/sidebarr.php';
+            ?>
 
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8 fade-in">
-          <div class="hr2-summary-card rounded-xl shadow-md p-6">
-            <div class="flex items-center justify-between">
-              <div>
-                <div class="text-sm text-gray-500">Total Trainings</div>
-                <div class="text-2xl font-bold text-gray-900"><?php echo (int)$tpTotalTrainings; ?></div>
-              </div>
-              <div class="p-3 bg-blue-100 rounded-full">
-                <i data-lucide="layers" class="h-6 w-6 text-blue-600"></i>
-              </div>
-            </div>
-          </div>
+            <!-- Content Area -->
+            <div class="flex flex-col flex-1 overflow-auto">
+                <!-- Navbar -->
+                <?php include '../../USM/navbar.php'; ?>
 
-          <div class="hr2-summary-card rounded-xl shadow-md p-6">
-            <div class="flex items-center justify-between">
-              <div>
-                <div class="text-sm text-gray-500">Not posted Trainings</div>
-                <div class="text-2xl font-bold text-gray-900"><?php echo (int)$tpNotPostedTrainings; ?></div>
-              </div>
-              <div class="p-3 bg-yellow-100 rounded-full">
-                <i data-lucide="upload" class="h-6 w-6 text-yellow-600"></i>
-              </div>
-            </div>
-          </div>
 
-          <div class="hr2-summary-card rounded-xl shadow-md p-6">
-            <div class="flex items-center justify-between">
-              <div>
-                <div class="text-sm text-gray-500">Completed Trainings</div>
-                <div class="text-2xl font-bold text-gray-900"><?php echo (int)$tpCompletedTrainings; ?></div>
-              </div>
-              <div class="p-3 bg-purple-100 rounded-full">
-                <i data-lucide="check-circle" class="h-6 w-6 text-purple-600"></i>
-              </div>
-            </div>
-          </div>
-        </div>
+                <main class="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto">
 
-        <!-- Main Training Programs Section -->
-        <div class="bg-white rounded-xl shadow-md p-6 mb-8">
-            <!-- Action Bar with Filters -->
-            <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-6 gap-4">
-                <div>
-                    <h2 class="text-xl font-semibold text-gray-700">Training Programs</h2>
-                    <p class="text-gray-500 text-sm">Manage all training programs across the organization</p>
-                </div>
-                
-                <div class="flex flex-wrap items-center gap-2">
-                    <!-- Filter buttons -->
-                    <div class="dropdown dropdown-end">
-                        <div tabindex="0" role="button" class="btn btn-outline btn-sm">
-                            <i data-lucide="filter" class="h-4 w-4 mr-2"></i>
-                            Filter
-                        </div>
-                        <ul tabindex="0" class="dropdown-content z-[1] menu p-2 shadow bg-base-100 rounded-box w-52">
-                            <li><a onclick="filterByType('all')">All Types</a></li>
-                            <li><a onclick="filterByType('Orientation')">Orientation</a></li>
-                            <li><a onclick="filterByType('Training')">Training</a></li>
-                            <li><a onclick="filterByType('Seminar')">Seminar</a></li>
-                            <li><a onclick="filterByType('Workshop')">Workshop</a></li>
-                            <li><a onclick="filterByType('Refresher')">Refresher</a></li>
-                        </ul>
-                    </div>
-                    
-                    <!-- Status Filter -->
-                    <div class="dropdown dropdown-end">
-                        <div tabindex="0" role="button" class="btn btn-outline btn-sm">
-                            <i data-lucide="list-filter" class="h-4 w-4 mr-2"></i>
-                            Status
-                        </div>
-                        <ul tabindex="0" class="dropdown-content z-[1] menu p-2 shadow bg-base-100 rounded-box w-52">
-                            <li><a onclick="filterByStatus('all')">All Status</a></li>
-                            <li><a onclick="filterByStatus('Under Review')">Under Review</a></li>
-                            <li><a onclick="filterByStatus('Pending')">Pending</a></li>
-                            <li><a onclick="filterByStatus('Approved')">Approved</a></li>
-                            <li><a onclick="filterByStatus('Rejected')">Rejected</a></li>
-                            <li><a onclick="filterByStatus('For Compliance')">For Compliance</a></li>
-                            <li><a onclick="filterByStatus('ON HOLD')">ON HOLD</a></li>
-                            <li><a onclick="filterByStatus('Planned')">Planned</a></li>
-                            <li><a onclick="filterByStatus('Scheduled')">Scheduled</a></li>
-                            <li><a onclick="filterByStatus('Ongoing')">Ongoing</a></li>
-                            <li><a onclick="filterByStatus('Completed')">Completed</a></li>
-                        </ul>
-                    </div>
-
-                    
-                    <div class="dropdown dropdown-end">
-                        <div tabindex="0" role="button" class="btn btn-outline btn-sm">
-                            Departments
-                        </div>
-                        <ul tabindex="0" class="dropdown-content z-[1] menu p-2 shadow bg-base-100 rounded-box w-52">
-                            <li><a href="financial.php">Financial (Budget)</a></li>
-                            <li><a href="logistics.php">Logistics (Items)</a></li>
-                            <li><a href="admin.php">Admin (Facility)</a></li>
-                        </ul>
-                    </div>
-
-                    
-                    <a id="add-training-btn" href="add_training.php" class="btn btn-sm hr2-primary-btn">
-                        <i data-lucide="plus" class="h-5 w-5 mr-2"></i>
-                        Add Training
-                    </a>
-                </div>
-            </div>
-
-            <!-- Training Cards Container -->
-            <div id="training-cards-container" class="fade-in">
-                <div id="cards-view">
-                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" id="training-cards"></div>
-                </div>
-            </div>
-        </div>
-    </main>
-
-    <!-- Add Training Modal -->
-    <dialog id="training-modal" class="modal">
-        <div class="modal-box w-11/12 max-w-4xl">
-            <h3 class="font-bold text-2xl mb-2" id="modal-title">Create New Training Program</h3>
-            <p class="text-gray-600 mb-6" id="modal-subtitle">Fill in all required information to create a new training program</p>
-            
-            <form id="training-form" class="space-y-6">
-                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    <!-- Left Column -->
-                    <div class="space-y-6">
-                        <!-- Training Program Title -->
-                        <div class="form-control">
-                            <label class="label">
-                                <span class="label-text font-semibold">Training Program Title <span class="text-red-500">*</span></span>
-                            </label>
-                            <input id="training-title" type="text" placeholder="Enter training title" class="input input-bordered w-full" required>
-                        </div>
-                        
-                        <!-- Training Type -->
-                        <div class="form-control">
-                            <label class="label">
-                                <span class="label-text font-semibold">Training Type <span class="text-red-500">*</span></span>
-                            </label>
-                            <select id="training-type" class="select select-bordered w-full" required>
-                                <option value="" disabled selected>Select training type</option>
-                                <option value="Orientation">Orientation</option>
-                                <option value="Training">Training</option>
-                                <option value="Seminar">Seminar</option>
-                                <option value="Workshop">Workshop</option>
-                            </select>
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8 fade-in">
+                        <div class="hr2-summary-card rounded-xl shadow-md p-6">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <div class="text-sm text-gray-500">Total Trainings</div>
+                                    <div class="text-2xl font-bold text-gray-900"><?php echo (int)$tpTotalTrainings; ?></div>
+                                </div>
+                                <div class="p-3 bg-blue-100 rounded-full">
+                                    <i data-lucide="layers" class="h-6 w-6 text-blue-600"></i>
+                                </div>
+                            </div>
                         </div>
 
-                        <!-- Training Mode -->
-                        <div class="form-control">
-                            <label class="label">
-                                <span class="label-text font-semibold">Training Mode <span class="text-red-500">*</span></span>
-                            </label>
-                            <select id="training-mode" class="select select-bordered w-full" required>
-                                <option value="Onsite" selected>Onsite</option>
-                                <option value="Online">Online</option>
-                            </select>
+                        <div class="hr2-summary-card rounded-xl shadow-md p-6">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <div class="text-sm text-gray-500">Not posted Trainings</div>
+                                    <div class="text-2xl font-bold text-gray-900"><?php echo (int)$tpNotPostedTrainings; ?></div>
+                                </div>
+                                <div class="p-3 bg-yellow-100 rounded-full">
+                                    <i data-lucide="upload" class="h-6 w-6 text-yellow-600"></i>
+                                </div>
+                            </div>
                         </div>
 
-                        <!-- Training Category -->
-                        <div class="form-control">
-                            <label class="label">
-                                <span class="label-text font-semibold">Training Category <span class="text-red-500">*</span></span>
-                            </label>
-                            <select id="training-category" class="select select-bordered w-full" required>
-                                <option value="" disabled selected>Select a category</option>
-                                <option value="Technical Skills">Technical Skills</option>
-                                <option value="Soft Skills">Soft Skills</option>
-                                <option value="Compliance">Compliance</option>
-                                <option value="Leadership">Leadership</option>
-                                <option value="Customer Service">Customer Service</option>
-                                <option value="Sales & Marketing">Sales & Marketing</option>
-                                <option value="Safety & Security">Safety & Security</option>
-                                <option value="IT & Digital Literacy">IT & Digital Literacy</option>
-                                <option value="Product Knowledge">Product Knowledge</option>
-                                <option value="Quality Management">Quality Management</option>
-                            </select>
-                        </div>
-
-                        <!-- Target Audience -->
-                        <div class="form-control">
-                            <label class="label">
-                                <span class="label-text font-semibold">Target Audience <span class="text-red-500">*</span></span>
-                            </label>
-                            <select id="target-audience" class="select select-bordered w-full" required>
-                                <option value="" disabled selected>Select target audience</option>
-                                <option value="New Hires">New Hires</option>
-                                <option value="Specific Department">Specific Department</option>
-                                <option value="Specific Role">Specific Role</option>
-                                <option value="Specific Employee">Specific Employee</option>
-                                <option value="All Employees">All Employees</option>
-                                <option value="Management">Management</option>
-                                <option value="Technical Staff">Technical Staff</option>
-                                <option value="Customer Service">Customer Service</option>
-                                <option value="Mentors">Mentors</option>
-                            </select>
-                        </div>
-                        <!-- Department Selection (shown when Specific Department is selected) -->
-                        <div id="department-container" class="form-control fade-in hidden">
-                            <label class="label">
-                                <span class="label-text font-semibold">Select Department <span class="text-red-500">*</span></span>
-                            </label>
-                            <select id="training-department" class="select select-bordered w-full">
-                                <option value="" selected>Select a department</option>
-                                <option value="1">Human Resources</option>
-                                <option value="2">Information Technology</option>
-                                <option value="3">Marketing</option>
-                                <option value="4">Sales</option>
-                                <option value="5">Operations</option>
-                                <option value="6">Finance</option>
-                                <option value="7">Customer Support</option>
-                            </select>
-                        </div>
-                        <!-- Role Selection (shown when Specific Role is selected) -->
-                        <div id="role-container" class="form-control fade-in hidden">
-                            <label class="label">
-                                <span class="label-text font-semibold">Select Role <span class="text-red-500">*</span></span>
-                            </label>
-                            <select id="training-role" class="select select-bordered w-full">
-                                <option value="" selected>Select a role</option>
-                                <option value="Manager">Manager</option>
-                                <option value="Supervisor">Supervisor</option>
-                                <option value="Team Lead">Team Lead</option>
-                                <option value="Executive">Executive</option>
-                                <option value="Associate">Associate</option>
-                                <option value="Intern">Intern</option>
-                            </select>
-                        </div>
-                        <!-- Employee Selection (shown when Specific Employee is selected) -->
-                        <div id="employee-container" class="form-control fade-in hidden">
-                            <label class="label">
-                                <span class="label-text font-semibold">Select Employee <span class="text-red-500">*</span></span>
-                            </label>
-                            <select id="training-employee" class="select select-bordered w-full">
-                                <option value="" selected>Select employee</option>
-                                <?php foreach ($employees as $emp): ?>
-                                    <?php
-                                        $empId = (int)($emp['id'] ?? 0);
-                                        $empNo = trim((string)($emp['employee_no'] ?? ''));
-                                        $fn = trim((string)($emp['first_name'] ?? ''));
-                                        $ln = trim((string)($emp['last_name'] ?? ''));
-                                        $label = trim($ln . ', ' . $fn);
-                                        if ($empNo !== '') $label .= ' (' . $empNo . ')';
-                                    ?>
-                                    <option value="<?= htmlspecialchars($empId) ?>"><?= htmlspecialchars($label) ?></option>
-                                <?php endforeach; ?>
-                            </select>
+                        <div class="hr2-summary-card rounded-xl shadow-md p-6">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <div class="text-sm text-gray-500">Completed Trainings</div>
+                                    <div class="text-2xl font-bold text-gray-900"><?php echo (int)$tpCompletedTrainings; ?></div>
+                                </div>
+                                <div class="p-3 bg-purple-100 rounded-full">
+                                    <i data-lucide="check-circle" class="h-6 w-6 text-purple-600"></i>
+                                </div>
+                            </div>
                         </div>
                     </div>
-                    <!-- Right Column -->
-                    <div class="space-y-6">
-                        <!-- Schedule -->
-                        <div class="space-y-4">
+
+                    <!-- Main Training Programs Section -->
+                    <div class="bg-white rounded-xl shadow-md p-6 mb-8">
+                        <!-- Action Bar with Filters -->
+                        <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-6 gap-4">
                             <div>
-                                <label class="label">
-                                    <span class="label-text font-semibold">Schedule <span class="text-red-500">*</span></span>
-                                </label>
-                                <input id="participants-needed" type="hidden" value="1">
-                                <div class="datetime-container">
-                                    <div class="form-control">
-                                        <label class="label"><span class="label-text">Start Date</span></label>
-                                        <input id="start-date" type="date" class="input input-bordered w-full" required>
+                                <h2 class="text-xl font-semibold text-gray-700">Training Programs</h2>
+                                <p class="text-gray-500 text-sm">Manage all training programs across the organization</p>
+                            </div>
+
+                            <div class="flex flex-wrap items-center gap-2">
+                                <!-- Filter buttons -->
+                                <div class="dropdown dropdown-end">
+                                    <div tabindex="0" role="button" class="btn btn-outline btn-sm">
+                                        <i data-lucide="filter" class="h-4 w-4 mr-2"></i>
+                                        Filter
                                     </div>
-                                    <div class="form-control">
-                                        <label class="label"><span class="label-text">Start Time</span></label>
-                                        <input id="start-time" type="time" class="input input-bordered w-full" required>
+                                    <ul tabindex="0" class="dropdown-content z-[1] menu p-2 shadow bg-base-100 rounded-box w-52">
+                                        <li><a onclick="filterByType('all')">All Types</a></li>
+                                        <li><a onclick="filterByType('Orientation')">Orientation</a></li>
+                                        <li><a onclick="filterByType('Training')">Training</a></li>
+                                        <li><a onclick="filterByType('Seminar')">Seminar</a></li>
+                                        <li><a onclick="filterByType('Workshop')">Workshop</a></li>
+                                        <li><a onclick="filterByType('Refresher')">Refresher</a></li>
+                                    </ul>
+                                </div>
+
+                                <!-- Status Filter -->
+                                <div class="dropdown dropdown-end">
+                                    <div tabindex="0" role="button" class="btn btn-outline btn-sm">
+                                        <i data-lucide="list-filter" class="h-4 w-4 mr-2"></i>
+                                        Status
                                     </div>
-                                    <div class="form-control">
-                                        <label class="label"><span class="label-text">End Date</span></label>
-                                        <input id="end-date" type="date" class="input input-bordered w-full" required>
+                                    <ul tabindex="0" class="dropdown-content z-[1] menu p-2 shadow bg-base-100 rounded-box w-52">
+                                        <li><a onclick="filterByStatus('all')">All Status</a></li>
+                                        <li><a onclick="filterByStatus('Under Review')">Under Review</a></li>
+                                        <li><a onclick="filterByStatus('Pending')">Pending</a></li>
+                                        <li><a onclick="filterByStatus('Approved')">Approved</a></li>
+                                        <li><a onclick="filterByStatus('Rejected')">Rejected</a></li>
+                                        <li><a onclick="filterByStatus('For Compliance')">For Compliance</a></li>
+                                        <li><a onclick="filterByStatus('ON HOLD')">ON HOLD</a></li>
+                                        <li><a onclick="filterByStatus('Planned')">Planned</a></li>
+                                        <li><a onclick="filterByStatus('Scheduled')">Scheduled</a></li>
+                                        <li><a onclick="filterByStatus('Ongoing')">Ongoing</a></li>
+                                        <li><a onclick="filterByStatus('Completed')">Completed</a></li>
+                                    </ul>
+                                </div>
+
+
+                                <div class="dropdown dropdown-end">
+                                    <div tabindex="0" role="button" class="btn btn-outline btn-sm">
+                                        Departments
                                     </div>
+                                    <ul tabindex="0" class="dropdown-content z-[1] menu p-2 shadow bg-base-100 rounded-box w-52">
+                                        <li><a href="financial.php">Financial (Budget)</a></li>
+                                        <li><a href="logistics.php">Logistics (Items)</a></li>
+                                        <li><a href="admin.php">Admin (Facility)</a></li>
+                                    </ul>
+                                </div>
+
+
+                                <a id="add-training-btn" href="add_training.php" class="btn btn-sm hr2-primary-btn">
+                                    <i data-lucide="plus" class="h-5 w-5 mr-2"></i>
+                                    Add Training
+                                </a>
+                            </div>
+                        </div>
+
+                        <!-- Training Cards Container -->
+                        <div id="training-cards-container" class="fade-in">
+                            <div id="cards-view">
+                                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" id="training-cards"></div>
+                            </div>
+                        </div>
+                    </div>
+                </main>
+
+                <!-- Add Training Modal -->
+                <dialog id="training-modal" class="modal">
+                    <div class="modal-box w-11/12 max-w-6xl">
+                        <h3 class="font-bold text-2xl mb-2" id="modal-title">Create New Training Program</h3>
+                        <p class="text-gray-600 mb-6" id="modal-subtitle">Fill in all required information to create a new training program</p>
+
+                        <form id="training-form" class="space-y-6">
+                            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                <!-- Left Column -->
+                                <div class="space-y-6">
+                                    <!-- Training Program Title -->
                                     <div class="form-control">
-                                        <label class="label"><span class="label-text">End Time</span></label>
-                                        <input id="end-time" type="time" class="input input-bordered w-full" required>
+                                        <label class="label">
+                                            <span class="label-text font-semibold">Training Program Title <span class="text-red-500">*</span></span>
+                                        </label>
+                                        <input id="training-title" type="text" placeholder="Enter training title" class="input input-bordered w-full" required>
+                                    </div>
+
+                                    <!-- Training Type -->
+                                    <div class="form-control">
+                                        <label class="label">
+                                            <span class="label-text font-semibold">Training Type <span class="text-red-500">*</span></span>
+                                        </label>
+                                        <select id="training-type" class="select select-bordered w-full" required>
+                                            <option value="" disabled selected>Select training type</option>
+                                            <option value="Orientation">Orientation</option>
+                                            <option value="Training">Training</option>
+                                            <option value="Seminar">Seminar</option>
+                                            <option value="Workshop">Workshop</option>
+                                        </select>
+                                    </div>
+
+                                    <!-- Training Mode -->
+                                    <div class="form-control">
+                                        <label class="label">
+                                            <span class="label-text font-semibold">Training Mode <span class="text-red-500">*</span></span>
+                                        </label>
+                                        <select id="training-mode" class="select select-bordered w-full" required>
+                                            <option value="Onsite" selected>Onsite</option>
+                                            <option value="Online">Online</option>
+                                        </select>
+                                    </div>
+
+                                    <!-- Training Category -->
+                                    <div class="form-control">
+                                        <label class="label">
+                                            <span class="label-text font-semibold">Training Category <span class="text-red-500">*</span></span>
+                                        </label>
+                                        <select id="training-category" class="select select-bordered w-full" required>
+                                            <option value="" disabled selected>Select a category</option>
+                                            <option value="Technical Skills">Technical Skills</option>
+                                            <option value="Soft Skills">Soft Skills</option>
+                                            <option value="Compliance">Compliance</option>
+                                            <option value="Leadership">Leadership</option>
+                                            <option value="Customer Service">Customer Service</option>
+                                            <option value="Sales & Marketing">Sales & Marketing</option>
+                                            <option value="Safety & Security">Safety & Security</option>
+                                            <option value="IT & Digital Literacy">IT & Digital Literacy</option>
+                                            <option value="Product Knowledge">Product Knowledge</option>
+                                            <option value="Quality Management">Quality Management</option>
+                                        </select>
+                                    </div>
+
+                                    <!-- Target Audience -->
+                                    <div class="form-control">
+                                        <label class="label">
+                                            <span class="label-text font-semibold">Target Audience <span class="text-red-500">*</span></span>
+                                        </label>
+                                        <select id="target-audience" class="select select-bordered w-full" required>
+                                            <option value="" disabled selected>Select target audience</option>
+                                            <option value="New Hires">New Hires</option>
+                                            <option value="Specific Department">Specific Department</option>
+                                            <option value="Specific Role">Specific Role</option>
+                                            <option value="Specific Employee">Specific Employee</option>
+                                            <option value="All Employees">All Employees</option>
+                                            <option value="Management">Management</option>
+                                            <option value="Technical Staff">Technical Staff</option>
+                                            <option value="Customer Service">Customer Service</option>
+                                            <option value="Mentors">Mentors</option>
+                                        </select>
+                                    </div>
+                                    <!-- Department Selection (shown when Specific Department is selected) -->
+                                    <div id="department-container" class="form-control fade-in hidden">
+                                        <label class="label">
+                                            <span class="label-text font-semibold">Select Department <span class="text-red-500">*</span></span>
+                                        </label>
+                                        <select id="training-department" class="select select-bordered w-full">
+                                            <option value="" selected>Select a department</option>
+                                            <option value="1">Human Resources</option>
+                                            <option value="2">Information Technology</option>
+                                            <option value="3">Marketing</option>
+                                            <option value="4">Sales</option>
+                                            <option value="5">Operations</option>
+                                            <option value="6">Finance</option>
+                                            <option value="7">Customer Support</option>
+                                        </select>
+                                    </div>
+                                    <!-- Role Selection (shown when Specific Role is selected) -->
+                                    <div id="role-container" class="form-control fade-in hidden">
+                                        <label class="label">
+                                            <span class="label-text font-semibold">Select Role <span class="text-red-500">*</span></span>
+                                        </label>
+                                        <select id="training-role" class="select select-bordered w-full">
+                                            <option value="" selected>Select a role</option>
+                                            <option value="Manager">Manager</option>
+                                            <option value="Supervisor">Supervisor</option>
+                                            <option value="Team Lead">Team Lead</option>
+                                            <option value="Executive">Executive</option>
+                                            <option value="Associate">Associate</option>
+                                            <option value="Intern">Intern</option>
+                                        </select>
+                                    </div>
+                                    <!-- Employee Selection (shown when Specific Employee is selected) -->
+                                    <div id="employee-container" class="form-control fade-in hidden">
+                                        <label class="label">
+                                            <span class="label-text font-semibold">Select Employee <span class="text-red-500">*</span></span>
+                                        </label>
+                                        <select id="training-employee" class="select select-bordered w-full">
+                                            <option value="" selected>Select employee</option>
+                                            <?php foreach ($employees as $emp): ?>
+                                                <?php
+                                                $empId = (int)($emp['id'] ?? 0);
+                                                $empNo = trim((string)($emp['employee_no'] ?? ''));
+                                                $fn = trim((string)($emp['first_name'] ?? ''));
+                                                $ln = trim((string)($emp['last_name'] ?? ''));
+                                                $label = trim($ln . ', ' . $fn);
+                                                if ($empNo !== '') $label .= ' (' . $empNo . ')';
+                                                ?>
+                                                <option value="<?= htmlspecialchars($empId) ?>"><?= htmlspecialchars($label) ?></option>
+                                            <?php endforeach; ?>
+                                        </select>
                                     </div>
                                 </div>
-                                <div class="mt-2 text-sm text-gray-500" id="schedule-validation"></div>
+                                <!-- Right Column -->
+                                <div class="space-y-6">
+                                    <!-- Schedule -->
+                                    <div class="space-y-4">
+                                        <div>
+                                            <label class="label">
+                                                <span class="label-text font-semibold">Schedule <span class="text-red-500">*</span></span>
+                                            </label>
+                                            <input id="participants-needed" type="hidden" value="1">
+                                            <div class="datetime-container">
+                                                <div class="form-control">
+                                                    <label class="label"><span class="label-text">Start Date</span></label>
+                                                    <input id="start-date" type="date" class="input input-bordered w-full" required>
+                                                </div>
+                                                <div class="form-control">
+                                                    <label class="label"><span class="label-text">Start Time</span></label>
+                                                    <input id="start-time" type="time" class="input input-bordered w-full" required>
+                                                </div>
+                                                <div class="form-control">
+                                                    <label class="label"><span class="label-text">End Date</span></label>
+                                                    <input id="end-date" type="date" class="input input-bordered w-full" required>
+                                                </div>
+                                                <div class="form-control">
+                                                    <label class="label"><span class="label-text">End Time</span></label>
+                                                    <input id="end-time" type="time" class="input input-bordered w-full" required>
+                                                </div>
+                                            </div>
+                                            <div class="mt-2 text-sm text-gray-500" id="schedule-validation"></div>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
-                        </div>
-                    </div>
-                </div>
 
-                <!-- Description / Overview -->
-                <div class="form-control">
-                    <label class="label">
-                        <span class="label-text font-semibold">Description / Overview <span class="text-red-500">*</span></span>
-                    </label>
-                    <textarea id="description" class="textarea textarea-bordered h-32" placeholder="Provide a brief explanation of the training program" required></textarea>
-                </div>
-
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div class="form-control">
-                        <label class="label">
-                            <span class="label-text font-semibold">Need Budget? (Financial)</span>
-                        </label>
-                        <select id="need-budget" class="select select-bordered w-full">
-                            <option value="0" selected>No</option>
-                            <option value="1">Yes</option>
-                        </select>
-                    </div>
-                    <div class="form-control">
-                        <label class="label">
-                            <span class="label-text font-semibold">Need Items? (Logistics)</span>
-                        </label>
-                        <select id="need-items" class="select select-bordered w-full">
-                            <option value="0" selected>No</option>
-                            <option value="1">Yes</option>
-                        </select>
-                    </div>
-                    <div class="form-control">
-                        <label class="label">
-                            <span class="label-text font-semibold">Need Facility? (Admin)</span>
-                        </label>
-                        <select id="need-facility" class="select select-bordered w-full">
-                            <option value="0" selected>No</option>
-                            <option value="1">Yes</option>
-                        </select>
-                    </div>
-                </div>
-
-                <div id="request-summary" class="space-y-4">
-                    <div class="text-sm font-semibold text-gray-700">Request Summary</div>
-                    <div id="budget-summary" class="hidden"></div>
-                    <div id="logistics-summary" class="hidden"></div>
-                    <div id="facility-summary" class="hidden"></div>
-                </div>
-            </form>
-
-            <div class="modal-action">
-                <button type="button" id="cancel-btn" class="btn btn-ghost">Cancel</button>
-                <button type="button" id="save-training-btn" class="btn btn-primary">Save Training Program</button>
-            </div>
-        </div>
-        <form method="dialog" class="modal-backdrop">
-            <button>close</button>
-        </form>
-    </dialog>
-
-    <!-- Budget Request Modal -->
-    <dialog id="budget-request-modal" class="modal">
-        <div class="modal-box w-11/12 max-w-4xl">
-            <div class="flex items-start justify-between gap-4">
-                <div>
-                    <h3 class="font-bold text-xl mb-1">Budget Request</h3>
-                    <p class="text-gray-600">Request budget for training, seminar, or orientation</p>
-                </div>
-                <button type="button" id="budget-cancel-btn" class="btn btn-ghost btn-sm">✕</button>
-            </div>
-            <form id="budget-request-form" class="space-y-5">
-                <div>
-                    <div class="text-sm font-semibold text-gray-700 mb-3">Basic Information</div>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div class="form-control">
-                            <label class="label"><span class="label-text">Training/Seminar Title <span class="text-red-500">*</span></span></label>
-                            <input id="budget-title" type="text" class="input input-bordered w-full" required>
-                        </div>
-                        <div class="form-control">
-                            <label class="label"><span class="label-text">Purpose <span class="text-red-500">*</span></span></label>
-                            <textarea id="budget-purpose" class="textarea textarea-bordered w-full" rows="2" required></textarea>
-                        </div>
-                        <div class="form-control">
-                            <label class="label"><span class="label-text">Department <span class="text-red-500">*</span></span></label>
-                            <select id="budget-department" class="select select-bordered w-full" required>
-                                <option value="" selected>Select Department</option>
-                                <option value="1">Human Resources</option>
-                                <option value="2">Information Technology</option>
-                                <option value="3">Marketing</option>
-                                <option value="4">Sales</option>
-                                <option value="5">Operations</option>
-                                <option value="6">Finance</option>
-                                <option value="7">Customer Support</option>
-                            </select>
-                        </div>
-                        <div class="form-control">
-                            <label class="label"><span class="label-text">Requested To Department <span class="text-red-500">*</span></span></label>
-                            <select id="budget-requested-dept" class="select select-bordered w-full" required>
-                                <option value="" selected>Select Department</option>
-                                <option value="1">Human Resources</option>
-                                <option value="2">Information Technology</option>
-                                <option value="3">Marketing</option>
-                                <option value="4">Sales</option>
-                                <option value="5">Operations</option>
-                                <option value="6">Finance</option>
-                                <option value="7">Customer Support</option>
-                            </select>
-                        </div>
-                        <div class="form-control">
-                            <label class="label"><span class="label-text">Event Date <span class="text-red-500">*</span></span></label>
-                            <input id="budget-event-date" type="date" class="input input-bordered w-full" required>
-                        </div>
-                    </div>
-                </div>
-
-                <div>
-                    <div class="text-sm font-semibold text-gray-700 mb-3">Budget Items</div>
-                    <div class="bg-base-200 rounded-lg p-4 space-y-4">
-                        <div id="budget-items-container" class="space-y-4"></div>
-                        <button type="button" id="budget-add-item-btn" class="btn btn-outline btn-sm w-full">+ Add Another Budget Item</button>
-                    </div>
-                </div>
-
-                <div class="bg-blue-50 rounded-lg p-4">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <div class="text-sm font-semibold text-gray-700">Total Estimated Cost</div>
-                            <div class="text-xs text-gray-500">Sum of all budget items</div>
-                        </div>
-                        <div class="text-lg font-bold text-blue-600">₱<span id="budget-total-cost">0.00</span></div>
-                    </div>
-                </div>
-
-                <div>
-                    <label class="label"><span class="label-text">Justification <span class="text-red-500">*</span></span></label>
-                    <textarea id="budget-justification" class="textarea textarea-bordered h-24 w-full" required placeholder="Explain why this budget is needed and how it will benefit the training..."></textarea>
-                </div>
-                <div>
-                    <label class="label"><span class="label-text">Remarks</span></label>
-                    <textarea id="budget-remarks" class="textarea textarea-bordered h-24 w-full" placeholder="Additional notes or comments..."></textarea>
-                </div>
-            </form>
-
-            <div class="modal-action">
-                <button type="button" id="budget-save-btn" class="btn btn-primary">Save Budget Request</button>
-            </div>
-        </div>
-        <form method="dialog" class="modal-backdrop">
-            <button>close</button>
-        </form>
-    </dialog>
-
-    <!-- Logistics Request Modal -->
-    <dialog id="logistics-request-modal" class="modal">
-        <div class="modal-box w-11/12 max-w-4xl">
-            <div class="flex items-start justify-between gap-4">
-                <div>
-                    <h3 class="font-bold text-xl mb-1">Logistics Request</h3>
-                    <p class="text-gray-600">Request items for training, seminar, or orientation</p>
-                </div>
-                <button type="button" id="logistics-cancel-btn" class="btn btn-ghost btn-sm">✕</button>
-            </div>
-            <form id="logistics-request-form" class="space-y-5">
-                <div>
-                    <div class="text-sm font-semibold text-gray-700 mb-3">Basic Information</div>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div class="form-control">
-                            <label class="label"><span class="label-text">Training/Seminar Title <span class="text-red-500">*</span></span></label>
-                            <input id="logistics-title" type="text" class="input input-bordered w-full" required>
-                        </div>
-                        <div class="form-control">
-                            <label class="label"><span class="label-text">Purpose <span class="text-red-500">*</span></span></label>
-                            <textarea id="logistics-purpose" class="textarea textarea-bordered w-full" rows="2" required></textarea>
-                        </div>
-                        <div class="form-control">
-                            <label class="label"><span class="label-text">Department <span class="text-red-500">*</span></span></label>
-                            <select id="logistics-department" class="select select-bordered w-full" required>
-                                <option value="" selected>Select Department</option>
-                                <option value="1">Front Office / Reception</option>
-                                <option value="2">Housekeeping</option>
-                                <option value="3">Food &amp; Beverage (F&amp;B)</option>
-                                <option value="4">Kitchen / Culinary</option>
-                                <option value="5">Sales &amp; Marketing</option>
-                                <option value="6">Human Resources (HR)</option>
-                                <option value="7">Finance / Accounting</option>
-                                <option value="8">Engineering / Maintenance</option>
-                                <option value="9">Security</option>
-                            </select>
-                        </div>
-                        <div class="form-control">
-                            <label class="label"><span class="label-text">Requested To Department <span class="text-red-500">*</span></span></label>
-                            <select id="logistics-requested-dept" class="select select-bordered w-full" required>
-                                <option value="" selected>Select Department</option>
-                                <option value="1">Front Office / Reception</option>
-                                <option value="2">Housekeeping</option>
-                                <option value="3">Food &amp; Beverage (F&amp;B)</option>
-                                <option value="4">Kitchen / Culinary</option>
-                                <option value="5">Sales &amp; Marketing</option>
-                                <option value="6">Human Resources (HR)</option>
-                                <option value="7">Finance / Accounting</option>
-                                <option value="8">Engineering / Maintenance</option>
-                                <option value="9">Security</option>
-                            </select>
-                        </div>
-                        <div class="form-control">
-                            <label class="label"><span class="label-text">Event Date <span class="text-red-500">*</span></span></label>
-                            <input id="logistics-event-date" type="date" class="input input-bordered w-full" required>
-                        </div>
-                        <div class="form-control">
-                            <label class="label"><span class="label-text">Needed By Date <span class="text-red-500">*</span></span></label>
-                            <input id="logistics-needed-by-date" type="date" class="input input-bordered w-full" required>
-                        </div>
-                    </div>
-                </div>
-
-                <div>
-                    <div class="text-sm font-semibold text-gray-700 mb-3">Requested Items</div>
-                    <div class="bg-base-200 rounded-lg p-4 space-y-4">
-                        <div id="logistics-items-container" class="space-y-4"></div>
-                        <button type="button" id="logistics-add-item-btn" class="btn btn-outline btn-sm w-full">+ Add Another Item</button>
-                    </div>
-                </div>
-
-                <div>
-                    <div class="text-sm font-semibold text-gray-700 mb-3">Delivery Information</div>
-                    <div class="bg-blue-50 rounded-lg p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div class="form-control">
-                            <label class="label"><span class="label-text">Delivery Location <span class="text-red-500">*</span></span></label>
-                            <input id="logistics-delivery-location" type="text" class="input input-bordered w-full" required placeholder="E.g., Training Room A, 3rd Floor">
-                        </div>
-                        <div class="form-control">
-                            <label class="label"><span class="label-text">Contact Person <span class="text-red-500">*</span></span></label>
-                            <input id="logistics-contact-person" type="text" class="input input-bordered w-full" required placeholder="Name of person to receive items">
-                        </div>
-                    </div>
-                </div>
-
-                <div>
-                    <label class="label"><span class="label-text">Remarks</span></label>
-                    <textarea id="logistics-remarks" class="textarea textarea-bordered h-24 w-full" placeholder="Additional notes, special handling instructions, or comments..."></textarea>
-                </div>
-            </form>
-
-            <div class="modal-action">
-                <button type="button" id="logistics-save-btn" class="btn btn-primary">Save Logistics Request</button>
-            </div>
-        </div>
-        <form method="dialog" class="modal-backdrop">
-            <button>close</button>
-        </form>
-    </dialog>
-
-    <!-- Facility Request Modal -->
-    <dialog id="facility-request-modal" class="modal">
-        <div class="modal-box w-11/12 max-w-4xl">
-            <div class="flex items-start justify-between gap-4">
-                <div>
-                    <h3 class="font-bold text-xl mb-1">Location Request</h3>
-                    <p class="text-gray-600">Request venue for training, seminar, or orientation</p>
-                </div>
-                <button type="button" id="facility-cancel-btn" class="btn btn-ghost btn-sm">✕</button>
-            </div>
-            <form id="facility-request-form" class="space-y-5">
-                <div>
-                    <div class="text-sm font-semibold text-gray-700 mb-3">Basic Information</div>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div class="form-control">
-                            <label class="label"><span class="label-text">Training/Seminar Title <span class="text-red-500">*</span></span></label>
-                            <input id="facility-title" type="text" class="input input-bordered w-full" required>
-                        </div>
-                        <div class="form-control">
-                            <label class="label"><span class="label-text">Purpose <span class="text-red-500">*</span></span></label>
-                            <textarea id="facility-purpose" class="textarea textarea-bordered w-full" rows="2" required></textarea>
-                        </div>
-                        <div class="form-control">
-                            <label class="label"><span class="label-text">Department <span class="text-red-500">*</span></span></label>
-                            <select id="facility-department" class="select select-bordered w-full" required>
-                                <option value="" selected>Select Department</option>
-                                <option value="1">Front Office / Reception</option>
-                                <option value="2">Housekeeping</option>
-                                <option value="3">Food &amp; Beverage (F&amp;B)</option>
-                                <option value="4">Kitchen / Culinary</option>
-                                <option value="5">Sales &amp; Marketing</option>
-                                <option value="6">Human Resources (HR)</option>
-                                <option value="7">Finance / Accounting</option>
-                                <option value="8">Engineering / Maintenance</option>
-                                <option value="9">Security</option>
-                            </select>
-                        </div>
-                        <div class="form-control">
-                            <label class="label"><span class="label-text">Requested To Department <span class="text-red-500">*</span></span></label>
-                            <select id="facility-requested-dept" class="select select-bordered w-full" required>
-                                <option value="" selected>Select Department</option>
-                                <option value="1">Front Office / Reception</option>
-                                <option value="2">Housekeeping</option>
-                                <option value="3">Food &amp; Beverage (F&amp;B)</option>
-                                <option value="4">Kitchen / Culinary</option>
-                                <option value="5">Sales &amp; Marketing</option>
-                                <option value="6">Human Resources (HR)</option>
-                                <option value="7">Finance / Accounting</option>
-                                <option value="8">Engineering / Maintenance</option>
-                                <option value="9">Security</option>
-                            </select>
-                        </div>
-                        <div class="form-control">
-                            <label class="label"><span class="label-text">Event Date <span class="text-red-500">*</span></span></label>
-                            <input id="facility-event-date" type="date" class="input input-bordered w-full" required>
-                        </div>
-                    </div>
-                </div>
-
-                <div>
-                    <div class="text-sm font-semibold text-gray-700 mb-3">Location Details</div>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div class="form-control">
-                            <label class="label"><span class="label-text">Preferred Location <span class="text-red-500">*</span></span></label>
-                            <select id="facility-preferred-location" class="select select-bordered w-full" required>
-                                <option value="" selected>Select Location</option>
-                                <option value="Training Room A">Training Room A</option>
-                                <option value="Training Room B">Training Room B</option>
-                                <option value="Conference Hall">Conference Hall</option>
-                                <option value="Auditorium">Auditorium</option>
-                            </select>
-                        </div>
-                        <div class="grid grid-cols-2 gap-4">
+                            <!-- Description / Overview -->
                             <div class="form-control">
-                                <label class="label"><span class="label-text">Start Time <span class="text-red-500">*</span></span></label>
-                                <input id="facility-start-time" type="time" class="input input-bordered w-full" required>
+                                <label class="label">
+                                    <span class="label-text font-semibold">Description / Overview <span class="text-red-500">*</span></span>
+                                </label>
+                                <textarea id="description" class="textarea textarea-bordered h-32" placeholder="Provide a brief explanation of the training program" required></textarea>
                             </div>
-                            <div class="form-control">
-                                <label class="label"><span class="label-text">End Time <span class="text-red-500">*</span></span></label>
-                                <input id="facility-end-time" type="time" class="input input-bordered w-full" required>
+
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div class="form-control">
+                                    <label class="label">
+                                        <span class="label-text font-semibold">Need Budget? (Financial)</span>
+                                    </label>
+                                    <select id="need-budget" class="select select-bordered w-full">
+                                        <option value="0" selected>No</option>
+                                        <option value="1">Yes</option>
+                                    </select>
+                                </div>
+                                <div class="form-control">
+                                    <label class="label">
+                                        <span class="label-text font-semibold">Need Items? (Logistics)</span>
+                                    </label>
+                                    <select id="need-items" class="select select-bordered w-full">
+                                        <option value="0" selected>No</option>
+                                        <option value="1">Yes</option>
+                                    </select>
+                                </div>
+                                <div class="form-control">
+                                    <label class="label">
+                                        <span class="label-text font-semibold">Need Facility? (Admin)</span>
+                                    </label>
+                                    <select id="need-facility" class="select select-bordered w-full">
+                                        <option value="0" selected>No</option>
+                                        <option value="1">Yes</option>
+                                    </select>
+                                </div>
                             </div>
+
+                            <div id="request-summary" class="space-y-4">
+                                <div class="text-sm font-semibold text-gray-700">Request Summary</div>
+                                <div id="budget-summary" class="hidden"></div>
+                                <div id="logistics-summary" class="hidden"></div>
+                                <div id="facility-summary" class="hidden"></div>
+                            </div>
+                        </form>
+
+                        <div class="modal-action">
+                            <button type="button" id="cancel-btn" class="btn btn-ghost">Cancel</button>
+                            <button type="button" id="save-training-btn" class="btn btn-primary">Save Training Program</button>
                         </div>
                     </div>
-                </div>
+                    <form method="dialog" class="modal-backdrop">
+                        <button>close</button>
+                    </form>
+                </dialog>
 
-                <div>
-                    <label class="label"><span class="label-text">Special Requirements</span></label>
-                    <textarea id="facility-special-requirements" class="textarea textarea-bordered h-24 w-full" placeholder="Audio-visual equipment, seating arrangement, internet access, etc."></textarea>
-                </div>
-                <div>
-                    <label class="label"><span class="label-text">Remarks</span></label>
-                    <textarea id="facility-remarks" class="textarea textarea-bordered h-24 w-full" placeholder="Additional notes or comments..."></textarea>
-                </div>
-            </form>
-
-            <div class="modal-action">
-                <button type="button" id="facility-save-btn" class="btn btn-primary">Save Location Request</button>
-            </div>
-        </div>
-        <form method="dialog" class="modal-backdrop">
-            <button>close</button>
-        </form>
-    </dialog>
-
-    <!-- View Training Details Modal -->
-    <dialog id="view-training-modal" class="modal">
-        <div class="modal-box w-11/12 max-w-2xl">
-            <h3 class="font-bold text-2xl mb-2" id="view-training-title">Training Program</h3>
-            <div class="flex items-center gap-2 mb-4">
-                <span id="view-training-type" class="badge badge-outline"></span>
-                <span id="view-status" class="badge badge-outline"></span>
-            </div>
-
-            <div class="space-y-4" id="view-training-content">
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                        <h4 class="font-semibold text-gray-700">Category</h4>
-                        <p id="view-category" class="text-gray-900"></p>
-                    </div>
-                    <div>
-                        <h4 class="font-semibold text-gray-700">Target Audience</h4>
-                        <p id="view-target-audience" class="text-gray-900"></p>
-                    </div>
-                </div>
-
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                        <h4 class="font-semibold text-gray-700">Duration</h4>
-                        <p id="view-duration" class="text-gray-900"></p>
-                    </div>
-                    <div>
-                        <h4 class="font-semibold text-gray-700">Competency Level</h4>
-                        <p id="view-competency-level" class="text-gray-900"></p>
-                    </div>
-                </div>
-
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                        <h4 class="font-semibold text-gray-700">Start Date & Time</h4>
-                        <p id="view-start-date" class="text-gray-900"></p>
-                    </div>
-                    <div>
-                        <h4 class="font-semibold text-gray-700">End Date & Time</h4>
-                        <p id="view-end-date" class="text-gray-900"></p>
-                    </div>
-                </div>
-
-                <div>
-                    <h4 class="font-semibold text-gray-700">Description</h4>
-                    <p id="view-description" class="text-gray-900 whitespace-pre-line"></p>
-                </div>
-
-                <div id="view-status-reason-container" class="hidden">
-                    <h4 class="font-semibold text-gray-700">Reason</h4>
-                    <p id="view-status-reason" class="text-gray-900 whitespace-pre-line"></p>
-                </div>
-
-                <div id="view-request-statuses-container" class="hidden">
-                    <h4 class="font-semibold text-gray-700">Department Request Status</h4>
-                    <div class="mt-2 space-y-2">
-                        <div class="flex items-start justify-between gap-3">
-                            <div class="font-semibold text-gray-700">Financial</div>
-                            <div class="text-right">
-                                <div id="view-financial-status" class="badge badge-outline"></div>
-                                <div id="view-financial-reason" class="text-xs text-gray-500 whitespace-pre-line"></div>
+                <!-- Budget Request Modal -->
+                <dialog id="budget-request-modal" class="modal">
+                    <div class="modal-box w-11/12 max-w-4xl">
+                        <div class="flex items-start justify-between gap-4">
+                            <div>
+                                <h3 class="font-bold text-xl mb-1">Budget Request</h3>
+                                <p class="text-gray-600">Request budget for training, seminar, or orientation</p>
                             </div>
+                            <button type="button" id="budget-cancel-btn" class="btn btn-ghost btn-sm">✕</button>
                         </div>
-                        <div class="flex items-start justify-between gap-3">
-                            <div class="font-semibold text-gray-700">Logistics</div>
-                            <div class="text-right">
-                                <div id="view-logistics-status" class="badge badge-outline"></div>
-                                <div id="view-logistics-reason" class="text-xs text-gray-500 whitespace-pre-line"></div>
+                        <form id="budget-request-form" class="space-y-5">
+                            <div>
+                                <div class="text-sm font-semibold text-gray-700 mb-3">Basic Information</div>
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div class="form-control">
+                                        <label class="label"><span class="label-text">Training/Seminar Title <span class="text-red-500">*</span></span></label>
+                                        <input id="budget-title" type="text" class="input input-bordered w-full" required>
+                                    </div>
+                                    <div class="form-control">
+                                        <label class="label"><span class="label-text">Purpose <span class="text-red-500">*</span></span></label>
+                                        <textarea id="budget-purpose" class="textarea textarea-bordered w-full" rows="2" required></textarea>
+                                    </div>
+                                    <div class="form-control">
+                                        <label class="label"><span class="label-text">Department <span class="text-red-500">*</span></span></label>
+                                        <select id="budget-department" class="select select-bordered w-full" required>
+                                            <option value="" selected>Select Department</option>
+                                            <option value="1">Human Resources</option>
+                                            <option value="2">Information Technology</option>
+                                            <option value="3">Marketing</option>
+                                            <option value="4">Sales</option>
+                                            <option value="5">Operations</option>
+                                            <option value="6">Finance</option>
+                                            <option value="7">Customer Support</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-control">
+                                        <label class="label"><span class="label-text">Requested To Department <span class="text-red-500">*</span></span></label>
+                                        <select id="budget-requested-dept" class="select select-bordered w-full" required>
+                                            <option value="" selected>Select Department</option>
+                                            <option value="1">Human Resources</option>
+                                            <option value="2">Information Technology</option>
+                                            <option value="3">Marketing</option>
+                                            <option value="4">Sales</option>
+                                            <option value="5">Operations</option>
+                                            <option value="6">Finance</option>
+                                            <option value="7">Customer Support</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-control">
+                                        <label class="label"><span class="label-text">Event Date <span class="text-red-500">*</span></span></label>
+                                        <input id="budget-event-date" type="date" class="input input-bordered w-full" required>
+                                    </div>
+                                </div>
                             </div>
-                        </div>
-                        <div class="flex items-start justify-between gap-3">
-                            <div class="font-semibold text-gray-700">Admin</div>
-                            <div class="text-right">
-                                <div id="view-admin-status" class="badge badge-outline"></div>
-                                <div id="view-admin-reason" class="text-xs text-gray-500 whitespace-pre-line"></div>
+
+                            <div>
+                                <div class="text-sm font-semibold text-gray-700 mb-3">Budget Items</div>
+                                <div class="bg-base-200 rounded-lg p-4 space-y-4">
+                                    <div id="budget-items-container" class="space-y-4"></div>
+                                    <button type="button" id="budget-add-item-btn" class="btn btn-outline btn-sm w-full">+ Add Another Budget Item</button>
+                                </div>
                             </div>
+
+                            <div class="bg-blue-50 rounded-lg p-4">
+                                <div class="flex items-center justify-between">
+                                    <div>
+                                        <div class="text-sm font-semibold text-gray-700">Total Estimated Cost</div>
+                                        <div class="text-xs text-gray-500">Sum of all budget items</div>
+                                    </div>
+                                    <div class="text-lg font-bold text-blue-600">₱<span id="budget-total-cost">0.00</span></div>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label class="label"><span class="label-text">Justification <span class="text-red-500">*</span></span></label>
+                                <textarea id="budget-justification" class="textarea textarea-bordered h-24 w-full" required placeholder="Explain why this budget is needed and how it will benefit the training..."></textarea>
+                            </div>
+                            <div>
+                                <label class="label"><span class="label-text">Remarks</span></label>
+                                <textarea id="budget-remarks" class="textarea textarea-bordered h-24 w-full" placeholder="Additional notes or comments..."></textarea>
+                            </div>
+                        </form>
+
+                        <div class="modal-action">
+                            <button type="button" id="budget-save-btn" class="btn btn-primary">Save Budget Request</button>
                         </div>
                     </div>
-                </div>
+                    <form method="dialog" class="modal-backdrop">
+                        <button>close</button>
+                    </form>
+                </dialog>
 
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                        <h4 class="font-semibold text-gray-700">Created Date</h4>
-                        <p id="view-created-date" class="text-gray-900"></p>
-                    </div>
-                    <div>
-                        <h4 class="font-semibold text-gray-700">Last Updated</h4>
-                        <p id="view-updated-date" class="text-gray-900"></p>
-                    </div>
-                </div>
-            </div>
+                <!-- Logistics Request Modal -->
+                <dialog id="logistics-request-modal" class="modal">
+                    <div class="modal-box w-11/12 max-w-4xl">
+                        <div class="flex items-start justify-between gap-4">
+                            <div>
+                                <h3 class="font-bold text-xl mb-1">Logistics Request</h3>
+                                <p class="text-gray-600">Request items for training, seminar, or orientation</p>
+                            </div>
+                            <button type="button" id="logistics-cancel-btn" class="btn btn-ghost btn-sm">✕</button>
+                        </div>
+                        <form id="logistics-request-form" class="space-y-5">
+                            <div>
+                                <div class="text-sm font-semibold text-gray-700 mb-3">Basic Information</div>
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div class="form-control">
+                                        <label class="label"><span class="label-text">Training/Seminar Title <span class="text-red-500">*</span></span></label>
+                                        <input id="logistics-title" type="text" class="input input-bordered w-full" required>
+                                    </div>
+                                    <div class="form-control">
+                                        <label class="label"><span class="label-text">Purpose <span class="text-red-500">*</span></span></label>
+                                        <textarea id="logistics-purpose" class="textarea textarea-bordered w-full" rows="2" required></textarea>
+                                    </div>
+                                    <div class="form-control">
+                                        <label class="label"><span class="label-text">Department <span class="text-red-500">*</span></span></label>
+                                        <select id="logistics-department" class="select select-bordered w-full" required>
+                                            <option value="" selected>Select Department</option>
+                                            <option value="1">Front Office / Reception</option>
+                                            <option value="2">Housekeeping</option>
+                                            <option value="3">Food &amp; Beverage (F&amp;B)</option>
+                                            <option value="4">Kitchen / Culinary</option>
+                                            <option value="5">Sales &amp; Marketing</option>
+                                            <option value="6">Human Resources (HR)</option>
+                                            <option value="7">Finance / Accounting</option>
+                                            <option value="8">Engineering / Maintenance</option>
+                                            <option value="9">Security</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-control">
+                                        <label class="label"><span class="label-text">Requested To Department <span class="text-red-500">*</span></span></label>
+                                        <select id="logistics-requested-dept" class="select select-bordered w-full" required>
+                                            <option value="" selected>Select Department</option>
+                                            <option value="1">Front Office / Reception</option>
+                                            <option value="2">Housekeeping</option>
+                                            <option value="3">Food &amp; Beverage (F&amp;B)</option>
+                                            <option value="4">Kitchen / Culinary</option>
+                                            <option value="5">Sales &amp; Marketing</option>
+                                            <option value="6">Human Resources (HR)</option>
+                                            <option value="7">Finance / Accounting</option>
+                                            <option value="8">Engineering / Maintenance</option>
+                                            <option value="9">Security</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-control">
+                                        <label class="label"><span class="label-text">Event Date <span class="text-red-500">*</span></span></label>
+                                        <input id="logistics-event-date" type="date" class="input input-bordered w-full" required>
+                                    </div>
+                                    <div class="form-control">
+                                        <label class="label"><span class="label-text">Needed By Date <span class="text-red-500">*</span></span></label>
+                                        <input id="logistics-needed-by-date" type="date" class="input input-bordered w-full" required>
+                                    </div>
+                                </div>
+                            </div>
 
-            <div class="modal-action">
-                <button type="button" id="post-training-btn" class="btn btn-primary hidden">Post Training</button>
-                <button type="button" id="resubmit-training-btn" class="btn btn-warning hidden">Resubmit Training Program</button>
-                <button type="button" id="close-view-modal" class="btn btn-ghost">Close</button>
-            </div>
-        </div>
-        <form method="dialog" class="modal-backdrop">
-            <button>close</button>
-        </form>
-    </dialog>
-  <?php require('../../partials/footer.php') ?>
-    <script src="main.js"></script>
+                            <div>
+                                <div class="text-sm font-semibold text-gray-700 mb-3">Requested Items</div>
+                                <div class="bg-base-200 rounded-lg p-4 space-y-4">
+                                    <div id="logistics-items-container" class="space-y-4"></div>
+                                    <button type="button" id="logistics-add-item-btn" class="btn btn-outline btn-sm w-full">+ Add Another Item</button>
+                                </div>
+                            </div>
+
+                            <div>
+                                <div class="text-sm font-semibold text-gray-700 mb-3">Delivery Information</div>
+                                <div class="bg-blue-50 rounded-lg p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div class="form-control">
+                                        <label class="label"><span class="label-text">Delivery Location <span class="text-red-500">*</span></span></label>
+                                        <input id="logistics-delivery-location" type="text" class="input input-bordered w-full" required placeholder="E.g., Training Room A, 3rd Floor">
+                                    </div>
+                                    <div class="form-control">
+                                        <label class="label"><span class="label-text">Contact Person <span class="text-red-500">*</span></span></label>
+                                        <input id="logistics-contact-person" type="text" class="input input-bordered w-full" required placeholder="Name of person to receive items">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label class="label"><span class="label-text">Remarks</span></label>
+                                <textarea id="logistics-remarks" class="textarea textarea-bordered h-24 w-full" placeholder="Additional notes, special handling instructions, or comments..."></textarea>
+                            </div>
+                        </form>
+
+                        <div class="modal-action">
+                            <button type="button" id="logistics-save-btn" class="btn btn-primary">Save Logistics Request</button>
+                        </div>
+                    </div>
+                    <form method="dialog" class="modal-backdrop">
+                        <button>close</button>
+                    </form>
+                </dialog>
+
+                <!-- Facility Request Modal -->
+                <dialog id="facility-request-modal" class="modal">
+                    <div class="modal-box w-11/12 max-w-4xl">
+                        <div class="flex items-start justify-between gap-4">
+                            <div>
+                                <h3 class="font-bold text-xl mb-1">Location Request</h3>
+                                <p class="text-gray-600">Request venue for training, seminar, or orientation</p>
+                            </div>
+                            <button type="button" id="facility-cancel-btn" class="btn btn-ghost btn-sm">✕</button>
+                        </div>
+                        <form id="facility-request-form" class="space-y-5">
+                            <div>
+                                <div class="text-sm font-semibold text-gray-700 mb-3">Basic Information</div>
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div class="form-control">
+                                        <label class="label"><span class="label-text">Training/Seminar Title <span class="text-red-500">*</span></span></label>
+                                        <input id="facility-title" type="text" class="input input-bordered w-full" required>
+                                    </div>
+                                    <div class="form-control">
+                                        <label class="label"><span class="label-text">Purpose <span class="text-red-500">*</span></span></label>
+                                        <textarea id="facility-purpose" class="textarea textarea-bordered w-full" rows="2" required></textarea>
+                                    </div>
+                                    <div class="form-control">
+                                        <label class="label"><span class="label-text">Department <span class="text-red-500">*</span></span></label>
+                                        <select id="facility-department" class="select select-bordered w-full" required>
+                                            <option value="" selected>Select Department</option>
+                                            <option value="1">Front Office / Reception</option>
+                                            <option value="2">Housekeeping</option>
+                                            <option value="3">Food &amp; Beverage (F&amp;B)</option>
+                                            <option value="4">Kitchen / Culinary</option>
+                                            <option value="5">Sales &amp; Marketing</option>
+                                            <option value="6">Human Resources (HR)</option>
+                                            <option value="7">Finance / Accounting</option>
+                                            <option value="8">Engineering / Maintenance</option>
+                                            <option value="9">Security</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-control">
+                                        <label class="label"><span class="label-text">Requested To Department <span class="text-red-500">*</span></span></label>
+                                        <select id="facility-requested-dept" class="select select-bordered w-full" required>
+                                            <option value="" selected>Select Department</option>
+                                            <option value="1">Front Office / Reception</option>
+                                            <option value="2">Housekeeping</option>
+                                            <option value="3">Food &amp; Beverage (F&amp;B)</option>
+                                            <option value="4">Kitchen / Culinary</option>
+                                            <option value="5">Sales &amp; Marketing</option>
+                                            <option value="6">Human Resources (HR)</option>
+                                            <option value="7">Finance / Accounting</option>
+                                            <option value="8">Engineering / Maintenance</option>
+                                            <option value="9">Security</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-control">
+                                        <label class="label"><span class="label-text">Event Date <span class="text-red-500">*</span></span></label>
+                                        <input id="facility-event-date" type="date" class="input input-bordered w-full" required>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div>
+                                <div class="text-sm font-semibold text-gray-700 mb-3">Location Details</div>
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div class="form-control">
+                                        <label class="label"><span class="label-text">Preferred Location <span class="text-red-500">*</span></span></label>
+                                        <select id="facility-preferred-location" class="select select-bordered w-full" required>
+                                            <option value="" selected>Select Location</option>
+                                            <option value="Training Room A">Training Room A</option>
+                                            <option value="Training Room B">Training Room B</option>
+                                            <option value="Conference Hall">Conference Hall</option>
+                                            <option value="Auditorium">Auditorium</option>
+                                        </select>
+                                    </div>
+                                    <div class="grid grid-cols-2 gap-4">
+                                        <div class="form-control">
+                                            <label class="label"><span class="label-text">Start Time <span class="text-red-500">*</span></span></label>
+                                            <input id="facility-start-time" type="time" class="input input-bordered w-full" required>
+                                        </div>
+                                        <div class="form-control">
+                                            <label class="label"><span class="label-text">End Time <span class="text-red-500">*</span></span></label>
+                                            <input id="facility-end-time" type="time" class="input input-bordered w-full" required>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label class="label"><span class="label-text">Special Requirements</span></label>
+                                <textarea id="facility-special-requirements" class="textarea textarea-bordered h-24 w-full" placeholder="Audio-visual equipment, seating arrangement, internet access, etc."></textarea>
+                            </div>
+                            <div>
+                                <label class="label"><span class="label-text">Remarks</span></label>
+                                <textarea id="facility-remarks" class="textarea textarea-bordered h-24 w-full" placeholder="Additional notes or comments..."></textarea>
+                            </div>
+                        </form>
+
+                        <div class="modal-action">
+                            <button type="button" id="facility-save-btn" class="btn btn-primary">Save Location Request</button>
+                        </div>
+                    </div>
+                    <form method="dialog" class="modal-backdrop">
+                        <button>close</button>
+                    </form>
+                </dialog>
+
+                <!-- View Training Details Modal -->
+                <dialog id="view-training-modal" class="modal">
+                    <div class="modal-box w-11/12 max-w-2xl">
+                        <h3 class="font-bold text-2xl mb-2" id="view-training-title">Training Program</h3>
+                        <div class="flex items-center gap-2 mb-4">
+                            <span id="view-training-type" class="badge badge-outline"></span>
+                            <span id="view-status" class="badge badge-outline"></span>
+                        </div>
+
+                        <div class="space-y-4" id="view-training-content">
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <h4 class="font-semibold text-gray-700">Category</h4>
+                                    <p id="view-category" class="text-gray-900"></p>
+                                </div>
+                                <div>
+                                    <h4 class="font-semibold text-gray-700">Target Audience</h4>
+                                    <p id="view-target-audience" class="text-gray-900"></p>
+                                </div>
+                            </div>
+
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <h4 class="font-semibold text-gray-700">Duration</h4>
+                                    <p id="view-duration" class="text-gray-900"></p>
+                                </div>
+                                <div>
+                                    <h4 class="font-semibold text-gray-700">Competency Level</h4>
+                                    <p id="view-competency-level" class="text-gray-900"></p>
+                                </div>
+                            </div>
+
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <h4 class="font-semibold text-gray-700">Start Date & Time</h4>
+                                    <p id="view-start-date" class="text-gray-900"></p>
+                                </div>
+                                <div>
+                                    <h4 class="font-semibold text-gray-700">End Date & Time</h4>
+                                    <p id="view-end-date" class="text-gray-900"></p>
+                                </div>
+                            </div>
+
+                            <div>
+                                <h4 class="font-semibold text-gray-700">Description</h4>
+                                <p id="view-description" class="text-gray-900 whitespace-pre-line"></p>
+                            </div>
+
+                            <div id="view-status-reason-container" class="hidden">
+                                <h4 class="font-semibold text-gray-700">Reason</h4>
+                                <p id="view-status-reason" class="text-gray-900 whitespace-pre-line"></p>
+                            </div>
+
+                            <div id="view-request-statuses-container" class="hidden">
+                                <h4 class="font-semibold text-gray-700">Department Request Status</h4>
+                                <div class="mt-2 space-y-2">
+                                    <div class="flex items-start justify-between gap-3">
+                                        <div class="font-semibold text-gray-700">Financial</div>
+                                        <div class="text-right">
+                                            <div id="view-financial-status" class="badge badge-outline"></div>
+                                            <div id="view-financial-reason" class="text-xs text-gray-500 whitespace-pre-line"></div>
+                                        </div>
+                                    </div>
+                                    <div class="flex items-start justify-between gap-3">
+                                        <div class="font-semibold text-gray-700">Logistics</div>
+                                        <div class="text-right">
+                                            <div id="view-logistics-status" class="badge badge-outline"></div>
+                                            <div id="view-logistics-reason" class="text-xs text-gray-500 whitespace-pre-line"></div>
+                                        </div>
+                                    </div>
+                                    <div class="flex items-start justify-between gap-3">
+                                        <div class="font-semibold text-gray-700">Admin</div>
+                                        <div class="text-right">
+                                            <div id="view-admin-status" class="badge badge-outline"></div>
+                                            <div id="view-admin-reason" class="text-xs text-gray-500 whitespace-pre-line"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <h4 class="font-semibold text-gray-700">Created Date</h4>
+                                    <p id="view-created-date" class="text-gray-900"></p>
+                                </div>
+                                <div>
+                                    <h4 class="font-semibold text-gray-700">Last Updated</h4>
+                                    <p id="view-updated-date" class="text-gray-900"></p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="modal-action">
+                            <button type="button" id="post-training-btn" class="btn btn-primary hidden">Post Training</button>
+                            <button type="button" id="resubmit-training-btn" class="btn btn-warning hidden">Resubmit Training Program</button>
+                            <button type="button" id="close-view-modal" class="btn btn-ghost">Close</button>
+                        </div>
+                    </div>
+                    <form method="dialog" class="modal-backdrop">
+                        <button>close</button>
+                    </form>
+                </dialog>
+                <?php require('../../partials/footer.php') ?>
+                <script src="main.js"></script>

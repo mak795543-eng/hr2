@@ -215,6 +215,103 @@ function createTablesIfNotExist()
     }
 }
 
+function seedCompetencyCriteria(): void
+{
+    global $pdo;
+
+    // Role-specific competency criteria with required levels
+    $criteriaBlueprint = [
+        'Front Office / Reception' => [
+            'Guest Service Excellence' => 85,
+            'Operational Efficiency' => 80,
+            'Customer Relations' => 85,
+            'Hotel Knowledge' => 75,
+            'Team Collaboration' => 80,
+        ],
+        'Housekeeping' => [
+            'Quality Standards' => 90,
+            'Operational Efficiency' => 80,
+            'Safety & Compliance' => 85,
+            'Guest Service Support' => 75,
+            'Team Coordination' => 75,
+        ],
+        'Food & Beverage (F&B)' => [
+            'Service Excellence' => 85,
+            'Product Knowledge' => 80,
+            'Operational Efficiency' => 80,
+            'Sanitation & Safety' => 90,
+            'Revenue Generation' => 75,
+        ],
+        'Kitchen / Culinary' => [
+            'Food Quality' => 90,
+            'Kitchen Operations' => 80,
+            'Safety & Sanitation' => 90,
+            'Menu Knowledge' => 80,
+            'Team Leadership' => 75,
+        ],
+        'Sales & Marketing' => [
+            'Sales Performance' => 85,
+            'Client Relations' => 85,
+            'Market Development' => 75,
+            'Communication Skills' => 80,
+            'Strategic Planning' => 75,
+        ],
+        'Human Resources (HR)' => [
+            'Employee Relations' => 85,
+            'Recruitment & Hiring' => 80,
+            'Compliance & Administration' => 90,
+            'Training & Development' => 80,
+            'Strategic HR' => 75,
+        ],
+        'Finance / Accounting' => [
+            'Financial Accuracy' => 95,
+            'Reporting & Analysis' => 85,
+            'Compliance & Control' => 90,
+            'Operational Efficiency' => 80,
+            'Strategic Finance' => 75,
+        ],
+        'Engineering / Maintenance' => [
+            'Technical Performance' => 85,
+            'Safety & Compliance' => 90,
+            'Operational Efficiency' => 80,
+            'Guest Impact Management' => 75,
+            'Technical Expertise' => 80,
+        ],
+        'Security' => [
+            'Security Operations' => 85,
+            'Risk Management' => 80,
+            'Professional Conduct' => 90,
+            'Guest & Staff Safety' => 90,
+            'Systems & Technology' => 75,
+        ],
+    ];
+
+    // Default criteria for departments not specifically defined
+    $defaultCriteria = [
+        'Work Quality' => 80,
+        'Productivity' => 75,
+        'Teamwork' => 75,
+        'Professional Development' => 70,
+        'Compliance' => 85,
+    ];
+
+    $insertCriteria = $pdo->prepare('INSERT IGNORE INTO competency_criteria (name, description, required_level) VALUES (?, ?, ?)');
+
+    // Insert criteria for each department
+    foreach ($criteriaBlueprint as $department => $criteria) {
+        foreach ($criteria as $criteriaName => $requiredLevel) {
+            $description = "Competency criteria for {$criteriaName} in {$department} department";
+            $insertCriteria->execute([$criteriaName, $description, $requiredLevel]);
+        }
+    }
+
+    // Insert default criteria
+    foreach ($defaultCriteria as $criteriaName => $requiredLevel) {
+        $description = "General competency criteria for {$criteriaName}";
+        $insertCriteria->execute([$criteriaName, $description, $requiredLevel]);
+    }
+}
+
 function ensureCompetencyCriteriaSchema(): void
 {
     global $pdo;
@@ -233,6 +330,9 @@ function ensureCompetencyCriteriaSchema(): void
         );
     } catch (Throwable $e) {
     }
+
+    // Seed the competency criteria after ensuring the schema
+    seedCompetencyCriteria();
 }
 
 function ensureGapFormulationSchema(): void
@@ -248,13 +348,29 @@ function ensureGapFormulationSchema(): void
                 overall_competency DECIMAL(5,2) NOT NULL DEFAULT 0,
                 status VARCHAR(50) NOT NULL,
                 details_json LONGTEXT,
+                forwarded_to_critical TINYINT(1) NOT NULL DEFAULT 0,
+                forwarded_at TIMESTAMP NULL DEFAULT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                 UNIQUE KEY uniq_emp_period (employee_id, evaluation_period),
                 INDEX idx_period (evaluation_period),
+                INDEX idx_forwarded (forwarded_to_critical, evaluation_period),
                 CONSTRAINT fk_gap_emp FOREIGN KEY (employee_id) REFERENCES employees(employee_id) ON DELETE CASCADE
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
         );
+    } catch (Throwable $e) {
+    }
+
+    try {
+        $pdo->exec("ALTER TABLE kpi_gap_formulations ADD COLUMN forwarded_to_critical TINYINT(1) NOT NULL DEFAULT 0");
+    } catch (Throwable $e) {
+    }
+    try {
+        $pdo->exec("ALTER TABLE kpi_gap_formulations ADD COLUMN forwarded_at TIMESTAMP NULL DEFAULT NULL");
+    } catch (Throwable $e) {
+    }
+    try {
+        $pdo->exec("CREATE INDEX idx_forwarded ON kpi_gap_formulations (forwarded_to_critical, evaluation_period)");
     } catch (Throwable $e) {
     }
 }
@@ -549,34 +665,379 @@ function seedMissingKpiEvaluations(string $employeeId, string $evaluationPeriod)
     $has = (int)($check->fetchColumn() ?? 0);
     if ($has > 0) return false;
 
+    // Role-specific KPI blueprint based on department
     $kpiBlueprint = [
+        'Front Office / Reception' => [
+            'Guest Service Excellence' => [
+                'Professionalism and appearance',
+                'Guest greeting and welcome',
+                'Check-in/check-out efficiency',
+                'Problem resolution skills',
+                'Communication clarity',
+            ],
+            'Operational Efficiency' => [
+                'Reservation management',
+                'Payment processing accuracy',
+                'Room assignment accuracy',
+                'Information management',
+                'Time management',
+            ],
+            'Customer Relations' => [
+                'Guest satisfaction scores',
+                'Complaint handling',
+                'Service recovery',
+                'Personalized service',
+                'Follow-up procedures',
+            ],
+            'Hotel Knowledge' => [
+                'Property facilities knowledge',
+                'Local area information',
+                'Service standards awareness',
+                'Emergency procedures',
+                'Brand standards compliance',
+            ],
+            'Team Collaboration' => [
+                'Inter-department coordination',
+                'Communication with housekeeping',
+                'Maintenance reporting',
+                'F&B coordination',
+                'Shift handover effectiveness',
+            ],
+        ],
+        'Housekeeping' => [
+            'Quality Standards' => [
+                'Room cleanliness scores',
+                'Attention to detail',
+                'Sanitation compliance',
+                'Aesthetic standards',
+                'Inspection pass rates',
+            ],
+            'Operational Efficiency' => [
+                'Room cleaning time',
+                'Task completion rates',
+                'Supply management',
+                'Equipment maintenance',
+                'Productivity metrics',
+            ],
+            'Safety & Compliance' => [
+                'Chemical handling safety',
+                'Health protocol adherence',
+                'Emergency response knowledge',
+                'OSHA compliance',
+                'Personal safety practices',
+            ],
+            'Guest Service Support' => [
+                'Guest interaction quality',
+                'Request response time',
+                'Problem reporting',
+                'Communication skills',
+                'Professional conduct',
+            ],
+            'Team Coordination' => [
+                'Supervisor communication',
+                'Team collaboration',
+                'Shift coordination',
+                'Training participation',
+                'Quality reporting',
+            ],
+        ],
+        'Food & Beverage (F&B)' => [
+            'Service Excellence' => [
+                'Table service quality',
+                'Guest interaction skills',
+                'Order accuracy',
+                'Upselling effectiveness',
+                'Service timing',
+            ],
+            'Product Knowledge' => [
+                'Menu knowledge',
+                'Beverage expertise',
+                'Ingredient awareness',
+                'Allergy information',
+                'Pairing recommendations',
+            ],
+            'Operational Efficiency' => [
+                'Table turnover rate',
+                'Order processing speed',
+                'Payment handling accuracy',
+                'Station organization',
+                'Side work completion',
+            ],
+            'Sanitation & Safety' => [
+                'Food safety compliance',
+                'Personal hygiene standards',
+                'Cleaning procedures',
+                'Temperature control',
+                'Cross-contamination prevention',
+            ],
+            'Revenue Generation' => [
+                'Sales per cover',
+                'Guest satisfaction scores',
+                'Repeat customer rate',
+                'Promotion participation',
+                'Cost control awareness',
+            ],
+        ],
+        'Kitchen / Culinary' => [
+            'Food Quality' => [
+                'Taste consistency',
+                'Presentation standards',
+                'Recipe adherence',
+                'Portion control',
+                'Quality inspection scores',
+            ],
+            'Kitchen Operations' => [
+                'Preparation efficiency',
+                'Cooking time standards',
+                'Station organization',
+                'Inventory management',
+                'Waste reduction',
+            ],
+            'Safety & Sanitation' => [
+                'Food safety protocols',
+                'HACCP compliance',
+                'Kitchen cleanliness',
+                'Equipment sanitation',
+                'Personal hygiene standards',
+            ],
+            'Menu Knowledge' => [
+                'Recipe mastery',
+                'Ingredient knowledge',
+                'Allergy awareness',
+                'Dietary accommodations',
+                'Menu development input',
+            ],
+            'Team Leadership' => [
+                'Line coordination',
+                'Training junior staff',
+                'Communication skills',
+                'Quality control oversight',
+                'Cost management awareness',
+            ],
+        ],
+        'Sales & Marketing' => [
+            'Sales Performance' => [
+                'Revenue targets achievement',
+                'Client acquisition rate',
+                'Conversion rates',
+                'Average deal size',
+                'Sales growth metrics',
+            ],
+            'Client Relations' => [
+                'Client satisfaction scores',
+                'Relationship building',
+                'Follow-up effectiveness',
+                'Complaint resolution',
+                'Retention rates',
+            ],
+            'Market Development' => [
+                'Market research analysis',
+                'Campaign effectiveness',
+                'Lead generation quality',
+                'Brand awareness metrics',
+                'Competitive analysis',
+            ],
+            'Communication Skills' => [
+                'Presentation quality',
+                'Proposal writing',
+                'Negotiation effectiveness',
+                'Digital communication',
+                'Public speaking ability',
+            ],
+            'Strategic Planning' => [
+                'Sales strategy execution',
+                'Budget management',
+                'Forecasting accuracy',
+                'Planning organization',
+                'Goal achievement tracking',
+            ],
+        ],
+        'Human Resources (HR)' => [
+            'Employee Relations' => [
+                'Employee satisfaction scores',
+                'Conflict resolution effectiveness',
+                'Communication clarity',
+                'Policy enforcement consistency',
+                'Employee engagement levels',
+            ],
+            'Recruitment & Hiring' => [
+                'Time-to-fill metrics',
+                'Quality of hires',
+                'Cost-per-hire management',
+                'Source effectiveness',
+                'Onboarding success rates',
+            ],
+            'Compliance & Administration' => [
+                'Policy compliance rate',
+                'Record-keeping accuracy',
+                'Reporting timeliness',
+                'Legal requirement adherence',
+                'Audit preparation quality',
+            ],
+            'Training & Development' => [
+                'Training program effectiveness',
+                'Skill development tracking',
+                'Performance management quality',
+                'Career path support',
+                'Knowledge transfer success',
+            ],
+            'Strategic HR' => [
+                'Workforce planning',
+                'Talent management strategy',
+                'Compensation analysis',
+                'HR metrics reporting',
+                'Organizational development',
+            ],
+        ],
+        'Finance / Accounting' => [
+            'Financial Accuracy' => [
+                'Transaction processing accuracy',
+                'Financial statement correctness',
+                'Variance analysis quality',
+                'Audit compliance rate',
+                'Error reduction metrics',
+            ],
+            'Reporting & Analysis' => [
+                'Report timeliness',
+                'Data analysis accuracy',
+                'Financial insight quality',
+                'Dashboard effectiveness',
+                'Stakeholder communication',
+            ],
+            'Compliance & Control' => [
+                'Regulatory compliance',
+                'Internal control effectiveness',
+                'Policy adherence',
+                'Risk management quality',
+                'Documentation completeness',
+            ],
+            'Operational Efficiency' => [
+                'Process improvement initiatives',
+                'Cost reduction achievements',
+                'Workflow optimization',
+                'System utilization efficiency',
+                'Time management metrics',
+            ],
+            'Strategic Finance' => [
+                'Budgeting accuracy',
+                'Forecasting reliability',
+                'Investment analysis quality',
+                'Cash flow management',
+                'Financial planning effectiveness',
+            ],
+        ],
+        'Engineering / Maintenance' => [
+            'Technical Performance' => [
+                'Preventive maintenance completion',
+                'Repair response time',
+                'Equipment uptime percentage',
+                'Quality of repairs',
+                'Technical problem resolution',
+            ],
+            'Safety & Compliance' => [
+                'Safety protocol adherence',
+                'Regulatory compliance',
+                'Incident reduction rate',
+                'Safety training completion',
+                'Risk assessment quality',
+            ],
+            'Operational Efficiency' => [
+                'Work order completion rate',
+                'Parts inventory management',
+                'Energy cost reduction',
+                'Preventive maintenance scheduling',
+                'Resource utilization',
+            ],
+            'Guest Impact Management' => [
+                'Guest disruption minimization',
+                'Communication effectiveness',
+                'Service recovery coordination',
+                'Guest satisfaction impact',
+                'Emergency response quality',
+            ],
+            'Technical Expertise' => [
+                'System knowledge depth',
+                'Troubleshooting skills',
+                'Equipment proficiency',
+                'Technology adaptation',
+                'Training effectiveness',
+            ],
+        ],
+        'Security' => [
+            'Security Operations' => [
+                'Patrol effectiveness',
+                'Incident response time',
+                'Surveillance monitoring quality',
+                'Access control enforcement',
+                'Emergency preparedness',
+            ],
+            'Risk Management' => [
+                'Threat assessment accuracy',
+                'Vulnerability identification',
+                'Risk mitigation effectiveness',
+                'Security protocol compliance',
+                'Incident prevention rate',
+            ],
+            'Professional Conduct' => [
+                'Professional appearance standards',
+                'Communication skills',
+                'Conflict resolution ability',
+                'Report writing quality',
+                'Ethical conduct adherence',
+            ],
+            'Guest & Staff Safety' => [
+                'Guest safety assurance',
+                'Staff protection effectiveness',
+                'Emergency response coordination',
+                'Safety training delivery',
+                'Incident documentation quality',
+            ],
+            'Systems & Technology' => [
+                'Security system operation',
+                'Monitoring technology proficiency',
+                'Data security awareness',
+                'Communication equipment usage',
+                'Technical skill maintenance',
+            ],
+        ],
+    ];
+
+    // Default KPIs for departments not specifically defined
+    $defaultKpiBlueprint = [
         'Work Quality' => [
             'Accuracy of work',
             'Attention to detail',
             'Consistency',
             'Compliance with standards',
-            'Cleanliness',
+            'Professional conduct',
         ],
         'Productivity' => [
             'Time management',
             'Task completion',
             'Meeting deadlines',
-        ],
-        'Customer Service' => [
-            'Professionalism',
-            'Responsiveness',
-            'Guest handling',
+            'Efficiency metrics',
         ],
         'Teamwork' => [
             'Collaboration',
             'Communication',
             'Reliability',
+            'Support to colleagues',
+        ],
+        'Professional Development' => [
+            'Skill improvement',
+            'Learning initiative',
+            'Adaptability',
+            'Knowledge sharing',
         ],
         'Compliance' => [
             'Policy adherence',
-            'Safety & sanitation',
+            'Safety awareness',
+            'Quality standards',
+            'Ethical conduct',
         ],
     ];
+
+    $kpiBlueprint = $kpiBlueprint[$dept] ?? $defaultKpiBlueprint;
 
     $insertKpi = $pdo->prepare('INSERT INTO kpis (kpi_name, department) VALUES (?, ?) ON DUPLICATE KEY UPDATE id = LAST_INSERT_ID(id)');
     $insertScore = $pdo->prepare('INSERT IGNORE INTO employee_kpi_scores (employee_id, evaluation_period, kpi_id, criteria, score) VALUES (?, ?, ?, ?, ?)');
@@ -640,6 +1101,101 @@ function computeEmployeeCompetency(string $employeeId): array
         'status' => mapCompetencyToStatus($pct),
         'department' => $dept,
         'evaluation_period' => $period,
+    ];
+}
+
+function computeEmployeeKpiAnalysis(string $employeeId, string $period): array
+{
+    global $pdo;
+
+    $employeeId = trim($employeeId);
+    $period = trim($period);
+    if ($employeeId === '' || $period === '') {
+        return ['computed' => [], 'overall' => ['avg' => 0.0, 'pct' => 0.0, 'status' => 'Retrain']];
+    }
+
+    ensureKpiSchema();
+    ensureCompetencyCriteriaSchema();
+    seedMissingKpiEvaluations($employeeId, $period);
+
+    $required = [];
+    try {
+        $stmt = $pdo->query('SELECT name, required_level FROM competency_criteria');
+        $rows = $stmt ? $stmt->fetchAll() : [];
+        foreach ($rows as $r) {
+            $required[(string)($r['name'] ?? '')] = (float)($r['required_level'] ?? 0);
+        }
+    } catch (Throwable $e) {
+    }
+
+    $stmtKpis = $pdo->prepare(
+        'SELECT k.id, k.kpi_name
+         FROM employee_kpi_scores s
+         JOIN kpis k ON k.id = s.kpi_id
+         WHERE s.employee_id = ? AND s.evaluation_period = ?
+         GROUP BY k.id, k.kpi_name
+         ORDER BY k.kpi_name ASC'
+    );
+    $stmtKpis->execute([$employeeId, $period]);
+    $kpiRows = $stmtKpis->fetchAll();
+
+    $stmtEvals = $pdo->prepare(
+        'SELECT k.id AS kpi_id, k.kpi_name, s.criteria, s.score
+         FROM employee_kpi_scores s
+         JOIN kpis k ON k.id = s.kpi_id
+         WHERE s.employee_id = ? AND s.evaluation_period = ?
+         ORDER BY k.kpi_name ASC, s.id ASC'
+    );
+    $stmtEvals->execute([$employeeId, $period]);
+    $evalRows = $stmtEvals->fetchAll();
+
+    $byKpi = [];
+    foreach ($evalRows as $r) {
+        $kid = (int)($r['kpi_id'] ?? 0);
+        if (!isset($byKpi[$kid])) $byKpi[$kid] = ['kpi_name' => (string)($r['kpi_name'] ?? ''), 'evals' => []];
+        $byKpi[$kid]['evals'][] = [
+            'criteria' => (string)($r['criteria'] ?? ''),
+            'score' => is_numeric($r['score'] ?? null) ? (float)$r['score'] : 0.0,
+        ];
+    }
+
+    $maxScore = 5.0;
+    $computed = [];
+    $overallScores = [];
+    foreach ($kpiRows as $k) {
+        $kid = (int)($k['id'] ?? 0);
+        $kpiName = (string)($k['kpi_name'] ?? '');
+        $evals = $byKpi[$kid]['evals'] ?? [];
+        $scores = array_values(array_map(static fn($e) => (float)($e['score'] ?? 0), $evals));
+        $avg = count($scores) ? (array_sum($scores) / count($scores)) : 0.0;
+        $pct = round(max(0.0, min(100.0, ($avg / $maxScore) * 100.0)), 1);
+        $req = isset($required[$kpiName]) ? (float)$required[$kpiName] : 80.0;
+        if ($req < 0) $req = 0.0;
+        if ($req > 100) $req = 100.0;
+        $gap = round(max(0.0, $req - $pct), 1);
+
+        $computed[] = [
+            'kpi_name' => $kpiName,
+            'avg' => round($avg, 2),
+            'kpi_pct' => $pct,
+            'required_pct' => round($req, 1),
+            'gap_pct' => $gap,
+            'evaluations' => $evals,
+        ];
+        foreach ($scores as $s) $overallScores[] = $s;
+    }
+
+    $overallAvg = count($overallScores) ? (array_sum($overallScores) / count($overallScores)) : 0.0;
+    $overallPct = round(max(0.0, min(100.0, ($overallAvg / $maxScore) * 100.0)), 1);
+
+    return [
+        'computed' => $computed,
+        'overall' => [
+            'avg' => round($overallAvg, 2),
+            'pct' => $overallPct,
+            'status' => mapCompetencyToStatus($overallPct),
+        ],
+        'required_levels' => $required,
     ];
 }
 
@@ -734,13 +1290,21 @@ function getEmployees($filter = 'all', $search = '', $department = 'all')
                        END AS status
 
                 FROM employees e
-                LEFT JOIN (
+                INNER JOIN (
                     SELECT s2.employee_id, AVG(COALESCE(s2.score, 0)) / 5 * 100 AS competency
                     FROM employee_kpi_scores s2
                     WHERE s2.evaluation_period = ?
                     GROUP BY s2.employee_id
+                    HAVING COUNT(*) > 0
                 ) gs ON gs.employee_id = e.employee_id
                 WHERE 1=1
+                  AND EXISTS (
+                      SELECT 1
+                      FROM kpi_gap_formulations g
+                      WHERE g.employee_id = e.employee_id
+                        AND g.evaluation_period = ?
+                        AND COALESCE(g.forwarded_to_critical, 0) = 1
+                  )
                   AND NOT EXISTS (
                       SELECT 1
                       FROM individual_development_plans idp
@@ -758,7 +1322,7 @@ function getEmployees($filter = 'all', $search = '', $department = 'all')
                         AND r.status = 'Pending'
                   )";
         $period = date('Y') . '-Q' . (string)ceil((int)date('n') / 3);
-        $params = [$period];
+        $params = [$period, $period];
 
         // Apply department filter
         if ($department !== 'all') {
@@ -828,7 +1392,12 @@ function getEmployeeDetails($employee_id)
             $period = date('Y') . '-Q' . (string)ceil((int)date('n') / 3);
             seedMissingKpiEvaluations((string)$employee_id, $period);
 
-            $empDept = (string)($employee['department'] ?? '');
+            $analysis = computeEmployeeKpiAnalysis((string)$employee_id, $period);
+            $employee['required_levels'] = $analysis['required_levels'] ?? [];
+            $employee['analysis'] = [
+                'computed' => $analysis['computed'] ?? [],
+                'overall' => $analysis['overall'] ?? ['avg' => 0.0, 'pct' => 0.0, 'status' => 'Retrain'],
+            ];
 
             $stmtKpis = $pdo->prepare(
                 'SELECT k.kpi_name

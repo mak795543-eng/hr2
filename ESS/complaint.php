@@ -14,6 +14,7 @@ $category_other = '';
 $incident_date = '';
 $details = '';
 $attachment_path = '';
+$terms_accepted = false;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $subject = trim((string)($_POST['subject'] ?? ''));
@@ -21,12 +22,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $category_other = trim((string)($_POST['category_other'] ?? ''));
     $incident_date = trim((string)($_POST['incident_date'] ?? ''));
     $details = trim((string)($_POST['details'] ?? ''));
+    $terms_accepted = ((string)($_POST['terms_accepted'] ?? '')) === '1';
 
     if ($subject === '' || $details === '' || $incident_date === '') {
         $error_message = 'Please fill in the required fields.';
-    } elseif ($category === 'Other' && $category_other === '') {
+    } elseif (!$terms_accepted) {
+        $error_message = 'Please accept the Terms & Conditions.';
+    } elseif (in_array(strtolower($category), ['other', 'others'], true) && $category_other === '') {
         $error_message = 'Please specify the incident category.';
     } else {
+        $incDt = DateTime::createFromFormat('Y-m-d', $incident_date);
+        $today = new DateTime('today');
+        $minDt = (clone $today)->modify('-1 month');
+        if (!$incDt) {
+            $error_message = 'Invalid incident date.';
+        } elseif ($incDt < $minDt || $incDt > $today) {
+            $error_message = 'Incident date must be within the last 1 month.';
+        }
+    }
+
+    if ($error_message === '') {
         if (!$employeeId) {
             $error_message = 'Unable to identify employee. Please login again.';
         } elseif (!$conn) {
@@ -83,7 +98,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } else {
                 $status = 'Open';
                 $wf = 'For Approval';
-                $catOther = ($category === 'Other') ? $category_other : '';
+                $catOther = in_array(strtolower($category), ['other', 'others'], true) ? $category_other : '';
                 $inc = $incident_date !== '' ? $incident_date : null;
                 mysqli_stmt_bind_param($stmt, 'issssssss', $employeeId, $subject, $desc, $status, $category, $catOther, $inc, $attachment_path, $wf);
                 $ok = mysqli_stmt_execute($stmt);
@@ -99,6 +114,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $category_other = '';
                     $incident_date = '';
                     $attachment_path = '';
+                    $terms_accepted = false;
                 }
             }
             }
@@ -113,7 +129,7 @@ $categories = [
     'Policy Violation',
     'Facilities / Maintenance',
     'Payroll / Benefits',
-    'Other',
+    'Others',
 ];
 ?>
 <!DOCTYPE html>
@@ -169,7 +185,7 @@ $categories = [
 
                 <div class="form-control">
                   <label class="label"><span class="label-text">Date of Incident</span></label>
-                  <input type="date" name="incident_date" class="input input-bordered" value="<?php echo htmlspecialchars($incident_date); ?>" required />
+                  <input type="date" name="incident_date" id="incident_date" class="input input-bordered" value="<?php echo htmlspecialchars($incident_date); ?>" required />
                 </div>
 
                 <div class="form-control">
@@ -183,7 +199,7 @@ $categories = [
 
                 <div class="form-control hidden" id="category-other-wrap">
                   <label class="label"><span class="label-text">Specify Category</span></label>
-                  <input name="category_other" id="category-other" class="input input-bordered" placeholder="Type the category..." value="<?php echo htmlspecialchars($category_other); ?>" />
+                  <textarea name="category_other" id="category-other" class="textarea textarea-bordered w-full" rows="2" placeholder="Type the category..."><?php echo htmlspecialchars($category_other); ?></textarea>
                 </div>
 
                 <div class="form-control">
@@ -196,8 +212,17 @@ $categories = [
                   <input type="file" name="attachment" class="file-input file-input-bordered w-full" accept=".png,.jpg,.jpeg,.gif,.webp,.pdf,.doc,.docx,.xls,.xlsx" />
                 </div>
 
+                <div class="form-control">
+                  <label class="label cursor-pointer justify-start gap-3">
+                    <input type="checkbox" name="terms_accepted" value="1" class="checkbox" <?php echo $terms_accepted ? 'checked' : ''; ?> required />
+                    <span class="label-text">
+                      I agree to the <button type="button" class="link link-primary" id="complaintTermsLink">Terms &amp; Conditions</button>
+                    </span>
+                  </label>
+                </div>
+
                 <div class="pt-2">
-                  <button class="btn btn-error w-full" type="submit">
+                  <button class="btn hr2-primary-btn w-full" type="submit" id="complaintSubmitBtn" disabled>
                     <i data-lucide="send" class="w-4 h-4"></i>
                     <span class="ml-2">Submit Incident Report</span>
                   </button>
@@ -210,6 +235,65 @@ $categories = [
     </div>
   </div>
 
+  <dialog id="complaintTermsModal" class="modal">
+    <div class="modal-box w-11/12 max-w-2xl">
+      <div class="flex items-start justify-between gap-3">
+        <div>
+          <h3 class="font-bold text-lg">Terms &amp; Conditions</h3>
+          <p class="text-sm text-gray-500">Please review before submitting your complaint.</p>
+        </div>
+        <button type="button" class="btn btn-sm hr2-outline-btn" id="complaintTermsClose" aria-label="Close">✕</button>
+      </div>
+
+      <div class="divider my-4"></div>
+
+      <div class="space-y-4 text-sm text-gray-700">
+        <div>
+          <div class="font-semibold text-gray-900"><strong>1. Purpose of the Complaint System</strong></div>
+          <div class="mt-1">
+            The ESS Complaint System is intended to provide employees with a formal, secure, and confidential platform to report workplace-related concerns, grievances, or incidents in accordance with company policies and applicable laws of the Republic of the Philippines.
+          </div>
+        </div>
+
+        <div>
+          <div class="font-semibold text-gray-900"><strong>2. Confidentiality and Data Privacy</strong></div>
+          <div class="mt-1">
+            All information submitted shall be treated with strict confidentiality and processed in compliance with Republic Act No. 10173 (Data Privacy Act of 2012). Access to complaint records shall be limited to authorized personnel only and used solely for investigation, resolution, and legal compliance purposes.
+          </div>
+        </div>
+
+        <div>
+          <div class="font-semibold text-gray-900"><strong>3. Accuracy and Truthfulness of Information</strong></div>
+          <div class="mt-1">
+            The complainant certifies that all information, statements, and supporting documents submitted are true, correct, and complete to the best of their knowledge. The submission of false, misleading, or malicious complaints may result in administrative or disciplinary action in accordance with company policies and applicable laws
+          </div>
+        </div>
+
+        <div>
+          <div class="font-semibold text-gray-900"><strong>4. Legal Basis and Governing Law</strong></div>
+          <div class="mt-1">
+            All complaints shall be governed by and construed in accordance with the laws of the Republic of the Philippines, including but not limited to:
+          </div>
+          <div class="mt-2 space-y-1">
+            <div>Presidential Decree No. 442 (Labor Code of the Philippines)</div>
+            <div>Republic Act No. 7877 (Anti-Sexual Harassment Act)</div>
+            <div>Republic Act No. 11313 (Safe Spaces Act)</div>
+            <div>Republic Act No. 9710 (Magna Carta of Women)</div>
+            <div>Republic Act No. 10173 (Data Privacy Act of 2012)</div>
+            <div>Republic Act No. 10175 (Cybercrime Prevention Act)</div>
+            <div>Other applicable laws, rules, and company policies</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-action">
+        <button type="button" class="btn hr2-outline-btn" id="complaintTermsCancelBtn">Close</button>
+        <button type="button" class="btn hr2-primary-btn" id="complaintTermsAgreeBtn">I Agree</button>
+      </div>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+  </dialog>
+
   <script>
     lucide.createIcons();
 
@@ -217,10 +301,17 @@ $categories = [
       const sel = document.getElementById('category');
       const wrap = document.getElementById('category-other-wrap');
       const other = document.getElementById('category-other');
+      const termsLink = document.getElementById('complaintTermsLink');
+      const termsModal = document.getElementById('complaintTermsModal');
+      const termsClose = document.getElementById('complaintTermsClose');
+      const termsCancel = document.getElementById('complaintTermsCancelBtn');
+      const termsAgree = document.getElementById('complaintTermsAgreeBtn');
+      const termsCb = document.querySelector('input[name="terms_accepted"]');
+      const submitBtn = document.getElementById('complaintSubmitBtn');
 
       const syncOther = function () {
         const v = sel ? String(sel.value || '') : '';
-        const isOther = v === 'Other';
+        const isOther = v.trim().toLowerCase() === 'other' || v.trim().toLowerCase() === 'others';
         if (wrap) {
           if (isOther) wrap.classList.remove('hidden');
           else wrap.classList.add('hidden');
@@ -249,6 +340,50 @@ $categories = [
         if (sel) sel.addEventListener('change', syncOther);
         syncOther();
         enhanceTextarea(document.getElementById('subject'));
+        enhanceTextarea(document.getElementById('category-other'));
+
+        const syncSubmit = () => {
+          if (!submitBtn) return;
+          submitBtn.disabled = !(termsCb && termsCb.checked);
+        };
+        if (termsCb) termsCb.addEventListener('change', syncSubmit);
+        syncSubmit();
+
+        const closeTerms = () => {
+          if (termsModal) termsModal.close();
+        };
+        if (termsLink) {
+          termsLink.addEventListener('click', () => {
+            if (termsModal) termsModal.showModal();
+          });
+        }
+        if (termsClose) termsClose.addEventListener('click', closeTerms);
+        if (termsCancel) termsCancel.addEventListener('click', closeTerms);
+        if (termsAgree) {
+          termsAgree.addEventListener('click', () => {
+            const cb = document.querySelector('input[name="terms_accepted"]');
+            if (cb) cb.checked = true;
+            syncSubmit();
+            closeTerms();
+          });
+        }
+
+        const inc = document.getElementById('incident_date');
+        if (inc) {
+          const d = new Date();
+          const yyyy = d.getFullYear();
+          const mm = String(d.getMonth() + 1).padStart(2, '0');
+          const dd = String(d.getDate()).padStart(2, '0');
+          const max = `${yyyy}-${mm}-${dd}`;
+          const oneMonthAgo = new Date(d);
+          oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
+          const y2 = oneMonthAgo.getFullYear();
+          const m2 = String(oneMonthAgo.getMonth() + 1).padStart(2, '0');
+          const d2 = String(oneMonthAgo.getDate()).padStart(2, '0');
+          const min = `${y2}-${m2}-${d2}`;
+          inc.min = min;
+          inc.max = max;
+        }
       });
     })();
   </script>

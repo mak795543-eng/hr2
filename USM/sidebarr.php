@@ -1,4 +1,3 @@
-
 <?php
 $rawRole = strtolower(trim($_SESSION['role'] ?? 'guest'));
 $roleAliases = [
@@ -31,16 +30,16 @@ if (!function_exists('hasAccess')) {
     <!-- Sidebar Header -->
     <div class="flex flex-col sm:flex-row items-center justify-between px-4 mb-6 text-center">
         <h1 class="text-xl sm:text-2xl font-bold text-white flex items-center gap-2">
-            <img id="sidebar-logo" src="logo/logofinal.png"
+            <img id="sidebar-logo" src="/logofinal.png"
                 alt="Logo"
                 class="h-12 sm:h-16 md:h-20 w-auto max-w-full">
-            <img id="sonly" src="logo/logofinal.png"
+            <img id="sonly" src="/sonly.png"
                 alt="Logo"
                 class="hidden h-10 w-auto max-w-full">
         </h1>
     </div>
 
-    <!-- Navigation Menu -->
+    <!-- Navigsdation Menu -->
     <div class="flex-1 flex flex-col overflow-hidden hover:overflow-y-auto">
         <nav class="flex-1 px-2 space-y-1">
             <!-- DASHBOARD SECTION -->
@@ -54,7 +53,18 @@ if (!function_exists('hasAccess')) {
                     </div>
                 </a>
             <?php endif; ?>
-    
+
+            <!-- DASHBOARD SECTION -->
+            <?php if (hasAccess('employee_self_service', $allowed_modules, $is_supervisor)): ?>
+                <a href="/../ESS/dashboard.php" class="block">
+                    <div class="flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-all hover:bg-blue-600/50 text-white group">
+                        <div class="p-1.5 rounded-lg bg-blue-800/30 group-hover:bg-blue-700/50 transition-colors">
+                            <i data-lucide="layout-dashboard" class="w-5 h-5 text-[#F7B32B] group-hover:text-white"></i>
+                        </div>
+                        <span class="ml-3 sidebar-text">ESS Dashboard</span>
+                    </div>
+                </a>
+            <?php endif; ?>
 
 
 
@@ -144,6 +154,12 @@ if (!function_exists('hasAccess')) {
                             <span class="flex items-center gap-2">
                                 <i data-lucide="clipboard-list" class="w-4 h-4 text-[#F7B32B]"></i>
                                 Training Requests
+                            </span>
+                        </a>
+                        <a href="/../TRAINING/TRAINING/learningrequest.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
+                            <span class="flex items-center gap-2">
+                                <i data-lucide="monitor-play" class="w-4 h-4 text-[#F7B32B]"></i>
+                                Learning Requests
                             </span>
                         </a>
                         <a href="/../TRAINING/TRAINING/request_logs.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
@@ -275,17 +291,14 @@ if (!function_exists('hasAccess')) {
                                 ESS Approvals
                             </span>
                         </a>
-<<<<<<< HEAD
+                        <a href="/../ESS/adminleaverequest.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
                         <a href="/../hr2/TRAINING/TRAINING/request_logs.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
-=======
-                        <a href="/../hr2/ESS/adminleaverequest.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
                             <span class="flex items-center gap-2">
                                 <i data-lucide="check-circle" class="w-4 h-4 text-[#F7B32B]"></i>
                                 Leave Request Approval
                             </span>
                         </a>
                         <a href="/../TRAINING/TRAINING/request_logs.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
->>>>>>> be49e6fcb686ccc18797a3591ab78139b07d89eb
                             <span class="flex items-center gap-2">
                                 <i data-lucide="list-checks" class="w-4 h-4 text-[#F7B32B]"></i>
                                 Department Request Logs
@@ -330,12 +343,11 @@ if (!function_exists('hasAccess')) {
             <?php endif; ?>
 
             <!-- ESS SECTION -->
-              <div class="px-4 py-2 mt-4">
+            <?php if (hasAccess('employee_self_service', $allowed_modules, $is_supervisor)): ?>
+                <div class="px-4 py-2 mt-4">
                     <p class="text-xs font-semibold text-blue-300 uppercase tracking-wider section-title">Employee Self Service</p>
                 </div>
-                
-            <?php if (hasAccess('employee_self_service', $allowed_modules, $is_supervisor)): ?>
-                <a href="/../hr2/ESS/dashboard.php" class="block">
+                <a href="/../ESS/dashboard.php" class="block">
                     <div class="flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-all hover:bg-blue-600/50 text-white group">
                         <div class="p-1 rounded-lg bg-blue-800/30 group-hover:bg-blue-700/50 transition-colors">
                             <i data-lucide="layout-dashboard" class="w-5 h-5 text-[#F7B32B] group-hover:text-white"></i>
@@ -343,8 +355,8 @@ if (!function_exists('hasAccess')) {
                         <span class="ml-3 sidebar-text">ESS dashboard</span>
                     </div>
                 </a>
-                
-                <a href="/../hr2/ESS/profile_management.php" class="block">
+
+                <a href="/../ESS/profile_management.php" class="block">
                     <div class="flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-all hover:bg-blue-600/50 text-white group">
                         <div class="p-1 rounded-lg bg-blue-800/30 group-hover:bg-blue-700/50 transition-colors">
                             <i data-lucide="user" class="w-5 h-5 text-[#F7B32B] group-hover:text-white"></i>
@@ -353,7 +365,7 @@ if (!function_exists('hasAccess')) {
                     </div>
                 </a>
 
-                <a href="/../hr2/ESS/social_recognition.php" class="block">
+                <a href="/../ESS/social_recognition.php" class="block">
                     <div class="flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-all hover:bg-blue-600/50 text-white group">
                         <div class="p-1 rounded-lg bg-blue-800/30 group-hover:bg-blue-700/50 transition-colors">
                             <i data-lucide="award" class="w-5 h-5 text-[#F7B32B] group-hover:text-white"></i>
@@ -362,7 +374,7 @@ if (!function_exists('hasAccess')) {
                     </div>
                 </a>
 
-                <a href="/../hr2/ESS/paymenthistory.php" class="block">
+                <a href="/../ESS/paymenthistory.php" class="block">
                     <div class="flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-all hover:bg-blue-600/50 text-white group">
                         <div class="p-1 rounded-lg bg-blue-800/30 group-hover:bg-blue-700/50 transition-colors">
                             <i data-lucide="banknote" class="w-5 h-5 text-[#F7B32B] group-hover:text-white"></i>
@@ -370,8 +382,8 @@ if (!function_exists('hasAccess')) {
                         <span class="ml-3 sidebar-text">Payroll</span>
                     </div>
                 </a>
-        
-                <a href="/../hr2/TRAINING/TRAINING/dashboard.php" class="block">
+
+                <a href="/../ESS/mytraining.php" class="block">
                     <div class="flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-all hover:bg-blue-600/50 text-white group">
                         <div class="p-1 rounded-lg bg-blue-800/30 group-hover:bg-blue-700/50 transition-colors">
                             <i data-lucide="graduation-cap" class="w-5 h-5 text-[#F7B32B] group-hover:text-white"></i>
@@ -380,7 +392,7 @@ if (!function_exists('hasAccess')) {
                     </div>
                 </a>
 
-                <a href="/../hr2/ESS/mymodule.php" class="block">
+                <a href="/../ESS/mymodule.php" class="block">
                     <div class="flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-all hover:bg-blue-600/50 text-white group">
                         <div class="p-1 rounded-lg bg-blue-800/30 group-hover:bg-blue-700/50 transition-colors">
                             <i data-lucide="layers" class="w-5 h-5 text-[#F7B32B] group-hover:text-white"></i>
@@ -389,7 +401,7 @@ if (!function_exists('hasAccess')) {
                     </div>
                 </a>
 
-                <a href="/../hr2/ESS/myexamination.php" class="block">
+                <a href="/../ESS/myexamination.php" class="block">
                     <div class="flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-all hover:bg-blue-600/50 text-white group">
                         <div class="p-1 rounded-lg bg-blue-800/30 group-hover:bg-blue-700/50 transition-colors">
                             <i data-lucide="clipboard-check" class="w-5 h-5 text-[#F7B32B] group-hover:text-white"></i>
@@ -397,8 +409,18 @@ if (!function_exists('hasAccess')) {
                         <span class="ml-3 sidebar-text">My Examination</span>
                     </div>
                 </a>
-    
-                <a href="/../hr2/ESS/leaverequest.php" class="block">
+
+
+                <a href="/../ESS/mydocuments.php" class="block">
+                    <div class="flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-all hover:bg-blue-600/50 text-white group">
+                        <div class="p-1 rounded-lg bg-blue-800/30 group-hover:bg-blue-700/50 transition-colors">
+                            <i data-lucide="file-text" class="w-5 h-5 text-[#F7B32B] group-hover:text-white"></i>
+                        </div>
+                        <span class="ml-3 sidebar-text">My Document</span>
+                    </div>
+                </a>
+
+                <a href="/../ESS/leaverequest.php" class="block">
                     <div class="flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-all hover:bg-blue-600/50 text-white group">
                         <div class="p-1 rounded-lg bg-blue-800/30 group-hover:bg-blue-700/50 transition-colors">
                             <i data-lucide="calendar" class="w-5 h-5 text-[#F7B32B] group-hover:text-white"></i>
@@ -407,7 +429,7 @@ if (!function_exists('hasAccess')) {
                     </div>
                 </a>
 
-                <a href="/../hr2/ESS/complaint.php" class="block">
+                <a href="/../ESS/complaint.php" class="block">
                     <div class="flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-all hover:bg-blue-600/50 text-white group">
                         <div class="p-1 rounded-lg bg-blue-800/30 group-hover:bg-blue-700/50 transition-colors">
                             <i data-lucide="message-square-warning" class="w-5 h-5 text-[#F7B32B] group-hover:text-white"></i>
@@ -416,7 +438,7 @@ if (!function_exists('hasAccess')) {
                     </div>
                 </a>
             <?php endif; ?>
-                        
+
 
             <!-- USER MANAGEMENT SECTION (Admin Only) -->
             <?php if (hasAccess('user_management', $allowed_modules, $is_supervisor)): ?>

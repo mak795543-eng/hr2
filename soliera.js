@@ -189,6 +189,67 @@ document.addEventListener('DOMContentLoaded', function() {
 
   lucide.createIcons();
 
+// ===== SweetAlert Global UI & Behavior =====
+// Close any open <dialog> elements before showing alerts
+window.hrCloseDialogs = function() {
+  try {
+    document.querySelectorAll('dialog[open]').forEach(d => {
+      try { d.close(); } catch (_) { d.removeAttribute('open'); d.classList.remove('modal-open'); }
+    });
+  } catch (_) {}
+};
+
+// Create a global Swal mixin with consistent UI
+window.hrSwal = (typeof Swal !== 'undefined' && Swal.mixin) ? Swal.mixin({
+  allowOutsideClick: false,
+  buttonsStyling: false,
+  showConfirmButton: true,
+  confirmButtonText: 'OK',
+  customClass: {
+    confirmButton: 'btn bg-gray-900 text-white hover:bg-gray-800 border-0',
+    cancelButton: 'btn btn-outline'
+  }
+}) : null;
+
+// Monkey-patch Swal.fire to enforce defaults and close modals first
+if (typeof Swal !== 'undefined' && typeof Swal.fire === 'function') {
+  (function() {
+    const originalFire = Swal.fire.bind(Swal);
+    Swal.fire = function(options) {
+      window.hrCloseDialogs();
+      const base = {
+        allowOutsideClick: false,
+        buttonsStyling: false,
+        showConfirmButton: true,
+        confirmButtonText: 'OK',
+        customClass: {
+          confirmButton: 'btn bg-gray-900 text-white hover:bg-gray-800 border-0',
+          cancelButton: 'btn btn-outline'
+        }
+      };
+      const merged = Object.assign({}, base, options || {});
+      return originalFire(merged);
+    };
+  })();
+}
+
+// Convenience helpers
+window.hrAlert = function(opts) {
+  if (typeof Swal === 'undefined') return alert((opts && opts.text) || 'Notice');
+  return Swal.fire(opts || {});
+};
+window.hrConfirm = function(opts) {
+  if (typeof Swal === 'undefined') return Promise.resolve({ isConfirmed: confirm((opts && opts.text) || 'Confirm?') });
+  const base = {
+    icon: 'question',
+    title: 'Please confirm',
+    showCancelButton: true,
+    confirmButtonText: 'OK',
+    cancelButtonText: 'Cancel'
+  };
+  return Swal.fire(Object.assign({}, base, opts || {}));
+};
+
       // Helper: Map event type to classes
       function getEventClass(type) {
         switch(type) {
