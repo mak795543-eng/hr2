@@ -483,6 +483,21 @@ function ensureSchema()
         $pdo->exec("CREATE TABLE IF NOT EXISTS pre_promotion_employees (id INT PRIMARY KEY AUTO_INCREMENT, employee_id VARCHAR(50) NOT NULL, name VARCHAR(100) NOT NULL, competency_level VARCHAR(50) NOT NULL, date_added TIMESTAMP DEFAULT CURRENT_TIMESTAMP, UNIQUE KEY uniq_pre_promotion_employee (employee_id), FOREIGN KEY (employee_id) REFERENCES employees(employee_id) ON DELETE CASCADE) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
     } catch (PDOException $e) {
     }
+
+    try {
+        $pdo->exec("ALTER TABLE pre_promotion_employees ADD COLUMN promotion_status ENUM('pending','promoted') DEFAULT 'pending'");
+    } catch (PDOException $e) {
+    }
+
+    try {
+        $pdo->exec("ALTER TABLE pre_promotion_employees ADD COLUMN promotion_letter TEXT NULL");
+    } catch (PDOException $e) {
+    }
+
+    try {
+        $pdo->exec("ALTER TABLE pre_promotion_employees ADD COLUMN promotion_sent_at TIMESTAMP NULL DEFAULT NULL");
+    } catch (PDOException $e) {
+    }
 }
 
 function insertDefaultDepartments()
@@ -1267,13 +1282,92 @@ function syncPrePromotionEmployee(string $employeeId): void
     $pdo->prepare("DELETE FROM pre_promotion_employees WHERE employee_id = ?")->execute([$employeeId]);
 }
 
-// Initialize database
+function computeEmployeeDevelopmentStatus(string $employeeId): string
+{
+    global $pdo;
+
+    try {
+        $stmtRepo = $pdo->prepare(
+            "SELECT idp_status, training_requested_at
+             FROM requested_idps_repository
+             WHERE employee_id = ?
+             LIMIT 1"
+        );
+        $stmtRepo->execute([$employeeId]);
+        $repo = $stmtRepo->fetch(PDO::FETCH_ASSOC);
+
+        if ($repo) {
+            $idpStatus = (string)($repo['idp_status'] ?? '');
+            $trainingRequestedAt = $repo['training_requested_at'] ?? null;
+
+            if ($trainingRequestedAt !== null) {
+                if (in_array($idpStatus, ['approved', 'under_review', 'on_hold', 'for_compliance'], true)) {
+                    return 'On-going Training';
+                }
+
+                if ($idpStatus === 'requested') {
+                    return 'Training Requested';
+                }
+
+                return 'Training Requested';
+            }
+
+            return 'IDP Created';
+        }
+
+        $stmtIdp = $pdo->prepare(
+            "SELECT idp_status, training_requested_at
+             FROM individual_development_plans
+             WHERE employee_id = ?
+             LIMIT 1"
+        );
+        $stmtIdp->execute([$employeeId]);
+        $idp = $stmtIdp->fetch(PDO::FETCH_ASSOC);
+
+        if ($idp) {
+            $idpStatus = (string)($idp['idp_status'] ?? '');
+            $trainingRequestedAt = $idp['training_requested_at'] ?? null;
+
+            if ($trainingRequestedAt !== null) {
+                if (in_array($idpStatus, ['approved', 'under_review', 'on_hold', 'for_compliance'], true)) {
+                    return 'On-going Training';
+                }
+
+                if ($idpStatus === 'requested') {
+                    return 'Training Requested';
+                }
+
+                return 'Training Requested';
+            }
+
+            return 'IDP Created';
+        }
+
+        $stmtReq = $pdo->prepare(
+            "SELECT status
+             FROM requested_to_idp
+             WHERE employee_id = ?
+             LIMIT 1"
+        );
+        $stmtReq->execute([$employeeId]);
+        $req = $stmtReq->fetch(PDO::FETCH_ASSOC);
+
+        if ($req && (string)($req['status'] ?? '') === 'Pending') {
+            return 'Forwarded for IDP';
+        }
+
+        return '';
+    } catch (Throwable $e) {
+        error_log('computeEmployeeDevelopmentStatus error: ' . $e->getMessage());
+        return '';
+    }
+}
+
 createTablesIfNotExist();
 ensureKpiSchema();
 ensureCompetencyCriteriaSchema();
 ensureGapFormulationSchema();
 
-// Function to get employees
 function getEmployees($filter = 'all', $search = '', $department = 'all')
 {
     global $pdo;
@@ -1304,22 +1398,6 @@ function getEmployees($filter = 'all', $search = '', $department = 'all')
                       WHERE g.employee_id = e.employee_id
                         AND g.evaluation_period = ?
                         AND COALESCE(g.forwarded_to_critical, 0) = 1
-                  )
-                  AND NOT EXISTS (
-                      SELECT 1
-                      FROM individual_development_plans idp
-                      WHERE idp.employee_id = e.employee_id
-                  )
-                  AND NOT EXISTS (
-                      SELECT 1
-                      FROM requested_idps_repository ridp
-                      WHERE ridp.employee_id = e.employee_id
-                  )
-                  AND NOT EXISTS (
-                      SELECT 1
-                      FROM requested_to_idp r
-                      WHERE r.employee_id = e.employee_id
-                        AND r.status = 'Pending'
                   )";
         $period = date('Y') . '-Q' . (string)ceil((int)date('n') / 3);
         $params = [$period, $period];
@@ -1387,6 +1465,7 @@ function getEmployeeDetails($employee_id)
         $employee = $stmt->fetch();
 
         if ($employee) {
+            $empDept = (string)($employee['department'] ?? '');
             ensureKpiSchema();
 
             $period = date('Y') . '-Q' . (string)ceil((int)date('n') / 3);

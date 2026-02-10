@@ -49,7 +49,7 @@ require('../../partials/header.php');
             <div class="max-w-7xl mx-auto p-6">
                 <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-6">
                     <div>
-                        <h1 class="text-2xl font-bold">Critical Roles</h1>
+                        <h1 class="text-2xl font-bold">Competency Profiles</h1>
                         <div class="text-sm opacity-70">Total: <span class="font-semibold"><?php echo (int)count($employees); ?></span></div>
                     </div>
                     <div class="flex gap-2">
@@ -130,7 +130,7 @@ require('../../partials/header.php');
                     </div>
                 </div>
 
-                <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     <?php if (count($employees) > 0): ?>
                         <?php foreach ($employees as $emp): ?>
                             <?php
@@ -159,6 +159,26 @@ require('../../partials/header.php');
                                 $progressColor = 'bg-emerald-500';
                                 $chartColor = '#059669';
                             }
+
+                            $developmentStatus = computeEmployeeDevelopmentStatus((string)($emp['employee_id'] ?? ''));
+                            $badgeLabel = $developmentStatus !== '' ? $developmentStatus : $status;
+                            $badgeClass = $statusClass;
+
+                            if ($developmentStatus !== '') {
+                                if ($developmentStatus === 'Forwarded for IDP') {
+                                    $badgeClass = 'badge-info';
+                                } elseif ($developmentStatus === 'IDP Created') {
+                                    $badgeClass = 'badge-warning';
+                                } elseif ($developmentStatus === 'Training Requested') {
+                                    $badgeClass = 'badge-primary';
+                                } elseif ($developmentStatus === 'On-going Training') {
+                                    $badgeClass = 'badge-success';
+                                } else {
+                                    $badgeClass = 'badge-neutral';
+                                }
+                            }
+
+                            $forwardDisabled = in_array($developmentStatus, ['Forwarded for IDP', 'IDP Created', 'Training Requested', 'On-going Training'], true);
                             ?>
                             <div class="employee-card bg-white border border-gray-300 rounded-xl shadow-sm" data-employee-id="<?php echo h($emp['employee_id'] ?? ''); ?>">
                                 <div class="p-6">
@@ -172,7 +192,9 @@ require('../../partials/header.php');
                                                 <p class="text-sm text-gray-600 mt-1"><?php echo h($emp['employee_id'] ?? ''); ?></p>
                                             </div>
                                         </div>
-                                        <span class="badge badge-sm <?php echo h($statusClass); ?>"><?php echo h($status); ?></span>
+                                        <span class="badge badge-sm <?php echo h($badgeClass); ?> employee-status-badge whitespace-normal break-words text-center px-3">
+                                            <?php echo h($badgeLabel); ?>
+                                        </span>
                                     </div>
 
                                     <div class="flex items-center justify-center mb-6">
@@ -215,21 +237,28 @@ require('../../partials/header.php');
                                         </div>
                                     </div>
 
-                                    <!-- Actions -->
-                                    <div class="flex gap-2">
-                                        <button class="btn flex-1 bg-white border border-gray-300 hover:bg-gray-50 text-gray-800"
-                                            onclick="openViewModal('<?php echo $emp['employee_id']; ?>')"
-                                            title="View Competency Details">
-                                            <i data-lucide="eye" class="w-4 h-4 mr-2"></i>
-                                            View
-                                        </button>
-                                        <button class="btn flex-1 bg-gray-900 text-white hover:bg-gray-800 border-0 idp-btn"
-                                            data-employee-id="<?php echo $emp['employee_id']; ?>"
-                                            data-employee-name="<?php echo htmlspecialchars($emp['full_name']); ?>"
-                                            title="Create Individual Development Plan">
-                                            <i data-lucide="clipboard-list" class="w-4 h-4 mr-2"></i>
-                                            IDP
-                                        </button>
+                                    <div class="flex flex-col gap-2">
+                                        <div class="flex gap-2">
+                                            <button class="btn flex-1 bg-white border border-gray-300 hover:bg-gray-50 text-gray-800"
+                                                onclick="openViewModal('<?php echo $emp['employee_id']; ?>')"
+                                                title="View Competency Details">
+                                                <i data-lucide="eye" class="w-4 h-4 mr-2"></i>
+                                                View
+                                            </button>
+                                            <button class="btn flex-1 bg-gray-900 text-white hover:bg-gray-800 border-0 idp-btn"
+                                                data-employee-id="<?php echo $emp['employee_id']; ?>"
+                                                data-employee-name="<?php echo htmlspecialchars($emp['full_name']); ?>"
+                                                title="Forward for Individual Development Plan"
+                                                <?php echo $forwardDisabled ? 'disabled' : ''; ?>>
+                                                <i data-lucide="clipboard-list" class="w-4 h-4 mr-2"></i>
+                                                Forward for IDP
+                                            </button>
+                                        </div>
+                                        <?php if ($developmentStatus === ''): ?>
+                                            <div class="text-xs text-gray-500 text-right">
+                                                <?php echo h($status); ?>
+                                            </div>
+                                        <?php endif; ?>
                                     </div>
                                 </div>
                             </div>
@@ -625,7 +654,7 @@ require('../../partials/header.php');
                             <button onclick="showIDPConfirmation('${employee.employee_id}', '${employee.full_name}')" 
                                     class="btn bg-gray-900 text-white hover:bg-gray-800 border-0">
                                 <i data-lucide="clipboard-list" class="w-4 h-4 mr-2"></i>
-                                Forward IDP
+                                Forward for IDP
                             </button>
                             <button onclick="document.getElementById('view-modal').close()" 
                                     class="btn bg-white border border-gray-300 hover:bg-gray-50 text-gray-800">
@@ -846,7 +875,7 @@ require('../../partials/header.php');
                     html: `Do you want to Forward this to Individual Development Plan for <strong>${employeeName}</strong>?`,
                     icon: 'question',
                     showCancelButton: true,
-                    confirmButtonText: 'Forward IDP',
+                    confirmButtonText: 'Forward for IDP',
                     cancelButtonText: 'Cancel',
                     confirmButtonColor: '#1f2937',
                     cancelButtonColor: '#6b7280',
@@ -910,7 +939,15 @@ require('../../partials/header.php');
 
                     const card = document.querySelector(`.employee-card[data-employee-id="${CSS.escape(employeeId)}"]`);
                     if (card) {
-                        card.remove();
+                        const badge = card.querySelector('.employee-status-badge');
+                        if (badge) {
+                            badge.textContent = 'Forwarded for IDP';
+                            badge.className = 'badge badge-sm badge-info employee-status-badge';
+                        }
+                        const btn = card.querySelector('.idp-btn');
+                        if (btn) {
+                            btn.disabled = true;
+                        }
                     }
 
                     return true;
