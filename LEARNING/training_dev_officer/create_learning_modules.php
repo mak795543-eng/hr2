@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 session_start();
 
 // Database connection
@@ -199,7 +199,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $_SESSION['success_message'] = $is_draft_submission ? "Module submitted for review!" : "Module updated successfully!";
             // Clear localStorage after successful save
             echo '<script>localStorage.removeItem("module_draft_content");</script>';
-            header("Location: ../hr_manager/review_dashboard.php");
+            header("Location: learning_module_repository.php");
             exit();
         } else {
             $_SESSION['error_message'] = "Error updating module: " . $stmt->error;
@@ -216,7 +216,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $_SESSION['success_message'] = "Module created successfully!";
             // Clear localStorage after successful save
             echo '<script>localStorage.removeItem("module_draft_content");</script>';
-            header("Location: ../hr_manager/review_dashboard.php");
+            header("Location: learning_module_repository.php");
             exit();
         } else {
             $_SESSION['error_message'] = "Error creating module: " . $stmt->error;

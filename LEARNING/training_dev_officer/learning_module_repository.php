@@ -951,7 +951,7 @@ $conn->close();
             </div>
             <div class="top-nav-buttons">
 
-              <button class="btn btn-border" onclick="upload_modal.showModal()">
+              <button class="btn btn-border" onclick="openUploadModal()">
                 <i class="fas fa-plus mr-2"></i>Upload Module
               </button>
 
@@ -1566,12 +1566,21 @@ $conn->close();
     // File handling variables
     let uploadedFiles = [];
     let selectedFileContent = '';
+    let currentModal = null;
 
     // Function to close current modal
     function closeCurrentModal() {
       if (currentModal) {
         currentModal.close();
         currentModal = null;
+      }
+    }
+
+    function openUploadModal() {
+      const modal = document.getElementById('upload_modal');
+      if (modal && typeof modal.showModal === 'function') {
+        currentModal = modal;
+        modal.showModal();
       }
     }
 
@@ -1582,7 +1591,10 @@ $conn->close();
 
       // Show drafts modal
       const draftsModal = document.getElementById('drafts_modal');
-      draftsModal.showModal();
+      if (draftsModal && typeof draftsModal.showModal === 'function') {
+        currentModal = draftsModal;
+        draftsModal.showModal();
+      }
 
       // Load drafts
       loadDrafts();
@@ -3140,6 +3152,7 @@ $conn->close();
         }
 
         if (openUpload === '1' && uploadModal && typeof uploadModal.showModal === 'function') {
+          currentModal = uploadModal;
           uploadModal.showModal();
         }
       } catch (e) {}

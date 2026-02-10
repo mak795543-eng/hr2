@@ -199,7 +199,7 @@ if (!function_exists('hasAccess')) {
                         <a href="/../hr2/COMPETENCY/criticalgaps/criticalgaps.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
                             <span class="flex items-center gap-2">
                                 <i data-lucide="alert-triangle" class="w-4 h-4 text-[#F7B32B]"></i>
-                                Critical Gaps
+                                Competency Profiles
                             </span>
                         </a>
 
@@ -243,6 +243,12 @@ if (!function_exists('hasAccess')) {
                             <span class="flex items-center gap-2">
                                 <i data-lucide="users" class="w-4 h-4 text-[#F7B32B]"></i>
                                 Succession Plans
+                            </span>
+                        </a>
+                        <a href="/../hr2/SUCCESSION/HR_director/pre-promotion-table.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
+                            <span class="flex items-center gap-2">
+                                <i data-lucide="award" class="w-4 h-4 text-[#F7B32B]"></i>
+                                Pre-promotion List
                             </span>
                         </a>
                         <a href="/../hr2/SUCCESSION/HR_director/requested_idps_repository.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
@@ -292,24 +298,24 @@ if (!function_exists('hasAccess')) {
                             </span>
                         </a>
                         <a href="/../ESS/adminleaverequest.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
-                        <a href="/../hr2/TRAINING/TRAINING/request_logs.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
-                            <span class="flex items-center gap-2">
-                                <i data-lucide="check-circle" class="w-4 h-4 text-[#F7B32B]"></i>
-                                Leave Request Approval
-                            </span>
-                        </a>
-                        <a href="/../TRAINING/TRAINING/request_logs.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
-                            <span class="flex items-center gap-2">
-                                <i data-lucide="list-checks" class="w-4 h-4 text-[#F7B32B]"></i>
-                                Department Request Logs
-                            </span>
-                        </a>
-                        <a href="/../hr2/LEARNING/hr_manager/review_dashboard.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
-                            <span class="flex items-center gap-2">
-                                <i data-lucide="book-open-check" class="w-4 h-4 text-[#F7B32B]"></i>
-                                Learning & Examination Review
-                            </span>
-                        </a>
+                            <a href="/../hr2/TRAINING/TRAINING/request_logs.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
+                                <span class="flex items-center gap-2">
+                                    <i data-lucide="check-circle" class="w-4 h-4 text-[#F7B32B]"></i>
+                                    Leave Request Approval
+                                </span>
+                            </a>
+                            <a href="/../TRAINING/TRAINING/request_logs.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
+                                <span class="flex items-center gap-2">
+                                    <i data-lucide="list-checks" class="w-4 h-4 text-[#F7B32B]"></i>
+                                    Department Request Logs
+                                </span>
+                            </a>
+                            <a href="/../hr2/LEARNING/hr_manager/review_dashboard.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
+                                <span class="flex items-center gap-2">
+                                    <i data-lucide="book-open-check" class="w-4 h-4 text-[#F7B32B]"></i>
+                                    Learning & Examination Review
+                                </span>
+                            </a>
                     </div>
                 </div>
             <?php endif; ?>

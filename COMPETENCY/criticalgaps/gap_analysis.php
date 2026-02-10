@@ -19,12 +19,13 @@ require('../../partials/header.php');
                         e.employee_id,
                         e.full_name,
                         e.department,
-                        e.position
+                        e.position,
+                        COALESCE(kgf.overall_competency, 0) AS overall_competency,
+                        COALESCE(kgf.status, 'Not Evaluated') AS status
                     FROM employees e
                     LEFT JOIN kpi_gap_formulations kgf
                       ON kgf.employee_id = e.employee_id
-                    WHERE kgf.employee_id IS NULL
-                    ORDER BY e.full_name ASC
+                    ORDER BY e.department ASC, e.full_name ASC
                 ");
                 $stmt->execute([]);
                 $serverEmployees = $stmt->fetchAll();
@@ -92,7 +93,7 @@ require('../../partials/header.php');
                 <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-6">
                     <div>
                         <h1 class="text-2xl font-bold">Skill Gap Analysis</h1>
-                        <div class="text-sm opacity-70">Employees that have not undergone gap analysis.</div>
+                        <div class="text-sm opacity-70">All employees with their competency gap status.</div>
                     </div>
                     <div class="flex gap-2">
                         <a href="criticalgaps.php" class="btn btn-outline btn-sm">Critical Roles</a>
@@ -157,18 +158,12 @@ require('../../partials/header.php');
                                         <th>Employee</th>
                                         <th>Dept</th>
                                         <th>Position</th>
-                                        <th class="text-right">Competency</th>
-                                        <th>Status</th>
                                         <th class="text-center">Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody id="employeeRows">
                                     <?php if (count($serverEmployees) > 0): ?>
-                                        <?php foreach ($serverEmployees as $r):
-                                            $status = (string)($r['status'] ?? 'Not Evaluated');
-                                            $compVal = (float)($r['overall_competency'] ?? 0);
-                                            $competency = (strtolower($status) === 'not evaluated') ? '—' : number_format($compVal, 1) . '%';
-                                        ?>
+                                        <?php foreach ($serverEmployees as $r): ?>
                                             <tr data-employee-id="<?php echo htmlspecialchars((string)($r['employee_id'] ?? '')); ?>">
                                                 <td>
                                                     <div class="font-semibold"><?php echo htmlspecialchars((string)($r['full_name'] ?? '')); ?></div>
@@ -176,16 +171,6 @@ require('../../partials/header.php');
                                                 </td>
                                                 <td><?php echo htmlspecialchars((string)($r['department'] ?? '')); ?></td>
                                                 <td><?php echo htmlspecialchars((string)($r['position'] ?? '')); ?></td>
-                                                <td class="text-right font-semibold"><?php echo $competency; ?></td>
-                                                <td>
-                                                    <span class="badge <?php
-                                                                        $s = strtolower($status);
-                                                                        echo $s === 'succession ready' ? 'badge-success'
-                                                                            : ($s === 'upskilling' ? 'badge-info'
-                                                                                : ($s === 'refresher training' ? 'badge-warning'
-                                                                                    : ($s === 'reskilling' ? 'badge-error' : 'badge-neutral')));
-                                                                        ?>"><?php echo htmlspecialchars($status); ?></span>
-                                                </td>
                                                 <td class="text-center">
                                                     <button
                                                         class="btn btn-xs btn-outline view-employee-btn"
@@ -197,7 +182,7 @@ require('../../partials/header.php');
                                         <?php endforeach; ?>
                                     <?php else: ?>
                                         <tr>
-                                            <td colspan="6" class="text-center py-10 opacity-70">No employees found.</td>
+                                            <td colspan="4" class="text-center py-10 opacity-70">No employees found.</td>
                                         </tr>
                                     <?php endif; ?>
                                 </tbody>
