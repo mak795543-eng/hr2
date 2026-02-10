@@ -2975,6 +2975,83 @@ $conn->close();
       return department.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
     }
 
+    const departmentRoles = {
+      'front-office': [
+        'Front Desk Manager',
+        'Receptionist / Front Desk Officer',
+        'Guest Service Agent / Concierge',
+        'Reservation Agent',
+        'Bellhop / Porter',
+        'Front Office Supervisor'
+      ],
+      'housekeeping': [
+        'Executive Housekeeper / Housekeeping Manager',
+        'Floor Supervisor',
+        'Room Attendant / Housekeeper',
+        'Laundry Attendant',
+        'Public Area Attendant',
+        'Housekeeping Inspector'
+      ],
+      'food-beverage': [
+        'F&B Manager / Director',
+        'Restaurant Manager / Captain',
+        'Waiter / Waitress / Server',
+        'Bartender',
+        'Banquet / Catering Coordinator',
+        'F&B Supervisor'
+      ],
+      'kitchen': [
+        'Executive Chef / Head Chef',
+        'Sous Chef',
+        'Line Cook / Station Chef',
+        'Pastry Chef / Baker',
+        'Kitchen Steward / Dishwasher',
+        'Commis Chef'
+      ],
+      'sales-marketing': [
+        'Sales & Marketing Manager',
+        'Revenue Manager',
+        'Event / Banquet Sales Coordinator',
+        'Social Media / Marketing Executive',
+        'Sales Executive',
+        'Marketing Coordinator'
+      ],
+      'hr': [
+        'HR Manager / Director',
+        'Recruitment Officer',
+        'Training & Development Specialist',
+        'Payroll / HR Assistant',
+        'HR Coordinator',
+        'Employee Relations Specialist'
+      ],
+      'finance': [
+        'Finance Manager / Controller',
+        'Accountant',
+        'Payroll Officer',
+        'Cost Controller',
+        'Accounts Payable/Receivable Clerk',
+        'Financial Analyst'
+      ],
+      'engineering': [
+        'Chief Engineer / Engineering Manager',
+        'Maintenance Technician',
+        'Electrician / Plumber',
+        'HVAC Technician',
+        'Carpenter',
+        'Painter'
+      ],
+      'security': [
+        'Security Manager / Supervisor',
+        'Security Guard',
+        'CCTV / Surveillance Officer',
+        'Security Officer',
+        'Surveillance Operator',
+        'Access Control Officer'
+      ]
+    };
+
+    departmentRoles['human-resources'] = departmentRoles['hr'];
+
     // Update roles based on department selection
     const departmentSelect = document.getElementById('departmentSelect');
     const roleSelect = document.getElementById('roleSelect');
