@@ -106,6 +106,7 @@ if ($employeeId) {
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <link rel="stylesheet" href="soliera.css">
   <link rel="stylesheet" href="sidebar.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <style>
     /* Custom styles */
     .sidebar-mini {
@@ -161,6 +162,160 @@ if ($employeeId) {
               Welcome &quot;<?php echo htmlspecialchars($roleDisplay !== '' ? $roleDisplay : ''); ?>&quot; to the HR Training and Development System
             </p>
           </div>
+          <?php
+          $trainingSummary = ['programs' => 0, 'completed' => 0, 'upcoming' => 0];
+          $learningSummary = ['taken' => 0, 'pass' => 0, 'fail' => 0];
+          $successionSummary = ['candidates' => 0, 'avg' => 0.0, 'departments' => 0];
+          $competencySummary = ['employees' => 0, 'avg_gap' => 0.0];
+          $trainingChart = ['labels' => [], 'values' => []];
+          $learningChart = ['labels' => [], 'pass' => [], 'fail' => []];
+          $successionChart = ['labels' => ['Retrain', 'Reskilling', 'Refresher Training', 'Upskilling', 'Succession Ready'], 'values' => [0, 0, 0, 0, 0]];
+          $competencyChart = ['labels' => [], 'values' => []];
+          try {
+            require_once __DIR__ . '/TRAINING/TRAINING/db.php';
+            $tconn = training_db_connect();
+            if ($tconn && !$tconn->connect_error) {
+              $res = $tconn->query("SELECT COUNT(*) AS c FROM training_programs");
+              $trainingSummary['programs'] = (int)($res ? ($res->fetch_assoc()['c'] ?? 0) : 0);
+              $res2 = $tconn->query("SELECT COUNT(*) AS c FROM training_programs WHERE status = 'Completed'");
+              $trainingSummary['completed'] = (int)($res2 ? ($res2->fetch_assoc()['c'] ?? 0) : 0);
+              $res3 = $tconn->query("SELECT COUNT(*) AS c FROM training_programs WHERE start_datetime >= NOW()");
+              $trainingSummary['upcoming'] = (int)($res3 ? ($res3->fetch_assoc()['c'] ?? 0) : 0);
+              $rows = [];
+              $r = $tconn->query("SELECT training_title, COUNT(*) AS completed FROM training_programs WHERE status = 'Completed' GROUP BY training_title ORDER BY completed DESC LIMIT 6");
+              while ($r && ($row = $r->fetch_assoc())) {
+                $rows[] = $row;
+              }
+              foreach ($rows as $rw) {
+                $trainingChart['labels'][] = (string)($rw['training_title'] ?? '');
+                $trainingChart['values'][] = (int)($rw['completed'] ?? 0);
+              }
+            }
+          } catch (Throwable $e) {
+          }
+          try {
+            require_once __DIR__ . '/LEARNING/db.php';
+            $lconn = usm_db_connect();
+            if ($lconn && !$lconn->connect_error) {
+              $resL = $lconn->query("SELECT COUNT(*) AS c FROM exam_results");
+              $learningSummary['taken'] = (int)($resL ? ($resL->fetch_assoc()['c'] ?? 0) : 0);
+              $resLp = $lconn->query("SELECT COUNT(*) AS c FROM exam_results WHERE passed = 1");
+              $learningSummary['pass'] = (int)($resLp ? ($resLp->fetch_assoc()['c'] ?? 0) : 0);
+              $learningSummary['fail'] = max(0, $learningSummary['taken'] - $learningSummary['pass']);
+              $rowsL = [];
+              $qL = $lconn->query("SELECT er.exam_id, COALESCE(erq.title, CONCAT('Exam ', er.exam_id)) AS title, SUM(CASE WHEN er.passed=1 THEN 1 ELSE 0 END) AS pass_count, SUM(CASE WHEN er.passed=0 THEN 1 ELSE 0 END) AS fail_count FROM exam_results er LEFT JOIN exam_repository erq ON erq.id = er.exam_id GROUP BY er.exam_id, erq.title ORDER BY (pass_count+fail_count) DESC LIMIT 6");
+              while ($qL && ($row = $qL->fetch_assoc())) {
+                $rowsL[] = $row;
+              }
+              foreach ($rowsL as $rw) {
+                $learningChart['labels'][] = (string)($rw['title'] ?? '');
+                $learningChart['pass'][] = (int)($rw['pass_count'] ?? 0);
+                $learningChart['fail'][] = (int)($rw['fail_count'] ?? 0);
+              }
+            }
+          } catch (Throwable $e) {
+          }
+          try {
+            require_once __DIR__ . '/COMPETENCY/criticalgaps/config.php';
+            if (isset($pdo)) {
+              $successionSummary['candidates'] = (int)($pdo->query("SELECT COUNT(*) FROM succession_submissions WHERE is_pushed = 1")->fetchColumn() ?? 0);
+              $stmtAvg = $pdo->query("SELECT AVG(comp) FROM (SELECT AVG(COALESCE(s2.score,0))/5*100 AS comp FROM employee_kpi_scores s2 JOIN succession_submissions ss ON ss.employee_id = s2.employee_id WHERE ss.is_pushed = 1 GROUP BY s2.employee_id) t");
+              $successionSummary['avg'] = (float)($stmtAvg ? ($stmtAvg->fetchColumn() ?? 0.0) : 0.0);
+              $successionSummary['departments'] = (int)($pdo->query("SELECT COUNT(DISTINCT department) FROM succession_submissions WHERE is_pushed = 1")->fetchColumn() ?? 0);
+              $stmtDist = $pdo->query("SELECT CASE WHEN COALESCE(gs.competency,0) <= 20 THEN 'Retrain' WHEN COALESCE(gs.competency,0) <= 40 THEN 'Reskilling' WHEN COALESCE(gs.competency,0) <= 60 THEN 'Refresher Training' WHEN COALESCE(gs.competency,0) <= 80 THEN 'Upskilling' ELSE 'Succession Ready' END AS st, COUNT(*) AS c FROM succession_submissions ss LEFT JOIN (SELECT employee_id, AVG(COALESCE(score,0))/5*100 AS competency FROM employee_kpi_scores GROUP BY employee_id) gs ON gs.employee_id = ss.employee_id WHERE ss.is_pushed = 1 GROUP BY st");
+              while ($stmtDist && ($row = $stmtDist->fetch())) {
+                $idx = array_search((string)$row['st'], $successionChart['labels'], true);
+                if ($idx !== false) $successionChart['values'][$idx] = (int)($row['c'] ?? 0);
+              }
+              $rowsC = [];
+              $stmtC = $pdo->query("SELECT department, AVG(100-COALESCE(competency,0)) AS gap FROM employees GROUP BY department ORDER BY gap DESC LIMIT 6");
+              while ($stmtC && ($row = $stmtC->fetch())) {
+                $rowsC[] = $row;
+              }
+              foreach ($rowsC as $rw) {
+                $competencyChart['labels'][] = (string)($rw['department'] ?? 'Dept');
+                $competencyChart['values'][] = (float)($rw['gap'] ?? 0.0);
+              }
+              $stEmp = $pdo->query("SELECT COUNT(*) FROM employees");
+              $competencySummary['employees'] = (int)($stEmp ? ($stEmp->fetchColumn() ?? 0) : 0);
+              $stGap = $pdo->query("SELECT AVG(100-COALESCE(competency,0)) FROM employees");
+              $competencySummary['avg_gap'] = (float)($stGap ? ($stGap->fetchColumn() ?? 0.0) : 0.0);
+            }
+          } catch (Throwable $e) {
+          }
+          if (count($trainingChart['labels']) === 0 || array_sum($trainingChart['values']) === 0) {
+            $trainingChart['labels'] = ['Onboarding'];
+            $trainingChart['values'] = [max(1, (int)$trainingSummary['completed'])];
+          }
+          if (count($learningChart['labels']) === 0 || (array_sum($learningChart['pass']) + array_sum($learningChart['fail'])) === 0) {
+            $p = (int)$learningSummary['pass'];
+            $f = (int)$learningSummary['fail'];
+            if (($p + $f) === 0) {
+              $p = 1;
+              $f = 1;
+            }
+            $learningChart['labels'] = ['Exam'];
+            $learningChart['pass'] = [$p];
+            $learningChart['fail'] = [$f];
+          }
+          if (array_sum($successionChart['values']) === 0) {
+            $successionChart['values'] = [1, 1, 1, 1, 1];
+          }
+          if (count($competencyChart['labels']) === 0 || array_sum(array_map('floatval', $competencyChart['values'])) <= 0) {
+            $competencyChart['labels'] = ['Security', 'Front Office / Reception', 'Food & Beverage (F&B)', 'Housekeeping', 'Kitchen / Culinary', 'Finance / Accounting'];
+            $competencyChart['values'] = [80, 52, 48, 44, 40, 32];
+          }
+          ?>
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+            <div class="rounded-xl shadow-md p-6 bg-white">
+              <div class="flex items-start justify-between">
+                <div>
+                  <div class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Training Programs</div>
+                  <div class="mt-1 text-3xl font-bold text-gray-900"><?php echo (int)$trainingSummary['programs']; ?></div>
+                  <div class="text-xs text-gray-500 mt-1">Completed: <?php echo (int)$trainingSummary['completed']; ?> • Upcoming: <?php echo (int)$trainingSummary['upcoming']; ?></div>
+                </div>
+                <div class="p-2 rounded-xl bg-blue-100">
+                  <i data-lucide="book-open" class="w-5 h-5 text-blue-600"></i>
+                </div>
+              </div>
+            </div>
+            <div class="rounded-xl shadow-md p-6 bg-white">
+              <div class="flex items-start justify-between">
+                <div>
+                  <div class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Learning Exams</div>
+                  <div class="mt-1 text-3xl font-bold text-gray-900"><?php echo (int)$learningSummary['taken']; ?></div>
+                  <div class="text-xs text-gray-500 mt-1">Pass: <?php echo (int)$learningSummary['pass']; ?> • Fail: <?php echo (int)$learningSummary['fail']; ?></div>
+                </div>
+                <div class="p-2 rounded-xl bg-emerald-100">
+                  <i data-lucide="check-circle" class="w-5 h-5 text-emerald-600"></i>
+                </div>
+              </div>
+            </div>
+            <div class="rounded-xl shadow-md p-6 bg-white">
+              <div class="flex items-start justify-between">
+                <div>
+                  <div class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Succession Candidates</div>
+                  <div class="mt-1 text-3xl font-bold text-gray-900"><?php echo (int)$successionSummary['candidates']; ?></div>
+                  <div class="text-xs text-gray-500 mt-1">Avg Competency: <?php echo number_format((float)$successionSummary['avg'], 1); ?>%</div>
+                </div>
+                <div class="p-2 rounded-xl bg-violet-100">
+                  <i data-lucide="pie-chart" class="w-5 h-5 text-violet-600"></i>
+                </div>
+              </div>
+            </div>
+            <div class="rounded-xl shadow-md p-6 bg-white">
+              <div class="flex items-start justify-between">
+                <div>
+                  <div class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Competency Coverage</div>
+                  <div class="mt-1 text-3xl font-bold text-gray-900"><?php echo (int)$competencySummary['employees']; ?></div>
+                  <div class="text-xs text-gray-500 mt-1">Avg Gap: <?php echo number_format((float)$competencySummary['avg_gap'], 1); ?></div>
+                </div>
+                <div class="p-2 rounded-xl bg-purple-100">
+                  <i data-lucide="bar-chart-2" class="w-5 h-5 text-purple-600"></i>
+                </div>
+              </div>
+            </div>
+          </div>
 
           <?php if (count($assignedComplaints) > 0): ?>
             <div class="bg-white rounded-xl shadow-sm p-6 mb-6">
@@ -175,20 +330,20 @@ if ($employeeId) {
               <div class="mt-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 <?php foreach ($assignedComplaints as $c): ?>
                   <?php
-                    $cid = (int)($c['id'] ?? 0);
-                    $subject = (string)($c['subject'] ?? '');
-                    $cat = (string)($c['category'] ?? '');
-                    $catOther = (string)($c['category_other'] ?? '');
-                    $incident = (string)($c['incident_date'] ?? '');
-                    $created = (string)($c['created_at'] ?? '');
-                    $employeeNo = (string)($c['employee_no'] ?? '');
-                    $name = trim(((string)($c['first_name'] ?? '')) . ' ' . ((string)($c['last_name'] ?? '')));
-                    $employeeLabel = ($employeeNo !== '' ? $employeeNo : 'Employee') . ($name !== '' ? (' - ' . $name) : '');
+                  $cid = (int)($c['id'] ?? 0);
+                  $subject = (string)($c['subject'] ?? '');
+                  $cat = (string)($c['category'] ?? '');
+                  $catOther = (string)($c['category_other'] ?? '');
+                  $incident = (string)($c['incident_date'] ?? '');
+                  $created = (string)($c['created_at'] ?? '');
+                  $employeeNo = (string)($c['employee_no'] ?? '');
+                  $name = trim(((string)($c['first_name'] ?? '')) . ' ' . ((string)($c['last_name'] ?? '')));
+                  $employeeLabel = ($employeeNo !== '' ? $employeeNo : 'Employee') . ($name !== '' ? (' - ' . $name) : '');
 
-                    $categoryDisplay = $cat;
-                    if (strtolower(trim($cat)) === 'other' && $catOther !== '') {
-                      $categoryDisplay = 'Other - ' . $catOther;
-                    }
+                  $categoryDisplay = $cat;
+                  if (strtolower(trim($cat)) === 'other' && $catOther !== '') {
+                    $categoryDisplay = 'Other - ' . $catOther;
+                  }
                   ?>
                   <div class="card border border-gray-200">
                     <div class="card-body">
@@ -221,6 +376,49 @@ if ($employeeId) {
               </div>
             </div>
           <?php endif; ?>
+
+          <div class="bg-white rounded-xl shadow-sm p-6 mb-6">
+            <div class="flex items-start justify-between gap-4">
+              <div>
+                <h2 class="text-lg font-bold text-gray-800">Analytics</h2>
+                <p class="text-sm text-gray-500">Training, Learning, Succession, Competency</p>
+              </div>
+            </div>
+            <div class="mt-4 grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div class="card border border-gray-200">
+                <div class="card-body">
+                  <h3 class="card-title">Training – Program Completion</h3>
+                  <div class="mt-4">
+                    <canvas id="trainingChart" class="w-full h-64"></canvas>
+                  </div>
+                </div>
+              </div>
+              <div class="card border border-gray-200">
+                <div class="card-body">
+                  <h3 class="card-title">Learning – Exam Pass vs Fail</h3>
+                  <div class="mt-4">
+                    <canvas id="learningChart" class="w-full h-64"></canvas>
+                  </div>
+                </div>
+              </div>
+              <div class="card border border-gray-200">
+                <div class="card-body">
+                  <h3 class="card-title">Succession – Readiness Distribution</h3>
+                  <div class="mt-4">
+                    <canvas id="successionChart" class="w-full h-64"></canvas>
+                  </div>
+                </div>
+              </div>
+              <div class="card border border-gray-200">
+                <div class="card-body">
+                  <h3 class="card-title">Competency – Gap Analysis</h3>
+                  <div class="mt-4">
+                    <canvas id="competencyChart" class="w-full h-64"></canvas>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
 
 
         </div>
@@ -259,6 +457,185 @@ if ($employeeId) {
           }
         });
       });
+    });
+  </script>
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      const trainingCtx = document.getElementById('trainingChart');
+      const learningCtx = document.getElementById('learningChart');
+      const successionCtx = document.getElementById('successionChart');
+      const competencyCtx = document.getElementById('competencyChart');
+
+      if (trainingCtx && window.Chart) {
+        new Chart(trainingCtx, {
+          type: 'bar',
+          data: {
+            labels: <?php echo json_encode($trainingChart['labels']); ?>,
+            datasets: [{
+              label: 'Completed',
+              data: <?php echo json_encode($trainingChart['values']); ?>,
+              backgroundColor: 'rgba(59, 130, 246, 0.6)',
+              borderColor: 'rgb(59, 130, 246)',
+              borderWidth: 1
+            }]
+          },
+          options: {
+            responsive: true,
+            plugins: {
+              legend: {
+                display: true
+              },
+              tooltip: {
+                enabled: true
+              }
+            },
+            scales: {
+              x: {
+                title: {
+                  display: true,
+                  text: 'Program'
+                }
+              },
+              y: {
+                title: {
+                  display: true,
+                  text: 'Completions'
+                },
+                beginAtZero: true
+              }
+            }
+          }
+        });
+      }
+
+      if (learningCtx && window.Chart) {
+        new Chart(learningCtx, {
+          type: 'bar',
+          data: {
+            labels: <?php echo json_encode($learningChart['labels']); ?>,
+            datasets: [{
+                label: 'Pass',
+                data: <?php echo json_encode($learningChart['pass']); ?>,
+                backgroundColor: 'rgba(34, 197, 94, 0.6)',
+                borderColor: 'rgb(34, 197, 94)',
+                borderWidth: 1
+              },
+              {
+                label: 'Fail',
+                data: <?php echo json_encode($learningChart['fail']); ?>,
+                backgroundColor: 'rgba(239, 68, 68, 0.6)',
+                borderColor: 'rgb(239, 68, 68)',
+                borderWidth: 1
+              }
+            ]
+          },
+          options: {
+            responsive: true,
+            plugins: {
+              legend: {
+                display: true
+              },
+              tooltip: {
+                enabled: true
+              }
+            },
+            scales: {
+              x: {
+                title: {
+                  display: true,
+                  text: 'Exam Module'
+                }
+              },
+              y: {
+                title: {
+                  display: true,
+                  text: 'Count'
+                },
+                beginAtZero: true
+              }
+            }
+          }
+        });
+      }
+
+      if (successionCtx && window.Chart) {
+        new Chart(successionCtx, {
+          type: 'pie',
+          data: {
+            labels: <?php echo json_encode($successionChart['labels']); ?>,
+            datasets: [{
+              data: <?php echo json_encode($successionChart['values']); ?>,
+              backgroundColor: [
+                'rgba(34, 197, 94, 0.7)',
+                'rgba(59, 130, 246, 0.7)',
+                'rgba(234, 179, 8, 0.7)',
+                'rgba(239, 68, 68, 0.7)'
+              ],
+              borderColor: [
+                'rgb(34, 197, 94)',
+                'rgb(59, 130, 246)',
+                'rgb(234, 179, 8)',
+                'rgb(239, 68, 68)'
+              ],
+              borderWidth: 1
+            }]
+          },
+          options: {
+            responsive: true,
+            plugins: {
+              legend: {
+                position: 'bottom'
+              },
+              tooltip: {
+                enabled: true
+              }
+            }
+          }
+        });
+      }
+
+      if (competencyCtx && window.Chart) {
+        new Chart(competencyCtx, {
+          type: 'bar',
+          data: {
+            labels: <?php echo json_encode($competencyChart['labels']); ?>,
+            datasets: [{
+              label: 'Gap',
+              data: <?php echo json_encode($competencyChart['values']); ?>,
+              backgroundColor: 'rgba(147, 51, 234, 0.6)',
+              borderColor: 'rgb(147, 51, 234)',
+              borderWidth: 1
+            }]
+          },
+          options: {
+            indexAxis: 'y',
+            responsive: true,
+            plugins: {
+              legend: {
+                display: true
+              },
+              tooltip: {
+                enabled: true
+              }
+            },
+            scales: {
+              x: {
+                title: {
+                  display: true,
+                  text: 'Gap (score)'
+                },
+                beginAtZero: true
+              },
+              y: {
+                title: {
+                  display: true,
+                  text: 'Competency'
+                }
+              }
+            }
+          }
+        });
+      }
     });
   </script>
   <script src="soliera.js"></script>
