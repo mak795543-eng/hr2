@@ -40,7 +40,7 @@ if (!function_exists('hasAccess')) {
     </div>
 
     <!-- Navigsdation Menu -->
-    <div class="flex-1 flex flex-col overflow-hidden hover:overflow-y-auto">
+    <div id="sidebar-scroll" class="flex-1 flex flex-col overflow-hidden hover:overflow-y-auto">
         <nav class="flex-1 px-2 space-y-1">
             <!-- DASHBOARD SECTION -->
             <?php if (hasAccess('dashboard', $allowed_modules, $is_supervisor)): ?>
