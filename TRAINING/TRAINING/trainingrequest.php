@@ -24,6 +24,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             echo json_encode(['success' => false, 'message' => 'Failed']);
             exit;
         }
+    } elseif ($action === 'list_idps') {
+        header('Content-Type: application/json; charset=utf-8');
+        try {
+            $stmt = $pdo->prepare(
+                "SELECT id, employee_id, employee_name, department, position, competency, succession_status,
+                        requested_training_type, requested_training_mode,
+                        requested_start_datetime, requested_end_datetime, idp_status,
+                        delivery_mode, training_requested_at
+                 FROM requested_idps_repository
+                 WHERE (delivery_mode IN ('Onsite','Hybrid') AND training_requested_at IS NOT NULL)
+                 ORDER BY employee_name ASC"
+            );
+            $stmt->execute();
+            $rows = $stmt->fetchAll();
+            echo json_encode(['success' => true, 'items' => $rows]);
+            exit;
+        } catch (Throwable $e) {
+            echo json_encode(['success' => false, 'message' => 'Failed']);
+            exit;
+        }
     }
 }
 

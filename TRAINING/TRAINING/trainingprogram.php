@@ -1194,6 +1194,24 @@ try {
 } catch (Throwable $e) {
     $employees = [];
 }
+// Load employees from hr2usm.department_accounts excluding manager/admin roles
+$deptAccounts = [];
+try {
+    require_once __DIR__ . '/../../db.php';
+    $usmConn = null;
+    if (isset($connections['hr2_usm']) && $connections['hr2_usm'] instanceof mysqli) {
+        $usmConn = $connections['hr2_usm'];
+    }
+    if ($usmConn) {
+        $sql = "SELECT employee_id, employee_no, employee_name, role FROM department_accounts WHERE (LOWER(role) NOT LIKE '%manager%' AND LOWER(role) NOT LIKE '%admin%') ORDER BY employee_name ASC";
+        $res = $usmConn->query($sql);
+        while ($res && ($row = $res->fetch_assoc())) {
+            $deptAccounts[] = $row;
+        }
+    }
+} catch (Throwable $e) {
+    $deptAccounts = [];
+}
 
 $tpTotalTrainings = 0;
 $tpNotPostedTrainings = 0;
@@ -1509,10 +1527,10 @@ require('../../partials/header.php');
                                 </div>
 
 
-                                <a id="add-training-btn" href="add_training.php" class="btn btn-sm hr2-primary-btn">
+                                <button id="add-training-btn" type="button" class="btn btn-sm hr2-primary-btn">
                                     <i data-lucide="plus" class="h-5 w-5 mr-2"></i>
                                     Add Training
-                                </a>
+                                </button>
                             </div>
                         </div>
 
@@ -1530,8 +1548,40 @@ require('../../partials/header.php');
                     <div class="modal-box w-11/12 max-w-6xl">
                         <h3 class="font-bold text-2xl mb-2" id="modal-title">Create New Training Program</h3>
                         <p class="text-gray-600 mb-6" id="modal-subtitle">Fill in all required information to create a new training program</p>
+                        <div id="idp-list-container" class="mb-6">
+                            <div class="flex items-center justify-between mb-3">
+                                <div class="text-sm font-semibold text-gray-800">Training Requests</div>
+                            </div>
+                            <div id="idp-list-loading" class="text-sm text-gray-600">Loading...</div>
+                            <div id="idp-list-table" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+                        </div>
+                        <div id="idp-request-banner" class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6 hidden">
+                            <div class="text-sm font-semibold text-blue-800 mb-2">Selected Training Request</div>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                <div class="bg-white rounded-md p-3 border border-blue-100">
+                                    <div class="text-xs text-gray-500">Employee</div>
+                                    <div id="idp-employee" class="text-sm font-medium text-gray-900">-</div>
+                                </div>
+                                <div class="bg-white rounded-md p-3 border border-blue-100">
+                                    <div class="text-xs text-gray-500">Department</div>
+                                    <div id="idp-department" class="text-sm font-medium text-gray-900">-</div>
+                                </div>
+                                <div class="bg-white rounded-md p-3 border border-blue-100">
+                                    <div class="text-xs text-gray-500">Requested Type</div>
+                                    <div id="idp-type" class="text-sm font-medium text-gray-900">-</div>
+                                </div>
+                                <div class="bg-white rounded-md p-3 border border-blue-100">
+                                    <div class="text-xs text-gray-500">Requested Mode</div>
+                                    <div id="idp-mode" class="text-sm font-medium text-gray-900">-</div>
+                                </div>
+                                <div class="bg-white rounded-md p-3 border border-blue-100 md:col-span-2">
+                                    <div class="text-xs text-gray-500">Requested Schedule</div>
+                                    <div id="idp-schedule" class="text-sm font-medium text-gray-900">-</div>
+                                </div>
+                            </div>
+                        </div>
 
-                        <form id="training-form" class="space-y-6">
+                        <form id="training-form" class="space-y-6 hidden">
                             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                                 <!-- Left Column -->
                                 <div class="space-y-6">
@@ -1644,17 +1694,31 @@ require('../../partials/header.php');
                                         </label>
                                         <select id="training-employee" class="select select-bordered w-full">
                                             <option value="" selected>Select employee</option>
-                                            <?php foreach ($employees as $emp): ?>
-                                                <?php
-                                                $empId = (int)($emp['id'] ?? 0);
-                                                $empNo = trim((string)($emp['employee_no'] ?? ''));
-                                                $fn = trim((string)($emp['first_name'] ?? ''));
-                                                $ln = trim((string)($emp['last_name'] ?? ''));
-                                                $label = trim($ln . ', ' . $fn);
-                                                if ($empNo !== '') $label .= ' (' . $empNo . ')';
-                                                ?>
-                                                <option value="<?= htmlspecialchars($empId) ?>"><?= htmlspecialchars($label) ?></option>
-                                            <?php endforeach; ?>
+                                            <?php if (!empty($deptAccounts)): ?>
+                                                <?php foreach ($deptAccounts as $emp): ?>
+                                                    <?php
+                                                    $empId = trim((string)($emp['employee_id'] ?? ''));
+                                                    $empNo = trim((string)($emp['employee_no'] ?? ''));
+                                                    $name = trim((string)($emp['employee_name'] ?? ''));
+                                                    if ($empId === '' || $name === '') continue;
+                                                    $label = $name;
+                                                    if ($empNo !== '') $label .= ' (' . $empNo . ')';
+                                                    ?>
+                                                    <option value="<?= htmlspecialchars($empId) ?>"><?= htmlspecialchars($label) ?></option>
+                                                <?php endforeach; ?>
+                                            <?php else: ?>
+                                                <?php foreach ($employees as $emp): ?>
+                                                    <?php
+                                                    $empId = (int)($emp['id'] ?? 0);
+                                                    $empNo = trim((string)($emp['employee_no'] ?? ''));
+                                                    $fn = trim((string)($emp['first_name'] ?? ''));
+                                                    $ln = trim((string)($emp['last_name'] ?? ''));
+                                                    $label = trim($ln . ', ' . $fn);
+                                                    if ($empNo !== '') $label .= ' (' . $empNo . ')';
+                                                    ?>
+                                                    <option value="<?= htmlspecialchars($empId) ?>"><?= htmlspecialchars($label) ?></option>
+                                                <?php endforeach; ?>
+                                            <?php endif; ?>
                                         </select>
                                     </div>
                                 </div>
@@ -1737,10 +1801,6 @@ require('../../partials/header.php');
                             </div>
                         </form>
 
-                        <div class="modal-action">
-                            <button type="button" id="cancel-btn" class="btn btn-ghost">Cancel</button>
-                            <button type="button" id="save-training-btn" class="btn btn-primary">Save Training Program</button>
-                        </div>
                     </div>
                     <form method="dialog" class="modal-backdrop">
                         <button>close</button>
@@ -2146,4 +2206,4 @@ require('../../partials/header.php');
                     </form>
                 </dialog>
                 <?php require('../../partials/footer.php') ?>
-                <script src="main.js"></script>
+                <script src="main.js?v=2"></script>
