@@ -639,22 +639,20 @@ $trainingEndTimeValue = $_SERVER['REQUEST_METHOD'] === 'POST' ? (string)($_POST[
 require('../../partials/header.php');
 ?>
 
-<body class="bg-gray-50 min-h-screen">
+<body class="bg-base-200 min-h-screen">
 
     <div class="flex h-screen">
+        <?php include '../../USM/sidebarr.php'; ?>
 
-        <!-- Content Area -->
-        <div class="flex flex-col flex-1 overflow-hidden">
-            <!-- Navbar -->
+        <div class="flex flex-col flex-1 overflow-auto">
             <?php include '../../USM/navbar.php'; ?>
 
-            <main class="flex-1 overflow-auto p-6">
+            <main class="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto">
                 <div class="max-w-4xl mx-auto">
                     <div class="flex items-center justify-between mb-6">
                         <h1 class="text-2xl font-bold text-gray-900"><?php echo $isSuccessionReady ? 'Succession Ready IDP' : 'Individual Development Plan'; ?></h1>
-                        <div class="flex items-center gap-4">
-
-                            <a href="succession_dashboard.php" class="text-sm font-semibold text-gray-700 hover:text-gray-900">Back to Dashboard</a>
+                        <div class="flex items-center gap-3">
+                            <a href="succession_dashboard.php" class="btn btn-outline btn-sm">Back to Dashboard</a>
                         </div>
                     </div>
 
@@ -703,7 +701,7 @@ require('../../partials/header.php');
                             </div>
                         <?php endif; ?>
 
-                        <form method="post" class="bg-white border border-gray-200 rounded-lg p-5 shadow-sm">
+                        <form method="post" class="bg-white border border-gray-200 rounded-lg p-6 shadow-sm space-y-6">
                             <input type="hidden" name="idp_delivery_mode" id="idp_delivery_mode" value="<?php echo h($idpDeliveryModeValue); ?>" />
                             <input type="hidden" name="employee_status" value="<?php echo h($employeeStatus); ?>" />
 
@@ -717,7 +715,7 @@ require('../../partials/header.php');
                                 $overallPct = (float)($row['competency'] ?? 0);
                             }
                             ?>
-                            <div class="mb-6 border border-gray-200 rounded-md p-4">
+                            <div class="border border-gray-300 rounded-lg p-5 bg-gray-50">
                                 <div class="text-sm font-semibold text-gray-900 mb-4">KPI Evaluation Summary</div>
                                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
                                     <div>
@@ -777,7 +775,7 @@ require('../../partials/header.php');
                             </div>
 
                             <?php if ($isSuccessionReady): ?>
-                                <div class="mb-6 border border-gray-200 rounded-md p-4">
+                                <div class="border border-gray-200 rounded-md p-4">
                                     <div class="text-sm font-semibold text-gray-900 mb-4">Succession Target & Readiness</div>
                                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                                         <div>
@@ -818,7 +816,7 @@ require('../../partials/header.php');
                                 </div>
                             <?php endif; ?>
                             <?php if (count($suggestedPlans) > 0): ?>
-                                <div class="mb-4">
+                                <div>
                                     <label class="block text-sm font-semibold text-gray-800 mb-2"><?php echo $isSuccessionReady ? 'Strategic Development Activities' : 'Suggested Development Plans'; ?></label>
                                     <div id="suggested_plans" class="space-y-3">
                                         <?php $skillIndex = 0; ?>
@@ -856,7 +854,7 @@ require('../../partials/header.php');
                                 </div>
                             <?php endif; ?>
 
-                            <div class="mb-6">
+                            <div>
                                 <label class="block text-sm font-semibold text-gray-800 mb-2"><?php echo $isSuccessionReady ? 'Strategic Development Activity Plan' : 'Development Plan'; ?></label>
                                 <div class="w-full border border-gray-200 rounded-md p-3 bg-white mb-2">
                                     <div id="development_plan_bubbles_inner" class="flex flex-wrap gap-2"></div>
@@ -865,12 +863,12 @@ require('../../partials/header.php');
                                 <textarea id="development_plan" name="development_plan" class="hidden" <?php echo $viewOnly ? 'readonly' : ''; ?>><?php echo h($row['development_plan'] ?? ''); ?></textarea>
                             </div>
 
-                            <div class="flex items-center justify-between">
-                                <a href="succession_dashboard.php" class="inline-flex items-center justify-center px-4 py-2 rounded-md text-sm font-semibold bg-white border border-gray-300 text-gray-800 hover:bg-gray-50">Back</a>
+                            <div class="flex items-center justify-between pt-4">
+                                <a href="succession_dashboard.php" class="btn btn-outline">Back</a>
                                 <?php if (!$viewOnly): ?>
                                     <div class="flex items-center gap-3">
 
-                                        <button type="submit" name="submit_action" value="save" class="inline-flex items-center justify-center px-4 py-2 rounded-md text-sm font-semibold bg-gray-900 text-white hover:bg-gray-800">Save IDP</button>
+                                        <button type="submit" name="submit_action" value="save" class="btn bg-gray-900 text-white hover:bg-gray-800 border-0">Save IDP</button>
                                     </div>
                                 <?php endif; ?>
                             </div>

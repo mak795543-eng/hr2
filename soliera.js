@@ -199,7 +199,113 @@ window.hrCloseDialogs = function() {
   } catch (_) {}
 };
 
-// Create a global Swal mixin with consistent UI
+if (typeof document !== 'undefined') {
+  (function() {
+    var styleId = 'hr-swal-styles';
+    if (document.getElementById(styleId)) return;
+    var css = [
+      '.swal2-confirm-button,',
+      '.swal2-deny-button,',
+      '.swal2-cancel-button{',
+      'display:inline-flex!important;',
+      'align-items:center!important;',
+      'justify-content:center!important;',
+      'padding:10px 20px!important;',
+      'margin:5px!important;',
+      'border-radius:6px!important;',
+      'font-weight:500!important;',
+      'font-size:14px!important;',
+      'cursor:pointer!important;',
+      'transition:all .2s ease!important;',
+      'border:none!important;',
+      'min-width:120px!important;',
+      'opacity:1!important;',
+      'visibility:visible!important;',
+      '}',
+      '.swal2-confirm-button{',
+      'background-color:#111827!important;',
+      'color:#fff!important;',
+      '}',
+      '.swal2-confirm-button:hover{',
+      'background-color:#030712!important;',
+      '}',
+      '.swal2-deny-button{',
+      'background-color:#10b981!important;',
+      'color:#fff!important;',
+      '}',
+      '.swal2-deny-button:hover{',
+      'background-color:#059669!important;',
+      '}',
+      '.swal2-cancel-button{',
+      'background-color:#ef4444!important;',
+      'color:#fff!important;',
+      '}',
+      '.swal2-cancel-button:hover{',
+      'background-color:#dc2626!important;',
+      '}',
+      '.swal2-actions{',
+      'display:flex!important;',
+      'flex-wrap:wrap!important;',
+      'gap:10px!important;',
+      'justify-content:center!important;',
+      'margin-top:20px!important;',
+      'opacity:1!important;',
+      'visibility:visible!important;',
+      '}',
+      '.swal2-close-button{',
+      'opacity:1!important;',
+      'visibility:visible!important;',
+      'color:#6b7280!important;',
+      'font-size:24px!important;',
+      '}',
+      '.swal2-close-button:hover{',
+      'color:#374151!important;',
+      '}',
+      '.swal2-container{',
+      'z-index:2147483647!important;',
+      '}',
+      '.swal2-popup{',
+      'border-radius:12px!important;',
+      'padding:20px!important;',
+      'max-width:500px!important;',
+      '}',
+      '.swal2-title{',
+      'font-size:22px!important;',
+      'font-weight:600!important;',
+      'color:#1f2937!important;',
+      'margin-bottom:10px!important;',
+      '}',
+      '.swal2-html-container{',
+      'font-size:15px!important;',
+      'color:#6b7280!important;',
+      'line-height:1.5!important;',
+      '}',
+      '.swal2-icon{',
+      'margin-bottom:15px!important;',
+      '}',
+      '@keyframes hr-swal-show{',
+      '0%{transform:scale(.9);opacity:0;}',
+      '100%{transform:scale(1);opacity:1;}',
+      '}',
+      '@keyframes hr-swal-hide{',
+      '0%{transform:scale(1);opacity:1;}',
+      '100%{transform:scale(.9);opacity:0;}',
+      '}',
+      '.swal2-show{',
+      'animation:hr-swal-show .2s!important;',
+      '}',
+      '.swal2-hide{',
+      'animation:hr-swal-hide .2s!important;',
+      '}'
+    ].join('');
+    var style = document.createElement('style');
+    style.id = styleId;
+    style.type = 'text/css';
+    style.appendChild(document.createTextNode(css));
+    document.head.appendChild(style);
+  })();
+}
+
 window.hrSwal = (typeof Swal !== 'undefined' && Swal.mixin) ? Swal.mixin({
   allowOutsideClick: false,
   buttonsStyling: false,
@@ -211,12 +317,31 @@ window.hrSwal = (typeof Swal !== 'undefined' && Swal.mixin) ? Swal.mixin({
   }
 }) : null;
 
-// Monkey-patch Swal.fire to enforce defaults and close modals first
 if (typeof Swal !== 'undefined' && typeof Swal.fire === 'function') {
   (function() {
     const originalFire = Swal.fire.bind(Swal);
-    Swal.fire = function(options) {
+    Swal.fire = function() {
       window.hrCloseDialogs();
+      let opts = null;
+      if (arguments.length === 1 && arguments[0] && typeof arguments[0] === 'object') {
+        opts = Object.assign({}, arguments[0]);
+      } else {
+        opts = {
+          title: arguments[0],
+          html: arguments[1],
+          icon: arguments[2]
+        };
+      }
+      try {
+        const openDialogs = Array.from(document.querySelectorAll('dialog[open]'));
+        const topDialog = openDialogs.length ? openDialogs[openDialogs.length - 1] : null;
+        if (topDialog && !opts.target) {
+          opts.target = topDialog;
+        }
+      } catch (_) {}
+      if (typeof opts.heightAuto === 'undefined') {
+        opts.heightAuto = false;
+      }
       const base = {
         allowOutsideClick: false,
         buttonsStyling: false,
@@ -227,7 +352,16 @@ if (typeof Swal !== 'undefined' && typeof Swal.fire === 'function') {
           cancelButton: 'btn btn-outline'
         }
       };
-      const merged = Object.assign({}, base, options || {});
+      const merged = Object.assign({}, base, opts || {});
+      if (opts && opts.customClass) {
+        merged.customClass = Object.assign({}, base.customClass, opts.customClass);
+      }
+      if (typeof window.Swal !== 'undefined') {
+        try {
+          window.Swal.__hrPatched = true;
+          window.__SWAL_DAISY_PATCHED__ = true;
+        } catch (_) {}
+      }
       return originalFire(merged);
     };
   })();
