@@ -63,50 +63,50 @@ if (!function_exists('hasAccess')) {
                     <p class="text-xs font-semibold text-blue-300 uppercase tracking-wider section-title">Training Development Officer</p>
                 </div>
 
-                <div class="collapse group">
-                    <input type="checkbox" class="peer" />
-                    <div class="collapse-title flex items-center justify-between px-4 py-3 text-sm font-medium rounded-lg transition-all peer-checked:bg-blue-600/50 text-white group">
-                        <div class="flex items-center">
-                            <div class="p-1.5 rounded-lg bg-blue-800/30 group-hover:bg-blue-700/50 transition-colors">
-                                <i data-lucide="book" class="w-5 h-5 text-[#F7B32B] group-hover:text-white"></i>
-                            </div>
-                            <span class="ml-3 sidebar-text">Learning Management</span>
+                <a href="/../hr2/LEARNING/training_dev_officer/learning_module_repository.php" class="block">
+                    <div class="flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-all hover:bg-blue-600/50 text-white group">
+                        <div class="p-1 rounded-lg bg-blue-800/30 group-hover:bg-blue-700/50 transition-colors">
+                            <i data-lucide="library" class="w-5 h-5 text-[#F7B32B] group-hover:text-white"></i>
                         </div>
-                        <i class="w-4 h-4 text-blue-200 transform transition-transform duration-200 peer-checked:rotate-90 dropdown-icon" data-lucide="chevron-down"></i>
+                        <span class="ml-3 sidebar-text">Learning Module Repository</span>
                     </div>
-                    <div class="collapse-content pl-14 pr-4 py-1 space-y-1">
-                        <a href="/../hr2/LEARNING/training_dev_officer/learning_module_repository.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
-                            <span class="flex items-center gap-2">
-                                <i data-lucide="library" class="w-4 h-4 text-[#F7B32B]"></i>
-                                Learning Module Repository
-                            </span>
-                        </a>
-                        <a href="/../hr2/LEARNING/training_dev_officer/posted_modules.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
-                            <span class="flex items-center gap-2">
-                                <i data-lucide="upload" class="w-4 h-4 text-[#F7B32B]"></i>
-                                Posted Learning Modules
-                            </span>
-                        </a>
-                        <a href="/../hr2/LEARNING/training_dev_officer/examination_repository.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
-                            <span class="flex items-center gap-2">
-                                <i data-lucide="file-text" class="w-4 h-4 text-[#F7B32B]"></i>
-                                Examination Repository
-                            </span>
-                        </a>
-                        <a href="/../hr2/LEARNING/training_dev_officer/posted_examinations.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
-                            <span class="flex items-center gap-2">
-                                <i data-lucide="clipboard-check" class="w-4 h-4 text-[#F7B32B]"></i>
-                                Posted Examinations
-                            </span>
-                        </a>
-                        <a href="/../hr2/LEARNING/training_dev_officer/exam_results.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
-                            <span class="flex items-center gap-2">
-                                <i data-lucide="bar-chart" class="w-4 h-4 text-[#F7B32B]"></i>
-                                Examination Results
-                            </span>
-                        </a>
+                </a>
+
+                <a href="/../hr2/LEARNING/training_dev_officer/posted_modules.php" class="block">
+                    <div class="flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-all hover:bg-blue-600/50 text-white group">
+                        <div class="p-1 rounded-lg bg-blue-800/30 group-hover:bg-blue-700/50 transition-colors">
+                            <i data-lucide="upload" class="w-5 h-5 text-[#F7B32B] group-hover:text-white"></i>
+                        </div>
+                        <span class="ml-3 sidebar-text">Posted Learning Modules</span>
                     </div>
-                </div>
+                </a>
+
+                <a href="/../hr2/LEARNING/training_dev_officer/examination_repository.php" class="block">
+                    <div class="flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-all hover:bg-blue-600/50 text-white group">
+                        <div class="p-1 rounded-lg bg-blue-800/30 group-hover:bg-blue-700/50 transition-colors">
+                            <i data-lucide="file-text" class="w-5 h-5 text-[#F7B32B] group-hover:text-white"></i>
+                        </div>
+                        <span class="ml-3 sidebar-text">Examination Repository</span>
+                    </div>
+                </a>
+
+                <a href="/../hr2/LEARNING/training_dev_officer/posted_examinations.php" class="block">
+                    <div class="flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-all hover:bg-blue-600/50 text-white group">
+                        <div class="p-1 rounded-lg bg-blue-800/30 group-hover:bg-blue-700/50 transition-colors">
+                            <i data-lucide="clipboard-check" class="w-5 h-5 text-[#F7B32B] group-hover:text-white"></i>
+                        </div>
+                        <span class="ml-3 sidebar-text">Posted Examinations</span>
+                    </div>
+                </a>
+
+                <a href="/../hr2/LEARNING/training_dev_officer/exam_results.php" class="block">
+                    <div class="flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-all hover:bg-blue-600/50 text-white group">
+                        <div class="p-1 rounded-lg bg-blue-800/30 group-hover:bg-blue-700/50 transition-colors">
+                            <i data-lucide="bar-chart" class="w-5 h-5 text-[#F7B32B] group-hover:text-white"></i>
+                        </div>
+                        <span class="ml-3 sidebar-text">Examination Results</span>
+                    </div>
+                </a>
             <?php endif; ?>
 
             <!-- TRAINING MANAGEMENT SECTION -->
@@ -115,50 +115,50 @@ if (!function_exists('hasAccess')) {
                     <p class="text-xs font-semibold text-blue-300 uppercase tracking-wider section-title">Training Management</p>
                 </div>
 
-                <div class="collapse group">
-                    <input type="checkbox" class="peer" />
-                    <div class="collapse-title flex items-center justify-between px-4 py-3 text-sm font-medium rounded-lg transition-all peer-checked:bg-blue-600/50 text-white group">
-                        <div class="flex items-center">
-                            <div class="p-1.5 rounded-lg bg-blue-800/30 group-hover:bg-blue-700/50 transition-colors">
-                                <i data-lucide="graduation-cap" class="w-5 h-5 text-[#F7B32B] group-hover:text-white"></i>
-                            </div>
-                            <span class="ml-3 sidebar-text">Training Management</span>
+                <a href="/../hr2/TRAINING/TRAINING/trainingprogram.php" class="block">
+                    <div class="flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-all hover:bg-blue-600/50 text-white group">
+                        <div class="p-1 rounded-lg bg-blue-800/30 group-hover:bg-blue-700/50 transition-colors">
+                            <i data-lucide="file-edit" class="w-5 h-5 text-[#F7B32B] group-hover:text-white"></i>
                         </div>
-                        <i class="w-4 h-4 text-blue-200 transform transition-transform duration-200 peer-checked:rotate-90 dropdown-icon" data-lucide="chevron-down"></i>
+                        <span class="ml-3 sidebar-text">Training Program</span>
                     </div>
-                    <div class="collapse-content pl-14 pr-4 py-1 space-y-1">
-                        <a href="/../hr2/TRAINING/TRAINING/trainingprogram.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
-                            <span class="flex items-center gap-2">
-                                <i data-lucide="file-edit" class="w-4 h-4 text-[#F7B32B]"></i>
-                                Training Program
-                            </span>
-                        </a>
-                        <a href="/../hr2/TRAINING/TRAINING/posted_trainings.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
-                            <span class="flex items-center gap-2">
-                                <i data-lucide="send" class="w-4 h-4 text-[#F7B32B]"></i>
-                                Posted Trainings
-                            </span>
-                        </a>
-                        <a href="/../hr2/TRAINING/TRAINING/trainingrequest.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
-                            <span class="flex items-center gap-2">
-                                <i data-lucide="clipboard-list" class="w-4 h-4 text-[#F7B32B]"></i>
-                                Training Requests
-                            </span>
-                        </a>
-                        <a href="/../hr2/TRAINING/TRAINING/learningrequest.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
-                            <span class="flex items-center gap-2">
-                                <i data-lucide="monitor-play" class="w-4 h-4 text-[#F7B32B]"></i>
-                                Learning Requests
-                            </span>
-                        </a>
-                        <a href="/../hr2/TRAINING/TRAINING/request_logs.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
-                            <span class="flex items-center gap-2">
-                                <i data-lucide="send" class="w-4 h-4 text-[#F7B32B]"></i>
-                                Department Request Logs
-                            </span>
-                        </a>
+                </a>
+
+                <a href="/../hr2/TRAINING/TRAINING/posted_trainings.php" class="block">
+                    <div class="flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-all hover:bg-blue-600/50 text-white group">
+                        <div class="p-1 rounded-lg bg-blue-800/30 group-hover:bg-blue-700/50 transition-colors">
+                            <i data-lucide="send" class="w-5 h-5 text-[#F7B32B] group-hover:text-white"></i>
+                        </div>
+                        <span class="ml-3 sidebar-text">Posted Trainings</span>
                     </div>
-                </div>
+                </a>
+
+                <a href="/../hr2/TRAINING/TRAINING/trainingrequest.php" class="block">
+                    <div class="flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-all hover:bg-blue-600/50 text-white group">
+                        <div class="p-1 rounded-lg bg-blue-800/30 group-hover:bg-blue-700/50 transition-colors">
+                            <i data-lucide="clipboard-list" class="w-5 h-5 text-[#F7B32B] group-hover:text-white"></i>
+                        </div>
+                        <span class="ml-3 sidebar-text">Training Requests</span>
+                    </div>
+                </a>
+
+                <a href="/../hr2/TRAINING/TRAINING/learningrequest.php" class="block">
+                    <div class="flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-all hover:bg-blue-600/50 text-white group">
+                        <div class="p-1 rounded-lg bg-blue-800/30 group-hover:bg-blue-700/50 transition-colors">
+                            <i data-lucide="monitor-play" class="w-5 h-5 text-[#F7B32B] group-hover:text-white"></i>
+                        </div>
+                        <span class="ml-3 sidebar-text">Learning Requests</span>
+                    </div>
+                </a>
+
+                <a href="/../hr2/TRAINING/TRAINING/request_logs.php" class="block">
+                    <div class="flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-all hover:bg-blue-600/50 text-white group">
+                        <div class="p-1 rounded-lg bg-blue-800/30 group-hover:bg-blue-700/50 transition-colors">
+                            <i data-lucide="send" class="w-5 h-5 text-[#F7B32B] group-hover:text-white"></i>
+                        </div>
+                        <span class="ml-3 sidebar-text">Department Request Logs</span>
+                    </div>
+                </a>
             <?php endif; ?>
 
 
@@ -168,46 +168,41 @@ if (!function_exists('hasAccess')) {
                     <p class="text-xs font-semibold text-blue-300 uppercase tracking-wider section-title">Competency Management</p>
                 </div>
 
-                <div class="collapse group">
-                    <input type="checkbox" class="peer" />
-                    <div class="collapse-title flex items-center justify-between px-4 py-3 text-sm font-medium rounded-lg transition-all peer-checked:bg-blue-600/50 text-white group">
-                        <div class="flex items-center">
-                            <div class="p-1.5 rounded-lg bg-blue-800/30 group-hover:bg-blue-700/50 transition-colors">
-                                <i data-lucide="chart-line" class="w-5 h-5 text-[#F7B32B] group-hover:text-white"></i>
-                            </div>
-                            <span class="ml-3 sidebar-text">Competency</span>
+                <a href="/../hr2/COMPETENCY/criticalgaps/vacancies_request.php" class="block">
+                    <div class="flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-all hover:bg-blue-600/50 text-white group">
+                        <div class="p-1 rounded-lg bg-blue-800/30 group-hover:bg-blue-700/50 transition-colors">
+                            <i data-lucide="alert-triangle" class="w-5 h-5 text-[#F7B32B] group-hover:text-white"></i>
                         </div>
-                        <i class="w-4 h-4 text-blue-200 transform transition-transform duration-200 peer-checked:rotate-90 dropdown-icon" data-lucide="chevron-down"></i>
+                        <span class="ml-3 sidebar-text">VACANCY REQUEST</span>
                     </div>
-                    <div class="collapse-content pl-14 pr-4 py-1 space-y-1">
-                        <a href="/../hr2/COMPETENCY/criticalgaps/vacancies_request.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
-                            <span class="flex items-center gap-2">
-                                <i data-lucide="alert-triangle" class="w-4 h-4 text-[#F7B32B]"></i> VACANCY REQUEST </span>
-                        </a>
+                </a>
 
-                        <a href="/../hr2/COMPETENCY/criticalgaps/criticalgaps.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
-                            <span class="flex items-center gap-2">
-                                <i data-lucide="alert-triangle" class="w-4 h-4 text-[#F7B32B]"></i>
-                                Critical Gaps
-                            </span>
-                        </a>
-
-                        <a href="/../hr2/COMPETENCY/criticalgaps/gap_analysis.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
-                            <span class="flex items-center gap-2">
-                                <i data-lucide="target" class="w-4 h-4 text-[#F7B32B]"></i>
-                                Gap Analysis
-                            </span>
-                        </a>
-
-                        <a href="/../hr2/COMPETENCY/competecy_criteria.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
-                            <span class="flex items-center gap-2">
-                                <i data-lucide="list-checks" class="w-4 h-4 text-[#F7B32B]"></i>
-                                Competency Criteria
-                            </span>
-                        </a>
-
+                <a href="/../hr2/COMPETENCY/criticalgaps/criticalgaps.php" class="block">
+                    <div class="flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-all hover:bg-blue-600/50 text-white group">
+                        <div class="p-1 rounded-lg bg-blue-800/30 group-hover:bg-blue-700/50 transition-colors">
+                            <i data-lucide="alert-triangle" class="w-5 h-5 text-[#F7B32B] group-hover:text-white"></i>
+                        </div>
+                        <span class="ml-3 sidebar-text">Critical Gaps</span>
                     </div>
-                </div>
+                </a>
+
+                <a href="/../hr2/COMPETENCY/criticalgaps/gap_analysis.php" class="block">
+                    <div class="flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-all hover:bg-blue-600/50 text-white group">
+                        <div class="p-1 rounded-lg bg-blue-800/30 group-hover:bg-blue-700/50 transition-colors">
+                            <i data-lucide="target" class="w-5 h-5 text-[#F7B32B] group-hover:text-white"></i>
+                        </div>
+                        <span class="ml-3 sidebar-text">Gap Analysis</span>
+                    </div>
+                </a>
+
+                <a href="/../hr2/COMPETENCY/competecy_criteria.php" class="block">
+                    <div class="flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-all hover:bg-blue-600/50 text-white group">
+                        <div class="p-1 rounded-lg bg-blue-800/30 group-hover:bg-blue-700/50 transition-colors">
+                            <i data-lucide="list-checks" class="w-5 h-5 text-[#F7B32B] group-hover:text-white"></i>
+                        </div>
+                        <span class="ml-3 sidebar-text">Competency Criteria</span>
+                    </div>
+                </a>
             <?php endif; ?>
 
             <!-- SUCCESSION PLANNING SECTION -->
@@ -216,38 +211,32 @@ if (!function_exists('hasAccess')) {
                     <p class="text-xs font-semibold text-blue-300 uppercase tracking-wider section-title">Succession Planning</p>
                 </div>
 
-                <div class="collapse group">
-                    <input type="checkbox" class="peer" />
-                    <div class="collapse-title flex items-center justify-between px-4 py-3 text-sm font-medium rounded-lg transition-all peer-checked:bg-blue-600/50 text-white group">
-                        <div class="flex items-center">
-                            <div class="p-1.5 rounded-lg bg-blue-800/30 group-hover:bg-blue-700/50 transition-colors">
-                                <i data-lucide="notebook-tabs" class="w-5 h-5 text-[#F7B32B] group-hover:text-white"></i>
-                            </div>
-                            <span class="ml-3 sidebar-text">Succession Planning</span>
+                <a href="/../hr2/SUCCESSION/HR_director/succession_dashboard.php" class="block">
+                    <div class="flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-all hover:bg-blue-600/50 text-white group">
+                        <div class="p-1 rounded-lg bg-blue-800/30 group-hover:bg-blue-700/50 transition-colors">
+                            <i data-lucide="users" class="w-5 h-5 text-[#F7B32B] group-hover:text-white"></i>
                         </div>
-                        <i class="w-4 h-4 text-blue-200 transform transition-transform duration-200 peer-checked:rotate-90 dropdown-icon" data-lucide="chevron-down"></i>
+                        <span class="ml-3 sidebar-text">Succession Plans</span>
                     </div>
-                    <div class="collapse-content pl-14 pr-4 py-1 space-y-1">
-                        <a href="/../hr2/SUCCESSION/HR_director/succession_dashboard.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
-                            <span class="flex items-center gap-2">
-                                <i data-lucide="users" class="w-4 h-4 text-[#F7B32B]"></i>
-                                Succession Plans
-                            </span>
-                        </a>
-                        <a href="/../hr2/SUCCESSION/HR_director/requested_idps_repository.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
-                            <span class="flex items-center gap-2">
-                                <i data-lucide="users" class="w-4 h-4 text-[#F7B32B]"></i>
-                                IDP Requests
-                            </span>
-                        </a>
-                        <a href="/../hr2/SUCCESSION/HR_director/individual_development_plans.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
-                            <span class="flex items-center gap-2">
-                                <i data-lucide="users" class="w-4 h-4 text-[#F7B32B]"></i>
-                                IDP Repository
-                            </span>
-                        </a>
+                </a>
+
+                <a href="/../hr2/SUCCESSION/HR_director/requested_idps_repository.php" class="block">
+                    <div class="flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-all hover:bg-blue-600/50 text-white group">
+                        <div class="p-1 rounded-lg bg-blue-800/30 group-hover:bg-blue-700/50 transition-colors">
+                            <i data-lucide="users" class="w-5 h-5 text-[#F7B32B] group-hover:text-white"></i>
+                        </div>
+                        <span class="ml-3 sidebar-text">IDP Requests</span>
                     </div>
-                </div>
+                </a>
+
+                <a href="/../hr2/SUCCESSION/HR_director/individual_development_plans.php" class="block">
+                    <div class="flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-all hover:bg-blue-600/50 text-white group">
+                        <div class="p-1 rounded-lg bg-blue-800/30 group-hover:bg-blue-700/50 transition-colors">
+                            <i data-lucide="users" class="w-5 h-5 text-[#F7B32B] group-hover:text-white"></i>
+                        </div>
+                        <span class="ml-3 sidebar-text">IDP Repository</span>
+                    </div>
+                </a>
             <?php endif; ?>
 
             <!-- APPROVALS SECTION (HR Managers) -->
@@ -256,50 +245,50 @@ if (!function_exists('hasAccess')) {
                     <p class="text-xs font-semibold text-blue-300 uppercase tracking-wider section-title">HR Managers</p>
                 </div>
 
-                <div class="collapse group">
-                    <input type="checkbox" class="peer" />
-                    <div class="collapse-title flex items-center justify-between px-4 py-3 text-sm font-medium rounded-lg transition-all peer-checked:bg-blue-600/50 text-white group">
-                        <div class="flex items-center">
-                            <div class="p-1.5 rounded-lg bg-blue-800/30 group-hover:bg-blue-700/50 transition-colors">
-                                <i data-lucide="shield-check" class="w-5 h-5 text-[#F7B32B] group-hover:text-white"></i>
-                            </div>
-                            <span class="ml-3 sidebar-text">Approvals</span>
+                <a href="/../hr2/TRAINING/TRAINING/review.php" class="block">
+                    <div class="flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-all hover:bg-blue-600/50 text-white group">
+                        <div class="p-1 rounded-lg bg-blue-800/30 group-hover:bg-blue-700/50 transition-colors">
+                            <i data-lucide="check-circle" class="w-5 h-5 text-[#F7B32B] group-hover:text-white"></i>
                         </div>
-                        <i class="w-4 h-4 text-blue-200 transform transition-transform duration-200 peer-checked:rotate-90 dropdown-icon" data-lucide="chevron-down"></i>
+                        <span class="ml-3 sidebar-text">Training Approvals</span>
                     </div>
-                    <div class="collapse-content pl-14 pr-4 py-1 space-y-1">
-                        <a href="/../hr2/TRAINING/TRAINING/review.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
-                            <span class="flex items-center gap-2">
-                                <i data-lucide="check-circle" class="w-4 h-4 text-[#F7B32B]"></i>
-                                Training Approvals
-                            </span>
-                        </a>
-                        <a href="/../hr2/ESS/approval.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
-                            <span class="flex items-center gap-2">
-                                <i data-lucide="check-circle" class="w-4 h-4 text-[#F7B32B]"></i>
-                                ESS Approvals
-                            </span>
-                        </a>
-                        <a href="/../hr2/ESS/adminleaverequest.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
-                            <span class="flex items-center gap-2">
-                                <i data-lucide="check-circle" class="w-4 h-4 text-[#F7B32B]"></i>
-                                Leave Request Approval
-                            </span>
-                        </a>
-                        <a href="/../hr2/TRAINING/TRAINING/request_logs.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
-                            <span class="flex items-center gap-2">
-                                <i data-lucide="list-checks" class="w-4 h-4 text-[#F7B32B]"></i>
-                                Department Request Logs
-                            </span>
-                        </a>
-                        <a href="/../hr2/LEARNING/hr_manager/review_dashboard.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
-                            <span class="flex items-center gap-2">
-                                <i data-lucide="book-open-check" class="w-4 h-4 text-[#F7B32B]"></i>
-                                Learning & Examination Review
-                            </span>
-                        </a>
+                </a>
+
+                <a href="/../hr2/ESS/approval.php" class="block">
+                    <div class="flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-all hover:bg-blue-600/50 text-white group">
+                        <div class="p-1 rounded-lg bg-blue-800/30 group-hover:bg-blue-700/50 transition-colors">
+                            <i data-lucide="check-circle" class="w-5 h-5 text-[#F7B32B] group-hover:text-white"></i>
+                        </div>
+                        <span class="ml-3 sidebar-text">ESS Approvals</span>
                     </div>
-                </div>
+                </a>
+
+                <a href="/../hr2/ESS/adminleaverequest.php" class="block">
+                    <div class="flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-all hover:bg-blue-600/50 text-white group">
+                        <div class="p-1 rounded-lg bg-blue-800/30 group-hover:bg-blue-700/50 transition-colors">
+                            <i data-lucide="check-circle" class="w-5 h-5 text-[#F7B32B] group-hover:text-white"></i>
+                        </div>
+                        <span class="ml-3 sidebar-text">Leave Request Approval</span>
+                    </div>
+                </a>
+
+                <a href="/../hr2/TRAINING/TRAINING/request_logs.php" class="block">
+                    <div class="flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-all hover:bg-blue-600/50 text-white group">
+                        <div class="p-1 rounded-lg bg-blue-800/30 group-hover:bg-blue-700/50 transition-colors">
+                            <i data-lucide="list-checks" class="w-5 h-5 text-[#F7B32B] group-hover:text-white"></i>
+                        </div>
+                        <span class="ml-3 sidebar-text">Department Request Logs</span>
+                    </div>
+                </a>
+
+                <a href="/../hr2/LEARNING/hr_manager/review_dashboard.php" class="block">
+                    <div class="flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-all hover:bg-blue-600/50 text-white group">
+                        <div class="p-1 rounded-lg bg-blue-800/30 group-hover:bg-blue-700/50 transition-colors">
+                            <i data-lucide="book-open-check" class="w-5 h-5 text-[#F7B32B] group-hover:text-white"></i>
+                        </div>
+                        <span class="ml-3 sidebar-text">Learning &amp; Examination Review</span>
+                    </div>
+                </a>
             <?php endif; ?>
 
             <!-- APPLICANT ASSESSMENT SECTION -->
@@ -307,27 +296,15 @@ if (!function_exists('hasAccess')) {
                 <div class="px-4 py-2 mt-4">
                     <p class="text-xs font-semibold text-blue-300 uppercase tracking-wider section-title">Applicants</p>
                 </div>
-
-                <div class="collapse group">
-                    <input type="checkbox" class="peer" />
-                    <div class="collapse-title flex items-center justify-between px-4 py-3 text-sm font-medium rounded-lg transition-all peer-checked:bg-blue-600/50 text-white group">
-                        <div class="flex items-center">
-                            <div class="p-1.5 rounded-lg bg-blue-800/30 group-hover:bg-blue-700/50 transition-colors">
-                                <i data-lucide="clipboard-check" class="w-5 h-5 text-[#F7B32B] group-hover:text-white"></i>
-                            </div>
-                            <span class="ml-3 sidebar-text">Assessments</span>
+                <a href="/../hr2/LEARNING/applicant/applicant_assessment.php" class="block">
+                    <div class="flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-all hover:bg-blue-600/50 text-white group">
+                        <div class="p-1 rounded-lg bg-blue-800/30 group-hover:bg-blue-700/50 transition-colors">
+                            <i data-lucide="file-text" class="w-5 h-5 text-[#F7B32B] group-hover:text-white"></i>
                         </div>
-                        <i class="w-4 h-4 text-blue-200 transform transition-transform duration-200 peer-checked:rotate-90 dropdown-icon" data-lucide="chevron-down"></i>
+                        <span class="ml-3 sidebar-text"> Applicant Assessment</span>
                     </div>
-                    <div class="collapse-content pl-14 pr-4 py-1 space-y-1">
-                        <a href="/../hr2/LEARNING/applicant/applicant_assessment.php" class="block px-3 py-2 text-sm rounded-lg transition-all hover:bg-blue-600/30 text-blue-100 hover:text-white">
-                            <span class="flex items-center gap-2">
-                                <i data-lucide="file-text" class="w-4 h-4 text-[#F7B32B]"></i>
-                                Applicant Assessment
-                            </span>
-                        </a>
-                    </div>
-                </div>
+                </a>
+
             <?php endif; ?>
 
             <!-- ESS SECTION -->
