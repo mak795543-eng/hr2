@@ -296,6 +296,9 @@
 
   const modalTitle = qs('#modal-title');
   const modalSubtitle = qs('#modal-subtitle');
+  const idpListContainer = qs('#idp-list-container');
+  const idpListTable = qs('#idp-list-table');
+  const idpListLoading = qs('#idp-list-loading');
 
   const needBudgetSelect = qs('#need-budget');
   const needItemsSelect = qs('#need-items');
@@ -1888,13 +1891,244 @@
     if (viewTrainingModal) viewTrainingModal.showModal();
   };
 
-  const setupEventListeners = () => {
-    if (addTrainingBtn && trainingModal && String(addTrainingBtn.tagName || '').toUpperCase() === 'BUTTON') {
-      addTrainingBtn.addEventListener('click', () => {
+  const deptIdByName = (name) => {
+    const n = String(name || '').toLowerCase();
+    if (n.includes('front office')) return '1';
+    if (n.includes('housekeeping')) return '2';
+    if (n.includes('food') || n.includes('beverage') || n.includes('f&b')) return '3';
+    if (n.includes('kitchen') || n.includes('culinary')) return '4';
+    if (n.includes('sales') || n.includes('marketing')) return '5';
+    if (n.includes('human resources') || n.includes('hr')) return '6';
+    if (n.includes('finance') || n.includes('accounting')) return '7';
+    if (n.includes('engineering') || n.includes('maintenance')) return '8';
+    if (n.includes('security')) return '9';
+    return '';
+  };
+
+  const openIdpPickThenModal = async () => {
+    try {
+      const fd = new FormData();
+      fd.append('action', 'list_idps');
+      const res = await fetch('trainingrequest.php', { method: 'POST', body: fd, credentials: 'same-origin' });
+      const data = await res.json();
+      const items = (data && data.success && Array.isArray(data.items)) ? data.items : [];
+      if (!items.length) {
+        if (window.Swal) await swalFire({ icon: 'info', title: 'No IDP Requests', text: 'No eligible IDP requests found.', timer: 1400, showConfirmButton: false });
         resetForm();
         if (modalTitle) modalTitle.textContent = 'Create New Training Program';
         if (modalSubtitle) modalSubtitle.textContent = 'Fill in all required information to create a new training program';
         trainingModal.showModal();
+        return;
+      }
+      const inputOptions = {};
+      items.forEach((it) => {
+        const id = String(it.id);
+        const label = `${String(it.employee_name || '')} — ${String(it.department || '')}`;
+        inputOptions[id] = label;
+      });
+      const pick = await swalFire({
+        title: 'Select IDP Request',
+        input: 'select',
+        inputOptions,
+        inputPlaceholder: 'Choose an employee request',
+        showCancelButton: true,
+        confirmButtonText: 'Continue'
+      });
+      if (!pick || !pick.isConfirmed) return;
+      const chosenId = String(pick.value || '');
+      if (!chosenId) return;
+      const fd2 = new FormData();
+      fd2.append('action', 'get_idp_details');
+      fd2.append('idp_id', chosenId);
+      const res2 = await fetch('trainingrequest.php', { method: 'POST', body: fd2, credentials: 'same-origin' });
+      const det = await res2.json();
+      const idp = (det && det.success && det.idp) ? det.idp : null;
+      resetForm();
+      if (idp) {
+        const tt = String(idp.requested_training_type || '');
+        const tm = String(idp.requested_training_mode || idp.delivery_mode || '');
+        const deptN = String(idp.department || '');
+        const empName = String(idp.employee_name || '');
+        const empId = String(idp.employee_id || '');
+        const sd = String(idp.requested_start_datetime || '');
+        const ed = String(idp.requested_end_datetime || '');
+
+        const setSelect = (id, val) => { const el = document.getElementById(id); if (el) el.value = val || ''; };
+        const setInput = (id, val) => { const el = document.getElementById(id); if (el) el.value = val || ''; };
+        setSelect('training-type', tt);
+        setSelect('training-mode', tm);
+        setInput('training-title', `${tt || 'Training'} - ${empName || ''}`.trim());
+        setSelect('requested-by', 'IDP');
+        setSelect('target-audience', 'Specific Employee');
+        if (typeof window.handleTargetAudienceChange === 'function') window.handleTargetAudienceChange();
+        const deptId = deptIdByName(deptN);
+        const deptEl = document.getElementById('training-department');
+        if (deptEl) {
+          const hasOpt = Array.from(deptEl.options || []).some((o) => String(o.value || '') === String(deptId || ''));
+          if (deptId && hasOpt) deptEl.value = deptId;
+        }
+        if (typeof fillRolesByDepartment === 'function') fillRolesByDepartment(false);
+        if (typeof syncMentorOptionsForTargetAudience === 'function') syncMentorOptionsForTargetAudience();
+
+        const empSelect = document.getElementById('training-employee');
+        if (empSelect) {
+          let matched = false;
+          const opts = Array.from(empSelect.options || []);
+          for (const o of opts) {
+            if (String(o.value || '') === empId) { o.selected = true; matched = true; break; }
+          }
+          if (!matched) {
+            for (const o of opts) {
+              const txt = String(o.textContent || '').toLowerCase();
+              if (txt.includes(empName.toLowerCase())) { o.selected = true; break; }
+            }
+          }
+        }
+
+        const parseDt = (s) => {
+          if (!s) return null;
+          const d = new Date(String(s).replace(' ', 'T'));
+          if (isNaN(d.getTime())) return null;
+          return d;
+        };
+        const fmtDt = (s) => {
+          const d = parseDt(s);
+          if (!d) return '';
+          return d.toLocaleString();
+        };
+        const banner = document.getElementById('idp-request-banner');
+        const bEmp = document.getElementById('idp-employee');
+        const bDept = document.getElementById('idp-department');
+        const bType = document.getElementById('idp-type');
+        const bMode = document.getElementById('idp-mode');
+        const bSched = document.getElementById('idp-schedule');
+        if (banner) {
+          banner.classList.remove('hidden');
+          if (bEmp) bEmp.textContent = empName || '-';
+          if (bDept) bDept.textContent = deptN || '-';
+          if (bType) bType.textContent = tt || '-';
+          if (bMode) bMode.textContent = tm || '-';
+          const schedText = `${fmtDt(sd)}${ed ? ' — ' + fmtDt(ed) : ''}`;
+          if (bSched) bSched.textContent = schedText || '-';
+        }
+        const pad2 = (n) => String(n).padStart(2, '0');
+        const toYmd = (d) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+        const toHm = (d) => `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+        const sdD = parseDt(sd);
+        const edD = parseDt(ed);
+        if (sdD) {
+          setSelect('start-date', toYmd(sdD));
+          setSelect('start-time', toHm(sdD));
+        }
+        if (edD) {
+          setSelect('end-date', toYmd(edD));
+          setSelect('end-time', toHm(edD));
+        }
+
+        const desc = document.getElementById('description');
+        if (desc) {
+          desc.value = `Training created from IDP request for ${empName} (${deptN}).`;
+          const ev = new Event('input'); desc.dispatchEvent(ev);
+        }
+      }
+      if (modalTitle) modalTitle.textContent = 'Create New Training Program';
+      if (modalSubtitle) modalSubtitle.textContent = 'Prefilled from IDP request';
+      if (trainingModal) trainingModal.showModal();
+    } catch (_) {
+      resetForm();
+      const banner = document.getElementById('idp-request-banner');
+      if (banner) banner.classList.add('hidden');
+      if (modalTitle) modalTitle.textContent = 'Create New Training Program';
+      if (trainingModal) trainingModal.showModal();
+    }
+  };
+
+  const showFormView = () => {
+    if (idpListContainer) idpListContainer.classList.add('hidden');
+    const banner = document.getElementById('idp-request-banner');
+    if (banner && banner.classList.contains('hidden')) banner.classList.add('hidden');
+    if (trainingForm) trainingForm.classList.remove('hidden');
+    if (modalTitle) modalTitle.textContent = 'Create New Training Program';
+  };
+
+  const showIdpListInModal = async () => {
+    if (trainingForm) trainingForm.classList.add('hidden');
+    const banner = document.getElementById('idp-request-banner');
+    if (banner) banner.classList.add('hidden');
+    if (idpListContainer) idpListContainer.classList.remove('hidden');
+    if (modalTitle) modalTitle.textContent = 'Select Training Request';
+    if (modalSubtitle) modalSubtitle.textContent = 'Pick a request to prefill the training program';
+    if (idpListLoading) idpListLoading.classList.remove('hidden');
+    try {
+      const fd = new FormData();
+      fd.append('action', 'list_idps');
+      const res = await fetch('trainingrequest.php', { method: 'POST', body: fd, credentials: 'same-origin' });
+      const data = await res.json();
+      const items = (data && data.success && Array.isArray(data.items)) ? data.items : [];
+      if (idpListLoading) idpListLoading.classList.add('hidden');
+      if (idpListTable) {
+        idpListTable.innerHTML = items.length ? items.map((r) => {
+          const pos = String(r.position || '');
+          let comp = '0%';
+          const rawComp = r.competency;
+          const numComp = typeof rawComp === 'number' ? rawComp : parseFloat(String(rawComp || ''));
+          if (!isNaN(numComp)) comp = `${numComp.toFixed(1)}%`;
+          const succ = String(r.succession_status || '');
+          const sched = (() => {
+            const s = String(r.requested_start_datetime || '');
+            const e = String(r.requested_end_datetime || '');
+            if (s && e) return `${formatDateTime(s)} - ${formatDateTime(e)}`;
+            if (s) return formatDateTime(s);
+            return 'N/A';
+          })();
+          const status = String(r.idp_status || '');
+          const mode = String(r.requested_training_mode || r.delivery_mode || '');
+          return `
+            <div class="bg-white rounded-lg shadow-sm border border-gray-100 p-4 flex flex-col justify-between">
+              <div class="flex items-start justify-between gap-3">
+                <div>
+                  <div class="font-semibold text-sm text-gray-900">${esc(r.employee_name || '')}</div>
+                  <div class="text-xs opacity-70">${esc(r.employee_id || '')}</div>
+                  <div class="mt-1 text-xs text-gray-600">${esc(r.department || '')}</div>
+                </div>
+                <span class="badge badge-sm">${esc(status)}</span>
+              </div>
+              <div class="mt-3 grid grid-cols-1 gap-1 text-xs text-gray-700">
+                <div><span class="font-semibold">Position:</span> ${esc(pos)}</div>
+                <div><span class="font-semibold">Competency:</span> ${esc(comp)}</div>
+                <div><span class="font-semibold">Succession:</span> ${esc(succ)}</div>
+                <div><span class="font-semibold">Type:</span> ${esc(r.requested_training_type || '')}</div>
+                <div><span class="font-semibold">Mode:</span> ${esc(mode)}</div>
+                <div><span class="font-semibold">Schedule:</span> ${esc(sched)}</div>
+              </div>
+              <div class="mt-4 flex justify-end gap-2">
+                <button type="button" class="btn btn-sm btn-ghost" data-action="view-idp" data-id="${String(r.id)}">
+                  View
+                </button>
+                <button type="button" class="btn btn-sm bg-gray-900 text-white hover:bg-gray-800 border-0" data-action="pick-idp" data-id="${String(r.id)}">
+                  Create
+                </button>
+              </div>
+            </div>
+          `;
+        }).join('') : '<div class="col-span-full text-center py-6 opacity-70 text-sm">No requested IDPs found.</div>';
+      }
+    } catch (_) {
+      if (idpListLoading) idpListLoading.classList.add('hidden');
+      if (idpListTable) {
+        const tbody = idpListTable.querySelector('tbody');
+        if (tbody) tbody.innerHTML = '<tr><td colspan="9" class="text-center py-6 opacity-70">Failed to load requests.</td></tr>';
+      }
+    }
+  };
+
+  const setupEventListeners = () => {
+    if (addTrainingBtn && trainingModal && (String(addTrainingBtn.tagName || '').toUpperCase() === 'BUTTON' || String(addTrainingBtn.tagName || '').toUpperCase() === 'A')) {
+      addTrainingBtn.addEventListener('click', async (e) => {
+        if (e && e.preventDefault) e.preventDefault();
+        resetForm();
+        if (trainingModal) trainingModal.showModal();
+        await showIdpListInModal();
       });
     }
 
@@ -1902,6 +2136,10 @@
       cancelBtn.addEventListener('click', () => {
         trainingModal.close();
         resetForm();
+        if (idpListContainer) idpListContainer.classList.add('hidden');
+        const banner = document.getElementById('idp-request-banner');
+        if (banner) banner.classList.add('hidden');
+        if (trainingForm) trainingForm.classList.add('hidden');
       });
     }
 
@@ -2450,6 +2688,79 @@
       if (action && id) {
         event.preventDefault();
         event.stopPropagation();
+        if (action === 'view-idp') {
+          (async () => {
+            try {
+              const fd = new FormData();
+              fd.append('action', 'get_idp_details');
+              fd.append('idp_id', String(id));
+              const res = await fetch('trainingrequest.php', { method: 'POST', body: fd, credentials: 'same-origin' });
+              const det = await res.json();
+              const idp = (det && det.success && det.idp) ? det.idp : null;
+              if (!idp) return;
+              const sched = (() => {
+                const s = String(idp.requested_start_datetime || '');
+                const e = String(idp.requested_end_datetime || '');
+                if (s && e) return `${formatDateTime(s)} - ${formatDateTime(e)}`;
+                if (s) return formatDateTime(s);
+                return 'N/A';
+              })();
+              const html = `
+                <div class="text-left space-y-3">
+                  <div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                    <div>
+                      <div class="text-xs text-gray-500">Employee</div>
+                      <div class="font-semibold text-gray-900">${esc(idp.employee_name || '')}</div>
+                      <div class="text-xs opacity-70">${esc(idp.employee_id || '')}</div>
+                    </div>
+                    <div>
+                      <div class="text-xs text-gray-500">Department</div>
+                      <div class="text-sm text-gray-900">${esc(idp.department || '')}</div>
+                    </div>
+                    <div>
+                      <div class="text-xs text-gray-500">Position</div>
+                      <div class="text-sm text-gray-900">${esc(idp.position || '')}</div>
+                    </div>
+                    <div>
+                      <div class="text-xs text-gray-500">Succession Status</div>
+                      <div class="text-sm text-gray-900">${esc(idp.succession_status || '')}</div>
+                    </div>
+                  </div>
+                  <div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                    <div>
+                      <div class="text-xs text-gray-500">Requested Type</div>
+                      <div class="text-sm text-gray-900">${esc(idp.requested_training_type || '')}</div>
+                    </div>
+                    <div>
+                      <div class="text-xs text-gray-500">Mode</div>
+                      <div class="text-sm text-gray-900">${esc(idp.requested_training_mode || idp.delivery_mode || '')}</div>
+                    </div>
+                  </div>
+                  <div>
+                    <div class="text-xs text-gray-500">Requested Schedule</div>
+                    <div class="text-sm text-gray-900">${esc(sched)}</div>
+                  </div>
+                  <div>
+                    <div class="text-xs text-gray-500">Development Plan</div>
+                    <div class="text-sm text-gray-900 whitespace-pre-line">${esc(idp.development_plan || '')}</div>
+                  </div>
+                </div>
+              `;
+              if (window.Swal) {
+                await swalFire({
+                  title: 'Training Request Details',
+                  html
+                }, getOpenDialogTarget());
+              }
+            } catch (_) {
+            }
+          })();
+          return;
+        }
+        if (action === 'pick-idp') {
+          window.location.href = `add_training.php?idp_id=${encodeURIComponent(String(id))}`;
+          return;
+        }
         if (action === 'view') {
           viewTraining(id);
           return;
@@ -2798,6 +3109,26 @@
 
           const cat = qs('#training-category');
           if (cat) cat.value = 'IDP';
+
+          const formEl = document.getElementById('training-form');
+          if (formEl) {
+            const controls = formEl.querySelectorAll('input, select, textarea');
+            const editableIds = {
+              'start-date': true,
+              'start-time': true,
+              'end-date': true,
+              'end-time': true,
+              'need-budget': true,
+              'need-items': true,
+              'need-facility': true
+            };
+            controls.forEach((el) => {
+              const id = el.id || '';
+              if (!editableIds[id]) {
+                el.disabled = true;
+              }
+            });
+          }
 
           if (window.Swal) await swalFire({ icon: 'info', title: 'Loaded from IDP', text: 'Training request details have been prefilled.', timer: 1400, showConfirmButton: false });
         } catch (_) {

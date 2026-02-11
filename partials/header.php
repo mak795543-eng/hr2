@@ -1,12 +1,14 @@
 <?php session_start();
 // Simple dd() function for plain PHP
 // dd(! isset($_SESSION['employee_id']));
-function dd($vars)
-{
-    echo '<pre>'; // Format output nicely
-    var_dump($vars); // Dump the variable
-    echo '</pre>';
-    die(); // Stop execution
+if (!function_exists('dd')) {
+    function dd($vars)
+    {
+        echo '<pre>';
+        var_dump($vars);
+        echo '</pre>';
+        die();
+    }
 }
 
 if (!isset($_SESSION['employee_id'])) {
