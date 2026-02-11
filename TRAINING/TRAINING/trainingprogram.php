@@ -1239,34 +1239,6 @@ try {
 }
 require('../../partials/header.php');
 ?>
-
-<script>
-    (function() {
-        if (!window.Swal || window.__SWAL_DAISY_PATCHED__) return;
-        window.__SWAL_DAISY_PATCHED__ = true;
-        const orig = window.Swal.fire.bind(window.Swal);
-        window.Swal.fire = function(opts) {
-            const inOpts = opts || {};
-            const inCustom = (inOpts && inOpts.customClass) ? inOpts.customClass : {};
-            const customClass = {
-                popup: 'bg-base-100 text-base-content rounded-box',
-                title: 'text-base-content',
-                htmlContainer: 'text-base-content',
-                actions: 'flex gap-2',
-                confirmButton: 'btn btn-primary',
-                cancelButton: 'btn btn-ghost',
-                denyButton: 'btn btn-ghost',
-                ...(inCustom || {})
-            };
-            return orig({
-                returnFocus: false,
-                buttonsStyling: false,
-                ...inOpts,
-                customClass
-            });
-        };
-    })();
-</script>
 <style>
     .fade-in {
         animation: fadeIn 0.3s ease-in-out;

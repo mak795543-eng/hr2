@@ -111,13 +111,15 @@
     const sidebarLogo = document.getElementById('sidebar-logo');
     const sonlyLogo = document.getElementById('sonly');
     
+    if (!sidebar || !sidebarLogo || !sonlyLogo) {
+      return;
+    }
+    
     if (isMobileView()) {
-      // Start hidden on mobile with full logo
       sidebar.classList.add('-translate-x-full');
       sidebarLogo.classList.remove('hidden');
       sonlyLogo.classList.add('hidden');
     } else {
-      // Start with saved state on desktop
       const isCollapsed = localStorage.getItem('sidebarCollapsed') === 'true';
       sidebar.classList.add(isCollapsed ? 'w-25' : 'w-64');
       
@@ -125,7 +127,6 @@
         text.classList.toggle('hidden', isCollapsed);
       });
       
-      // Toggle logos based on collapsed state
       if (isCollapsed) {
         sidebarLogo.classList.add('hidden');
         sonlyLogo.classList.remove('hidden');
@@ -135,17 +136,95 @@
       }
     }
     
+    const collapses = sidebar.querySelectorAll('.collapse');
+    collapses.forEach((collapse, index) => {
+      const checkbox = collapse.querySelector('input[type="checkbox"]');
+      if (!checkbox) return;
+      const titleSpan = collapse.querySelector('.collapse-title .sidebar-text');
+      const baseKey = titleSpan
+        ? titleSpan.textContent.trim().toLowerCase().replace(/\s+/g, '_')
+        : 'section_' + index;
+      const storageKey = 'sidebarSection_' + baseKey;
+      collapse.dataset.sidebarSectionKey = storageKey;
+      const storedValue = localStorage.getItem(storageKey);
+      if (storedValue === 'true') {
+        checkbox.checked = true;
+      } else if (storedValue === 'false') {
+        checkbox.checked = false;
+      }
+      checkbox.addEventListener('change', () => {
+        localStorage.setItem(storageKey, checkbox.checked ? 'true' : 'false');
+        updateDropdownIndicators();
+      });
+    });
+    
+    const scrollContainer = document.getElementById('sidebar-scroll') || sidebar;
+    if (scrollContainer) {
+      const savedScroll = parseInt(localStorage.getItem('sidebarScrollTop') || '0', 10);
+      if (!Number.isNaN(savedScroll)) {
+        scrollContainer.scrollTop = savedScroll;
+      }
+      scrollContainer.addEventListener('scroll', () => {
+        localStorage.setItem('sidebarScrollTop', String(scrollContainer.scrollTop));
+      });
+    }
+    
     setTimeout(() => {
       sidebar.classList.add('loaded');
     }, 50);
     
-    // Set up event listeners
-    document.querySelectorAll('.collapse input[type="checkbox"]').forEach(checkbox => {
-      checkbox.addEventListener('change', updateDropdownIndicators);
-    });
-    
     window.addEventListener('resize', handleResize);
     updateDropdownIndicators();
+  }
+
+  function setActiveSidebarLink() {
+    const sidebar = document.getElementById('sidebar');
+    if (!sidebar) return;
+    const currentPath = window.location.pathname.replace(/\/+$/, '');
+    const links = sidebar.querySelectorAll('a[href]');
+    let bestMatch = null;
+    let bestLength = 0;
+    
+    links.forEach(link => {
+      const href = link.getAttribute('href');
+      if (!href || href.startsWith('http') || href.startsWith('mailto:') || href.startsWith('#')) {
+        return;
+      }
+      const linkUrl = new URL(href, window.location.origin);
+      const linkPath = linkUrl.pathname.replace(/\/+$/, '');
+      const container = link.querySelector('div');
+      if (container) {
+        container.classList.remove('bg-blue-600/80', 'bg-blue-700/60', 'shadow-lg');
+      } else {
+        link.classList.remove('bg-blue-600/80', 'bg-blue-700/60', 'shadow-lg');
+      }
+      if (currentPath === linkPath || currentPath.endsWith(linkPath)) {
+        if (linkPath.length > bestLength) {
+          bestMatch = link;
+          bestLength = linkPath.length;
+        }
+      }
+    });
+    
+    if (bestMatch) {
+      const activeContainer = bestMatch.querySelector('div');
+      if (activeContainer) {
+        activeContainer.classList.add('bg-blue-600/80', 'shadow-lg');
+      } else {
+        bestMatch.classList.add('bg-blue-600/80', 'shadow-lg');
+      }
+      const collapse = bestMatch.closest('.collapse');
+      if (collapse) {
+        const checkbox = collapse.querySelector('input[type="checkbox"]');
+        if (checkbox && !checkbox.checked) {
+          checkbox.checked = true;
+          const key = collapse.dataset.sidebarSectionKey;
+          if (key) {
+            localStorage.setItem(key, 'true');
+          }
+        }
+      }
+    }
   }
 
  function displayPhilippineTime() {
@@ -181,9 +260,7 @@ setInterval(displayPhilippineTime, 1000);
 // Add event listener to ensure the function runs after DOM is loaded
 document.addEventListener('DOMContentLoaded', function() {
   displayPhilippineTime();
+  initSidebar();
+  setActiveSidebarLink();
 });
-
-  
-  // Initialize when DOM loads
-  document.addEventListener('DOMContentLoaded', initSidebar);
 </script>

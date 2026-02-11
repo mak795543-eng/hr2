@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 session_start();
 
 // Database connection
@@ -764,52 +764,6 @@ $conn->close();
       margin-bottom: 0.5rem;
     }
 
-    /* SweetAlert2 custom styles to ensure buttons are visible and in front of modals */
-    .swal2-popup {
-      font-size: 1rem !important;
-      z-index: 2147483647 !important;
-      /* Higher than modal z-index */
-    }
-
-    .swal2-container {
-      position: fixed !important;
-      inset: 0 !important;
-      z-index: 2147483647 !important;
-      /* Ensure it's above modals */
-      pointer-events: auto !important;
-    }
-
-    .swal2-confirm,
-    .swal2-deny,
-    .swal2-cancel {
-      padding: 0.5rem 1.5rem !important;
-      font-size: 0.875rem !important;
-      border-radius: 0.375rem !important;
-      display: inline-block !important;
-      opacity: 1 !important;
-      visibility: visible !important;
-    }
-
-    .swal2-confirm {
-      background-color: #3b82f6 !important;
-      border: 1px solid #3b82f6 !important;
-    }
-
-    .swal2-cancel {
-      background-color: #6b7280 !important;
-      border: 1px solid #6b7280 !important;
-      color: white !important;
-    }
-
-    /* Ensure modals have proper z-index but lower than SweetAlert */
-    .modal {
-      z-index: 9999;
-    }
-
-    .modal-box {
-      z-index: 10000;
-    }
-
     /* Optional file upload indicator */
     .optional-indicator {
       color: #6b7280;
@@ -1529,40 +1483,6 @@ $conn->close();
   <script src="https://unpkg.com/mammoth/mammoth.browser.min.js"></script>
 
   <script>
-    (function() {
-      if (!window.Swal || Swal.__hrPatched) return;
-
-      const origFire = Swal.fire.bind(Swal);
-      Swal.fire = function() {
-        let opts = null;
-        if (arguments.length === 1 && arguments[0] && typeof arguments[0] === 'object') {
-          opts = Object.assign({}, arguments[0]);
-        } else {
-          opts = {
-            title: arguments[0],
-            html: arguments[1],
-            icon: arguments[2]
-          };
-        }
-
-        try {
-          const openDialogs = Array.from(document.querySelectorAll('dialog[open]'));
-          const topDialog = openDialogs.length ? openDialogs[openDialogs.length - 1] : null;
-          if (topDialog && !opts.target) {
-            opts.target = topDialog;
-          }
-        } catch (e) {}
-
-        if (typeof opts.heightAuto === 'undefined') {
-          opts.heightAuto = false;
-        }
-
-        return origFire(opts);
-      };
-
-      Swal.__hrPatched = true;
-    })();
-
     // File handling variables
     let uploadedFiles = [];
     let selectedFileContent = '';
