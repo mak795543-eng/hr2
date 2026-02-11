@@ -96,6 +96,22 @@ require('../../partials/header.php');
 
                 <div class="card bg-base-100 shadow mb-6">
                     <div class="card-body">
+                        <h2 class="text-lg font-semibold text-gray-800 mb-2">Competency Status Levels</h2>
+                        <p class="text-sm text-gray-600 mb-3">
+                            Employees in the competency profile are grouped into these development statuses:
+                        </p>
+                        <ul class="list-disc pl-5 space-y-1 text-sm text-gray-700">
+                            <li>Retrain</li>
+                            <li>Reskilling</li>
+                            <li>Refresher Training</li>
+                            <li>Upskilling</li>
+                            <li>Succession Ready</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="card bg-base-100 shadow mb-6">
+                    <div class="card-body">
                         <form method="GET" class="flex flex-col md:flex-row gap-3 md:items-end">
                             <div class="flex-1">
                                 <label class="label"><span class="label-text">Search</span></label>
