@@ -111,6 +111,28 @@ document.addEventListener('DOMContentLoaded', () => {
     handleResize();
     window.addEventListener('resize', handleResize);
 
+    const scrollContainer = document.getElementById('sidebar-scroll');
+    if (scrollContainer) {
+        const saved = parseInt(localStorage.getItem('sidebarScrollTop') || '0', 10);
+        if (Number.isFinite(saved) && saved > 0) {
+            scrollContainer.scrollTop = saved;
+        }
+        scrollContainer.addEventListener('scroll', () => {
+            localStorage.setItem('sidebarScrollTop', String(scrollContainer.scrollTop));
+        });
+    }
+
+    const currentPath = window.location.pathname.split('/').pop();
+    document.querySelectorAll('#sidebar a[href]').forEach(link => {
+        const href = link.getAttribute('href') || '';
+        const target = href.split('/').pop();
+        if (target && target === currentPath) {
+            link.addEventListener('click', e => {
+                e.preventDefault();
+            });
+        }
+    });
+
     const sidebar = document.getElementById('sidebar');
     if (sidebar) {
         sidebar.addEventListener('click', (e) => {

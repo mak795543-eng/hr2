@@ -1877,9 +1877,21 @@ $conn->close();
               const msg = skipped > 0 ?
                 `Inserted ${inserted} question(s). ${skipped} skipped (target limit reached).` :
                 `Inserted ${inserted} question(s) into the exam.`;
-              showToast(msg, 'success');
+              Swal.fire({
+                title: 'Questions Inserted',
+                text: msg,
+                icon: 'success',
+                confirmButtonText: 'OK',
+                confirmButtonColor: '#3b82f6'
+              });
             } else {
-              showToast('No questions inserted (target limit reached).', 'warning');
+              Swal.fire({
+                title: 'No Questions Inserted',
+                text: 'No questions inserted (target limit reached).',
+                icon: 'warning',
+                confirmButtonText: 'OK',
+                confirmButtonColor: '#f97316'
+              });
             }
           };
 

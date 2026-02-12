@@ -11,6 +11,7 @@ $displayName = trim((string)($_SESSION['employee_name'] ?? ($_SESSION['username'
 $roleDisplay = trim((string)($_SESSION['role'] ?? ''));
 
 require_once __DIR__ . '/db.php';
+require_once __DIR__ . '/COMPETENCY/criticalgaps/config.php';
 
 $preferredDbNames = ['hr2usm', 'rest_core_2_usm', 'hr2_usmhr2', 'hr2_soliera_usm'];
 $conn = null;
@@ -89,14 +90,7 @@ if ($employeeId) {
 function hr_dashboard_build_analytics(string $departmentFilter, string $rangeKey): array
 {
   $now = new DateTimeImmutable('now');
-  $rangeDays = 30;
-  if ($rangeKey === '90d') {
-    $rangeDays = 90;
-  } elseif ($rangeKey === '365d') {
-    $rangeDays = 365;
-  } elseif ($rangeKey === 'all') {
-    $rangeDays = 3650;
-  }
+  $rangeDays = 3650;
   $rangeStart = $now->sub(new DateInterval('P' . $rangeDays . 'D'))->format('Y-m-d 00:00:00');
 
   $departmentFilter = trim($departmentFilter);
@@ -120,42 +114,46 @@ function hr_dashboard_build_analytics(string $departmentFilter, string $rangeKey
     ],
     'learningModules' => [
       'statusCounts' => [],
-      'statusOrder' => ['approved', 'rejected', 'for_compliance', 'posted', 'hold', 'pending'],
+      'statusOrder' => ['approved', 'rejected', 'for_compliance', 'posted', 'hold'],
       'statusLabels' => [
         'approved' => 'Approved',
         'rejected' => 'Rejected',
         'for_compliance' => 'For Compliance',
         'posted' => 'Posted',
         'hold' => 'On Hold',
-        'pending' => 'Pending',
       ],
       'statusChart' => ['labels' => [], 'values' => []],
       'trend' => ['labels' => [], 'series' => []],
     ],
-    'competencyProfiles' => [
-      'counts' => [
-        'ongoing_training' => 0,
-        'forwarded_idp' => 0,
-        'training_requested' => 0,
-        'idp_created' => 0,
+    'examinations' => [
+      'statusCounts' => [],
+      'statusOrder' => ['pending', 'posted', 'cancelled'],
+      'statusLabels' => [
+        'pending' => 'Pending',
+        'posted' => 'Posted',
+        'cancelled' => 'Cancelled',
       ],
-      'trend' => ['labels' => [], 'series' => []],
+      'statusChart' => ['labels' => [], 'values' => []],
+    ],
+    'competencyStatus' => [
+      'statusCounts' => [],
+      'labels' => [],
+      'values' => [],
+      'total' => 0,
     ],
     'idp' => [
       'statusCounts' => [],
-      'statusOrder' => ['approved', 'under_review', 'for_compliance', 'on_hold', 'rejected', 'cancelled', 'requested'],
+      'statusOrder' => ['approved', 'rejected', 'for_compliance', 'requested'],
       'statusLabels' => [
         'approved' => 'Approved',
-        'under_review' => 'Under Review',
-        'for_compliance' => 'For Compliance',
-        'on_hold' => 'On Hold',
         'rejected' => 'Rejected',
-        'cancelled' => 'Cancelled',
+        'for_compliance' => 'For Compliance',
         'requested' => 'Requested',
       ],
       'statusChart' => ['labels' => [], 'values' => []],
       'byDepartment' => ['labels' => [], 'values' => []],
     ],
+    'idpList' => [],
   ];
 
   try {
@@ -407,7 +405,6 @@ function hr_dashboard_build_analytics(string $departmentFilter, string $rangeKey
         'for_compliance' => 0,
         'posted' => 0,
         'hold' => 0,
-        'pending' => 0,
       ];
       if ($lmRes) {
         while ($row = $lmRes->fetch_assoc()) {
@@ -465,7 +462,6 @@ function hr_dashboard_build_analytics(string $departmentFilter, string $rangeKey
         'for_compliance' => [],
         'posted' => [],
         'hold' => [],
-        'pending' => [],
       ];
       $labelIndex = [];
       if ($trendRes) {
@@ -493,6 +489,53 @@ function hr_dashboard_build_analytics(string $departmentFilter, string $rangeKey
       $data['learningModules']['trend'] = [
         'labels' => $trendLabels,
         'series' => $series,
+      ];
+
+      $examStatusSql = "SELECT status, COUNT(*) AS c
+                        FROM examinations
+                        WHERE created_at >= ?";
+      $examStatusParams = [$rangeStart];
+      $examStatusTypes = 's';
+      if ($deptForLearning !== null) {
+        $examStatusSql .= " AND department = ?";
+        $examStatusParams[] = $deptForLearning;
+        $examStatusTypes .= 's';
+      }
+      $examStatusSql .= " GROUP BY status";
+      $examStatusStmt = $lconn->prepare($examStatusSql);
+      if ($examStatusStmt) {
+        $examStatusStmt->bind_param($examStatusTypes, ...$examStatusParams);
+        $examStatusStmt->execute();
+        $examStatusRes = $examStatusStmt->get_result();
+      } else {
+        $examStatusRes = null;
+      }
+      $examStatusCounts = [
+        'pending' => 0,
+        'posted' => 0,
+        'cancelled' => 0,
+      ];
+      if ($examStatusRes) {
+        while ($row = $examStatusRes->fetch_assoc()) {
+          $statusKey = strtolower((string)$row['status']);
+          if (!isset($examStatusCounts[$statusKey])) {
+            $examStatusCounts[$statusKey] = 0;
+          }
+          $examStatusCounts[$statusKey] += (int)$row['c'];
+        }
+      }
+      $data['examinations']['statusCounts'] = $examStatusCounts;
+      $examLabels = [];
+      $examValues = [];
+      foreach ($data['examinations']['statusOrder'] as $st) {
+        if (isset($examStatusCounts[$st])) {
+          $examLabels[] = $data['examinations']['statusLabels'][$st] ?? ucfirst($st);
+          $examValues[] = (int)$examStatusCounts[$st];
+        }
+      }
+      $data['examinations']['statusChart'] = [
+        'labels' => $examLabels,
+        'values' => $examValues,
       ];
     }
   } catch (Throwable $e) {
@@ -620,90 +663,69 @@ function hr_dashboard_build_analytics(string $departmentFilter, string $rangeKey
         'values' => $deptValues,
       ];
 
-      $counts = [
-        'ongoing_training' => 0,
-        'forwarded_idp' => 0,
-        'training_requested' => 0,
-        'idp_created' => 0,
-      ];
-      $statusMap = [
-        'approved' => 'idp_created',
-        'for_compliance' => 'training_requested',
-        'on_hold' => 'training_requested',
-        'under_review' => 'forwarded_idp',
-        'requested' => 'training_requested',
-      ];
-      $compSql = "SELECT idp_status, COUNT(*) AS c
-                  FROM individual_development_plans";
-      $compWhere = [];
-      if ($departmentFilter !== '' && $departmentFilter !== 'all') {
-        $compWhere[] = "department = :dept4";
+      if (function_exists('ensureKpiSchema')) {
+        ensureKpiSchema();
       }
-      if (!empty($compWhere)) {
-        $compSql .= " WHERE " . implode(' AND ', $compWhere);
-      }
-      $compSql .= " GROUP BY idp_status";
-      $compStmt = $pdo->prepare($compSql);
-      if ($departmentFilter !== '' && $departmentFilter !== 'all') {
-        $compStmt->bindValue(':dept4', $departmentFilter, PDO::PARAM_STR);
-      }
-      $compStmt->execute();
-      while ($row = $compStmt->fetch(PDO::FETCH_ASSOC)) {
-        $st = (string)$row['idp_status'];
-        $key = $statusMap[$st] ?? null;
-        if ($key !== null) {
-          $counts[$key] += (int)$row['c'];
-        }
-      }
-      $data['competencyProfiles']['counts'] = $counts;
 
-      $trendSql = "SELECT DATE(updated_at) AS d, idp_status, COUNT(*) AS c
-                   FROM individual_development_plans
-                   WHERE updated_at >= :rs";
-      $trendWhere = [];
-      if ($departmentFilter !== '' && $departmentFilter !== 'all') {
-        $trendWhere[] = "department = :dept5";
-      }
-      if (!empty($trendWhere)) {
-        $trendSql .= " AND " . implode(' AND ', $trendWhere);
-      }
-      $trendSql .= " GROUP BY DATE(updated_at), idp_status
-                     ORDER BY DATE(updated_at) ASC";
-      $trendStmt = $pdo->prepare($trendSql);
-      $trendStmt->bindValue(':rs', $rangeStart, PDO::PARAM_STR);
-      if ($departmentFilter !== '' && $departmentFilter !== 'all') {
-        $trendStmt->bindValue(':dept5', $departmentFilter, PDO::PARAM_STR);
-      }
-      $trendStmt->execute();
-      $trendLabels = [];
-      $trendSeries = [
-        'ongoing_training' => [],
-        'forwarded_idp' => [],
-        'training_requested' => [],
-        'idp_created' => [],
-      ];
-      $labelIndex = [];
-      while ($row = $trendStmt->fetch(PDO::FETCH_ASSOC)) {
-        $d = (string)$row['d'];
-        if (!isset($labelIndex[$d])) {
-          $labelIndex[$d] = count($trendLabels);
-          $trendLabels[] = $d;
-          foreach ($trendSeries as $k => $unused) {
-            $trendSeries[$k][] = 0;
+      global $pdo;
+      if (isset($pdo) && $pdo instanceof PDO) {
+        $statusCounts = [
+          'Retrain' => 0,
+          'Reskilling' => 0,
+          'Refresher Training' => 0,
+          'Upskilling' => 0,
+          'Succession Ready' => 0,
+        ];
+
+        $compSql = "
+          SELECT 
+            CASE
+              WHEN COALESCE(AVG(COALESCE(s.score, 0)) / 5 * 100, 0) <= 20 THEN 'Retrain'
+              WHEN COALESCE(AVG(COALESCE(s.score, 0)) / 5 * 100, 0) <= 40 THEN 'Reskilling'
+              WHEN COALESCE(AVG(COALESCE(s.score, 0)) / 5 * 100, 0) <= 60 THEN 'Refresher Training'
+              WHEN COALESCE(AVG(COALESCE(s.score, 0)) / 5 * 100, 0) <= 80 THEN 'Upskilling'
+              ELSE 'Succession Ready'
+            END AS status,
+            COUNT(*) AS c
+          FROM employees e
+          LEFT JOIN employee_kpi_scores s 
+            ON s.employee_id = e.employee_id";
+
+        $compWhere = [];
+        if ($departmentFilter !== '' && $departmentFilter !== 'all') {
+          $compWhere[] = "e.department = :dept4";
+        }
+        if (!empty($compWhere)) {
+          $compSql .= " WHERE " . implode(' AND ', $compWhere);
+        }
+        $compSql .= " GROUP BY status";
+
+        $compStmt = $pdo->prepare($compSql);
+        if ($departmentFilter !== '' && $departmentFilter !== 'all') {
+          $compStmt->bindValue(':dept4', $departmentFilter, PDO::PARAM_STR);
+        }
+        $compStmt->execute();
+
+        while ($row = $compStmt->fetch(PDO::FETCH_ASSOC)) {
+          $status = (string)($row['status'] ?? '');
+          $cnt = (int)($row['c'] ?? 0);
+          if (isset($statusCounts[$status])) {
+            $statusCounts[$status] += $cnt;
           }
         }
-        $st = (string)$row['idp_status'];
-        $mapped = $statusMap[$st] ?? null;
-        if ($mapped === null || !isset($trendSeries[$mapped])) {
-          continue;
+
+        $totalEmployees = 0;
+        foreach ($statusCounts as $cnt) {
+          $totalEmployees += (int)$cnt;
         }
-        $idx = $labelIndex[$d];
-        $trendSeries[$mapped][$idx] += (int)$row['c'];
+
+        $data['competencyStatus'] = [
+          'statusCounts' => $statusCounts,
+          'labels' => array_keys($statusCounts),
+          'values' => array_values($statusCounts),
+          'total' => $totalEmployees,
+        ];
       }
-      $data['competencyProfiles']['trend'] = [
-        'labels' => $trendLabels,
-        'series' => $trendSeries,
-      ];
     }
   } catch (Throwable $e) {
     error_log('dashboard_competency_analytics_error: ' . $e->getMessage());
@@ -802,7 +824,16 @@ if (isset($_GET['analytics'])) {
           $trainingSummary = ['programs' => 0, 'completed' => 0, 'upcoming' => 0];
           $learningSummary = ['taken' => 0, 'pass' => 0, 'fail' => 0];
           $successionSummary = ['candidates' => 0, 'avg' => 0.0, 'departments' => 0];
-          $competencySummary = ['employees' => 0, 'avg_gap' => 0.0];
+          $competencySummary = [
+            'employees' => 0,
+            'bands' => [
+              'Retrain' => 0,
+              'Reskilling' => 0,
+              'Refresher Training' => 0,
+              'Upskilling' => 0,
+              'Succession Ready' => 0,
+            ],
+          ];
           try {
             require_once __DIR__ . '/TRAINING/TRAINING/db.php';
             $tconn = training_db_connect();
@@ -831,16 +862,38 @@ if (isset($_GET['analytics'])) {
             error_log('dashboard_learning_summary_error: ' . $e->getMessage());
           }
           try {
-            require_once __DIR__ . '/COMPETENCY/criticalgaps/config.php';
             if (isset($pdo)) {
               $successionSummary['candidates'] = (int)($pdo->query("SELECT COUNT(*) FROM succession_submissions WHERE is_pushed = 1")->fetchColumn() ?? 0);
               $stmtAvg = $pdo->query("SELECT AVG(comp) FROM (SELECT AVG(COALESCE(s2.score,0))/5*100 AS comp FROM employee_kpi_scores s2 JOIN succession_submissions ss ON ss.employee_id = s2.employee_id WHERE ss.is_pushed = 1 GROUP BY s2.employee_id) t");
               $successionSummary['avg'] = (float)($stmtAvg ? ($stmtAvg->fetchColumn() ?? 0.0) : 0.0);
               $successionSummary['departments'] = (int)($pdo->query("SELECT COUNT(DISTINCT department) FROM succession_submissions WHERE is_pushed = 1")->fetchColumn() ?? 0);
-              $stEmp = $pdo->query("SELECT COUNT(*) FROM employees");
-              $competencySummary['employees'] = (int)($stEmp ? ($stEmp->fetchColumn() ?? 0) : 0);
-              $stGap = $pdo->query("SELECT AVG(100-COALESCE(competency,0)) FROM employees");
-              $competencySummary['avg_gap'] = (float)($stGap ? ($stGap->fetchColumn() ?? 0.0) : 0.0);
+              $bandsSql = "
+                SELECT 
+                  CASE
+                    WHEN COALESCE(AVG(COALESCE(s.score, 0)) / 5 * 100, 0) <= 20 THEN 'Retrain'
+                    WHEN COALESCE(AVG(COALESCE(s.score, 0)) / 5 * 100, 0) <= 40 THEN 'Reskilling'
+                    WHEN COALESCE(AVG(COALESCE(s.score, 0)) / 5 * 100, 0) <= 60 THEN 'Refresher Training'
+                    WHEN COALESCE(AVG(COALESCE(s.score, 0)) / 5 * 100, 0) <= 80 THEN 'Upskilling'
+                    ELSE 'Succession Ready'
+                  END AS status,
+                  COUNT(*) AS c
+                FROM employees e
+                LEFT JOIN employee_kpi_scores s 
+                  ON s.employee_id = e.employee_id
+                GROUP BY status";
+              $stmtBands = $pdo->query($bandsSql);
+              $rows = $stmtBands ? $stmtBands->fetchAll(PDO::FETCH_ASSOC) : [];
+              foreach ($rows as $row) {
+                $status = (string)($row['status'] ?? '');
+                $cnt = (int)($row['c'] ?? 0);
+                if (isset($competencySummary['bands'][$status])) {
+                  $competencySummary['bands'][$status] += $cnt;
+                }
+              }
+              $competencySummary['employees'] = 0;
+              foreach ($competencySummary['bands'] as $cnt) {
+                $competencySummary['employees'] += (int)$cnt;
+              }
             }
           } catch (Throwable $e) {
             error_log('dashboard_competency_summary_error: ' . $e->getMessage());
@@ -886,9 +939,18 @@ if (isset($_GET['analytics'])) {
             <div class="rounded-xl shadow-md p-6 bg-white">
               <div class="flex items-start justify-between">
                 <div>
-                  <div class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Competency Coverage</div>
+                  <div class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Competency Readiness</div>
                   <div class="mt-1 text-3xl font-bold text-gray-900"><?php echo (int)$competencySummary['employees']; ?></div>
-                  <div class="text-xs text-gray-500 mt-1">Avg Gap: <?php echo number_format((float)$competencySummary['avg_gap'], 1); ?></div>
+                  <div class="text-xs text-gray-500 mt-1">
+                    <?php
+                    $bands = $competencySummary['bands'];
+                    echo 'Re: ' . (int)$bands['Retrain']
+                      . ' • ReSk: ' . (int)$bands['Reskilling']
+                      . ' • Ref: ' . (int)$bands['Refresher Training']
+                      . ' • Up: ' . (int)$bands['Upskilling']
+                      . ' • Succ: ' . (int)$bands['Succession Ready'];
+                    ?>
+                  </div>
                 </div>
                 <div class="p-2 rounded-xl bg-purple-100">
                   <i data-lucide="bar-chart-2" class="w-5 h-5 text-purple-600"></i>
@@ -961,178 +1023,11 @@ if (isset($_GET['analytics'])) {
             <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
               <div>
                 <h2 class="text-lg font-bold text-gray-800">Analytics</h2>
-                <p class="text-sm text-gray-500">Real-time training, learning, succession, competency, and IDP insights</p>
-              </div>
-              <div class="flex flex-wrap gap-3 items-center">
-                <div class="form-control">
-                  <label class="label">
-                    <span class="label-text text-xs font-semibold uppercase tracking-wider">Department</span>
-                  </label>
-                  <select id="analyticsDepartmentFilter" class="select select-bordered select-sm min-w-[10rem]">
-                    <option value="all">All Departments</option>
-                    <option value="Front Office / Reception">Front Office / Reception</option>
-                    <option value="Housekeeping">Housekeeping</option>
-                    <option value="Food & Beverage (F&amp;B)">Food &amp; Beverage (F&amp;B)</option>
-                    <option value="Kitchen / Culinary">Kitchen / Culinary</option>
-                    <option value="Sales & Marketing">Sales &amp; Marketing</option>
-                    <option value="Human Resources (HR)">Human Resources (HR)</option>
-                    <option value="Finance / Accounting">Finance / Accounting</option>
-                    <option value="Engineering / Maintenance">Engineering / Maintenance</option>
-                    <option value="Security">Security</option>
-                  </select>
-                </div>
-                <div class="form-control">
-                  <label class="label">
-                    <span class="label-text text-xs font-semibold uppercase tracking-wider">Time Range</span>
-                  </label>
-                  <select id="analyticsRangeFilter" class="select select-bordered select-sm min-w-[8rem]">
-                    <option value="30d">Last 30 days</option>
-                    <option value="90d">Last 90 days</option>
-                    <option value="365d">Last 12 months</option>
-                    <option value="all">All time</option>
-                  </select>
-                </div>
+                <p class="text-sm text-gray-500">Real-time training, learning, examinations, and competency insights</p>
               </div>
             </div>
 
             <div id="analyticsRoot" class="mt-4 space-y-8">
-              <section aria-label="Overview charts" class="space-y-4">
-                <div class="flex items-center justify-between">
-                  <h3 class="text-sm font-semibold text-gray-700 uppercase tracking-wider">Charts</h3>
-                  <div class="text-xs text-gray-500" id="analyticsLastUpdated"></div>
-                </div>
-                <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
-                  <div class="card border border-gray-200">
-                    <div class="card-body">
-                      <div class="flex items-center justify-between mb-2">
-                        <h4 class="card-title text-sm font-semibold">Training – Program Completion</h4>
-                        <div class="flex gap-2 text-xs">
-                          <button type="button" class="btn btn-ghost btn-xs" data-export="training" data-format="png">PNG</button>
-                          <button type="button" class="btn btn-ghost btn-xs" data-export="training" data-format="csv">CSV</button>
-                          <button type="button" class="btn btn-ghost btn-xs" data-export="training" data-format="pdf">PDF</button>
-                        </div>
-                      </div>
-                      <div class="mt-2">
-                        <div class="analytics-skeleton h-64 rounded-lg bg-gray-100 animate-pulse" data-skeleton="training"></div>
-                        <canvas id="trainingChart" class="w-full h-64 hidden" aria-label="Training completion chart" role="img"></canvas>
-                        <div class="text-sm text-gray-500 mt-2 hidden" id="trainingEmptyMessage">No training completion data available for the selected filters.</div>
-                      </div>
-                    </div>
-                  </div>
-                  <div class="card border border-gray-200">
-                    <div class="card-body">
-                      <div class="flex items-center justify-between mb-2">
-                        <h4 class="card-title text-sm font-semibold">Learning – Exam Pass vs Fail</h4>
-                        <div class="flex gap-2 text-xs">
-                          <button type="button" class="btn btn-ghost btn-xs" data-export="learning" data-format="png">PNG</button>
-                          <button type="button" class="btn btn-ghost btn-xs" data-export="learning" data-format="csv">CSV</button>
-                          <button type="button" class="btn btn-ghost btn-xs" data-export="learning" data-format="pdf">PDF</button>
-                        </div>
-                      </div>
-                      <div class="mt-2">
-                        <div class="analytics-skeleton h-64 rounded-lg bg-gray-100 animate-pulse" data-skeleton="learning"></div>
-                        <canvas id="learningChart" class="w-full h-64 hidden" aria-label="Learning exam pass fail chart" role="img"></canvas>
-                        <div class="text-sm text-gray-500 mt-2 hidden" id="learningEmptyMessage">No exam results available for the selected filters.</div>
-                      </div>
-                    </div>
-                  </div>
-                  <div class="card border border-gray-200">
-                    <div class="card-body">
-                      <div class="flex items-center justify-between mb-2">
-                        <h4 class="card-title text-sm font-semibold">Succession – Readiness Distribution</h4>
-                        <div class="flex gap-2 text-xs">
-                          <button type="button" class="btn btn-ghost btn-xs" data-export="succession" data-format="png">PNG</button>
-                          <button type="button" class="btn btn-ghost btn-xs" data-export="succession" data-format="csv">CSV</button>
-                          <button type="button" class="btn btn-ghost btn-xs" data-export="succession" data-format="pdf">PDF</button>
-                        </div>
-                      </div>
-                      <div class="mt-2">
-                        <div class="analytics-skeleton h-64 rounded-lg bg-gray-100 animate-pulse" data-skeleton="succession"></div>
-                        <canvas id="successionChart" class="w-full h-64 hidden" aria-label="Succession readiness chart" role="img"></canvas>
-                        <div class="text-sm text-gray-500 mt-2 hidden" id="successionEmptyMessage">No succession readiness data available.</div>
-                      </div>
-                    </div>
-                  </div>
-                  <div class="card border border-gray-200">
-                    <div class="card-body">
-                      <div class="flex items-center justify-between mb-2">
-                        <h4 class="card-title text-sm font-semibold">Competency – Gap Analysis</h4>
-                        <div class="flex gap-2 text-xs">
-                          <button type="button" class="btn btn-ghost btn-xs" data-export="competency" data-format="png">PNG</button>
-                          <button type="button" class="btn btn-ghost btn-xs" data-export="competency" data-format="csv">CSV</button>
-                          <button type="button" class="btn btn-ghost btn-xs" data-export="competency" data-format="pdf">PDF</button>
-                        </div>
-                      </div>
-                      <div class="mt-2">
-                        <div class="analytics-skeleton h-64 rounded-lg bg-gray-100 animate-pulse" data-skeleton="competency"></div>
-                        <canvas id="competencyChart" class="w-full h-64 hidden" aria-label="Competency gap chart" role="img"></canvas>
-                        <div class="text-sm text-gray-500 mt-2 hidden" id="competencyEmptyMessage">No competency gap data available.</div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </section>
-
-              <section aria-label="Training requests analytics" class="space-y-4">
-                <div class="flex items-center justify-between">
-                  <h3 class="text-sm font-semibold text-gray-700 uppercase tracking-wider">Training Requests</h3>
-                  <div class="text-xs text-gray-500" id="trainingRequestsSummary"></div>
-                </div>
-                <div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
-                  <div class="rounded-xl border border-gray-200 p-4 bg-slate-50">
-                    <div class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Onboarding Requests</div>
-                    <div class="text-2xl font-bold text-gray-900" id="onboardingRequestsCount">0</div>
-                    <div class="text-xs text-gray-500 mt-1" id="onboardingRequestsMeta"></div>
-                  </div>
-                  <div class="rounded-xl border border-gray-200 p-4 bg-slate-50">
-                    <div class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">IDP Training Requests</div>
-                    <div class="text-2xl font-bold text-gray-900" id="idpTrainingRequestsCount">0</div>
-                    <div class="text-xs text-gray-500 mt-1" id="idpTrainingRequestsMeta"></div>
-                  </div>
-                  <div class="rounded-xl border border-gray-200 p-4 bg-slate-50">
-                    <div class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Average Processing Time</div>
-                    <div class="text-2xl font-bold text-gray-900" id="trainingProcessingTime">0d</div>
-                    <div class="text-xs text-gray-500 mt-1">Across approved/rejected requests in range.</div>
-                  </div>
-                </div>
-                <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
-                  <div class="card border border-gray-200">
-                    <div class="card-body">
-                      <div class="flex items-center justify-between mb-2">
-                        <h4 class="card-title text-sm font-semibold">Request Volume Trend</h4>
-                        <div class="flex gap-2 text-xs">
-                          <button type="button" class="btn btn-ghost btn-xs" data-export="trainingRequests" data-format="png">PNG</button>
-                          <button type="button" class="btn btn-ghost btn-xs" data-export="trainingRequests" data-format="csv">CSV</button>
-                          <button type="button" class="btn btn-ghost btn-xs" data-export="trainingRequests" data-format="pdf">PDF</button>
-                        </div>
-                      </div>
-                      <div class="mt-2">
-                        <div class="analytics-skeleton h-56 rounded-lg bg-gray-100 animate-pulse" data-skeleton="trainingRequests"></div>
-                        <canvas id="trainingRequestsChart" class="w-full h-56 hidden" aria-label="Training requests volume trend" role="img"></canvas>
-                        <div class="text-sm text-gray-500 mt-2 hidden" id="trainingRequestsEmptyMessage">No training request history available.</div>
-                      </div>
-                    </div>
-                  </div>
-                  <div class="card border border-gray-200">
-                    <div class="card-body">
-                      <div class="flex items-center justify-between mb-2">
-                        <h4 class="card-title text-sm font-semibold">Approval Rate</h4>
-                        <div class="flex gap-2 text-xs">
-                          <button type="button" class="btn btn-ghost btn-xs" data-export="trainingApproval" data-format="png">PNG</button>
-                          <button type="button" class="btn btn-ghost btn-xs" data-export="trainingApproval" data-format="csv">CSV</button>
-                          <button type="button" class="btn btn-ghost btn-xs" data-export="trainingApproval" data-format="pdf">PDF</button>
-                        </div>
-                      </div>
-                      <div class="mt-2">
-                        <div class="analytics-skeleton h-56 rounded-lg bg-gray-100 animate-pulse" data-skeleton="trainingApproval"></div>
-                        <canvas id="trainingApprovalChart" class="w-full h-56 hidden" aria-label="Training approval rate chart" role="img"></canvas>
-                        <div class="text-sm text-gray-500 mt-2 hidden" id="trainingApprovalEmptyMessage">No approval data available.</div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </section>
-
               <section aria-label="Learning modules analytics" class="space-y-4">
                 <div class="flex items-center justify-between">
                   <h3 class="text-sm font-semibold text-gray-700 uppercase tracking-wider">Learning Modules</h3>
@@ -1177,91 +1072,59 @@ if (isset($_GET['analytics'])) {
                 </div>
               </section>
 
-              <section aria-label="Competency profiles status" class="space-y-4">
+              <section aria-label="Created examinations analytics" class="space-y-4">
                 <div class="flex items-center justify-between">
-                  <h3 class="text-sm font-semibold text-gray-700 uppercase tracking-wider">Competency Profiles Status</h3>
-                  <div class="text-xs text-gray-500" id="competencyProfilesSummary"></div>
+                  <h3 class="text-sm font-semibold text-gray-700 uppercase tracking-wider">Created Examinations</h3>
+                  <div class="text-xs text-gray-500" id="examCreatedSummary"></div>
                 </div>
-                <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <div class="rounded-xl border border-gray-200 p-4 bg-red-50">
-                    <div class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">On-going Training</div>
-                    <div class="text-2xl font-bold text-red-700" id="statusOngoingTraining">0</div>
-                  </div>
-                  <div class="rounded-xl border border-gray-200 p-4 bg-amber-50">
-                    <div class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Forwarded for IDP</div>
-                    <div class="text-2xl font-bold text-amber-700" id="statusForwardedIdp">0</div>
-                  </div>
-                  <div class="rounded-xl border border-gray-200 p-4 bg-sky-50">
-                    <div class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Training Requested</div>
-                    <div class="text-2xl font-bold text-sky-700" id="statusTrainingRequested">0</div>
-                  </div>
-                  <div class="rounded-xl border border-gray-200 p-4 bg-emerald-50">
-                    <div class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">IDP Created</div>
-                    <div class="text-2xl font-bold text-emerald-700" id="statusIdpCreated">0</div>
-                  </div>
-                </div>
-                <div class="card border border-gray-200">
-                  <div class="card-body">
-                    <div class="flex items-center justify-between mb-2">
-                      <h4 class="card-title text-sm font-semibold">Status Trend</h4>
-                      <div class="flex gap-2 text-xs">
-                        <button type="button" class="btn btn-ghost btn-xs" data-export="competencyStatusTrend" data-format="png">PNG</button>
-                        <button type="button" class="btn btn-ghost btn-xs" data-export="competencyStatusTrend" data-format="csv">CSV</button>
-                        <button type="button" class="btn btn-ghost btn-xs" data-export="competencyStatusTrend" data-format="pdf">PDF</button>
+                <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                  <div class="card border border-gray-200">
+                    <div class="card-body">
+                      <div class="flex items-center justify-between mb-2">
+                        <h4 class="card-title text-sm font-semibold">Exams by Status</h4>
+                        <div class="flex gap-2 text-xs">
+                          <button type="button" class="btn btn-ghost btn-xs" data-export="examCreatedStatus" data-format="png">PNG</button>
+                          <button type="button" class="btn btn-ghost btn-xs" data-export="examCreatedStatus" data-format="csv">CSV</button>
+                          <button type="button" class="btn btn-ghost btn-xs" data-export="examCreatedStatus" data-format="pdf">PDF</button>
+                        </div>
                       </div>
-                    </div>
-                    <div class="mt-2">
-                      <div class="analytics-skeleton h-64 rounded-lg bg-gray-100 animate-pulse" data-skeleton="competencyStatusTrend"></div>
-                      <canvas id="competencyStatusTrendChart" class="w-full h-64 hidden" aria-label="Competency profile status trend chart" role="img"></canvas>
-                      <div class="text-sm text-gray-500 mt-2 hidden" id="competencyStatusTrendEmptyMessage">No competency status changes recorded in the selected range.</div>
+                      <div class="mt-2">
+                        <div class="analytics-skeleton h-56 rounded-lg bg-gray-100 animate-pulse" data-skeleton="examCreatedStatus"></div>
+                        <canvas id="examCreatedStatusChart" class="w-full h-56 hidden" aria-label="Examinations by status chart" role="img"></canvas>
+                        <div class="text-sm text-gray-500 mt-2 hidden" id="examCreatedStatusEmptyMessage">No examinations created in this period.</div>
+                      </div>
                     </div>
                   </div>
                 </div>
               </section>
 
-              <section aria-label="Individual Development Plans analytics" class="space-y-4">
+              <section aria-label="Competency status analytics" class="space-y-4">
                 <div class="flex items-center justify-between">
-                  <h3 class="text-sm font-semibold text-gray-700 uppercase tracking-wider">IDP</h3>
-                  <div class="text-xs text-gray-500" id="idpSummary"></div>
+                  <h3 class="text-sm font-semibold text-gray-700 uppercase tracking-wider">Competency Status</h3>
+                  <div class="text-xs text-gray-500" id="competencyStatusSummary"></div>
                 </div>
-                <div class="grid grid-cols-2 md:grid-cols-4 gap-4" id="idpStatusCards"></div>
                 <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2 gap-4" id="competencyStatusCards"></div>
                   <div class="card border border-gray-200">
                     <div class="card-body">
                       <div class="flex items-center justify-between mb-2">
-                        <h4 class="card-title text-sm font-semibold">IDPs by Status</h4>
+                        <h4 class="card-title text-sm font-semibold">Employees by Status</h4>
                         <div class="flex gap-2 text-xs">
-                          <button type="button" class="btn btn-ghost btn-xs" data-export="idpStatus" data-format="png">PNG</button>
-                          <button type="button" class="btn btn-ghost btn-xs" data-export="idpStatus" data-format="csv">CSV</button>
-                          <button type="button" class="btn btn-ghost btn-xs" data-export="idpStatus" data-format="pdf">PDF</button>
+                          <button type="button" class="btn btn-ghost btn-xs" data-export="competencyStatus" data-format="png">PNG</button>
+                          <button type="button" class="btn btn-ghost btn-xs" data-export="competencyStatus" data-format="csv">CSV</button>
+                          <button type="button" class="btn btn-ghost btn-xs" data-export="competencyStatus" data-format="pdf">PDF</button>
                         </div>
                       </div>
                       <div class="mt-2">
-                        <div class="analytics-skeleton h-56 rounded-lg bg-gray-100 animate-pulse" data-skeleton="idpStatus"></div>
-                        <canvas id="idpStatusChart" class="w-full h-56 hidden" aria-label="IDP status chart" role="img"></canvas>
-                        <div class="text-sm text-gray-500 mt-2 hidden" id="idpStatusEmptyMessage">No IDP records available.</div>
-                      </div>
-                    </div>
-                  </div>
-                  <div class="card border border-gray-200">
-                    <div class="card-body">
-                      <div class="flex items-center justify-between mb-2">
-                        <h4 class="card-title text-sm font-semibold">Department Comparison</h4>
-                        <div class="flex gap-2 text-xs">
-                          <button type="button" class="btn btn-ghost btn-xs" data-export="idpDepartment" data-format="png">PNG</button>
-                          <button type="button" class="btn btn-ghost btn-xs" data-export="idpDepartment" data-format="csv">CSV</button>
-                          <button type="button" class="btn btn-ghost btn-xs" data-export="idpDepartment" data-format="pdf">PDF</button>
-                        </div>
-                      </div>
-                      <div class="mt-2">
-                        <div class="analytics-skeleton h-56 rounded-lg bg-gray-100 animate-pulse" data-skeleton="idpDepartment"></div>
-                        <canvas id="idpDepartmentChart" class="w-full h-56 hidden" aria-label="IDP department comparison chart" role="img"></canvas>
-                        <div class="text-sm text-gray-500 mt-2 hidden" id="idpDepartmentEmptyMessage">No IDP department comparison data available.</div>
+                        <div class="analytics-skeleton h-56 rounded-lg bg-gray-100 animate-pulse" data-skeleton="competencyStatus"></div>
+                        <canvas id="competencyStatusChart" class="w-full h-56 hidden" aria-label="Competency status pie chart" role="img"></canvas>
+                        <div class="text-sm text-gray-500 mt-2 hidden" id="competencyStatusEmptyMessage">No competency status data available.</div>
                       </div>
                     </div>
                   </div>
                 </div>
               </section>
+
             </div>
           </div>
 
@@ -1454,358 +1317,9 @@ if (isset($_GET['analytics'])) {
         };
       }
 
-      function renderOverviewCharts(data) {
-        const overview = data.overview || {};
-        const training = overview.training || {};
-        const learning = overview.learning || {};
-        const succession = overview.succession || {};
-        const competency = overview.competency || {};
+      function renderOverviewCharts() {}
 
-        const lastUpdatedEl = document.getElementById('analyticsLastUpdated');
-        if (lastUpdatedEl && data.generatedAt) {
-          const d = new Date(data.generatedAt);
-          lastUpdatedEl.textContent = 'Updated ' + d.toLocaleString();
-        }
-
-        hideSkeleton('training');
-        hideSkeleton('learning');
-        hideSkeleton('succession');
-        hideSkeleton('competency');
-
-        if (Array.isArray(training.labels) && training.labels.length > 0 && Array.isArray(training.values) && training.values.some(v => v > 0)) {
-          if (trainingCtx && window.Chart) {
-            showCanvas('trainingChart');
-            const chart = new Chart(trainingCtx, {
-              type: 'bar',
-              data: {
-                labels: training.labels,
-                datasets: [{
-                  label: 'Completed Programs',
-                  data: training.values,
-                  backgroundColor: primaryColor,
-                  borderRadius: 4,
-                  maxBarThickness: 32
-                }]
-              },
-              options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                  legend: {
-                    display: false
-                  },
-                  tooltip: {
-                    callbacks: {
-                      label: ctx => ctx.parsed.y + ' completed'
-                    }
-                  }
-                },
-                scales: {
-                  x: {
-                    ticks: {
-                      maxRotation: 45,
-                      minRotation: 0
-                    }
-                  },
-                  y: {
-                    beginAtZero: true,
-                    title: {
-                      display: true,
-                      text: 'Completed Programs'
-                    }
-                  }
-                }
-              }
-            });
-            attachDrilldown(chart, 'training');
-            charts.training = chart;
-          }
-        } else {
-          showEmptyMessage('trainingEmptyMessage');
-        }
-
-        if (Array.isArray(learning.labels) && learning.labels.length > 0 && (learning.pass || learning.fail)) {
-          const pass = Array.isArray(learning.pass) ? learning.pass : [];
-          const fail = Array.isArray(learning.fail) ? learning.fail : [];
-          if (pass.some(v => v > 0) || fail.some(v => v > 0)) {
-            if (learningCtx && window.Chart) {
-              showCanvas('learningChart');
-              const chart = new Chart(learningCtx, {
-                type: 'bar',
-                data: {
-                  labels: learning.labels,
-                  datasets: [{
-                      label: 'Pass',
-                      data: pass,
-                      backgroundColor: successColor,
-                      borderRadius: 4,
-                      maxBarThickness: 28
-                    },
-                    {
-                      label: 'Fail',
-                      data: fail,
-                      backgroundColor: dangerColor,
-                      borderRadius: 4,
-                      maxBarThickness: 28
-                    }
-                  ]
-                },
-                options: {
-                  responsive: true,
-                  maintainAspectRatio: false,
-                  plugins: {
-                    legend: {
-                      position: 'bottom'
-                    },
-                    tooltip: {
-                      callbacks: {
-                        label: ctx => ctx.parsed.y + ' ' + ctx.dataset.label
-                      }
-                    }
-                  },
-                  scales: {
-                    x: {
-                      stacked: true,
-                      ticks: {
-                        maxRotation: 45,
-                        minRotation: 0
-                      }
-                    },
-                    y: {
-                      stacked: true,
-                      beginAtZero: true,
-                      title: {
-                        display: true,
-                        text: 'Exam Attempts'
-                      }
-                    }
-                  }
-                }
-              });
-              attachDrilldown(chart, 'learning');
-              charts.learning = chart;
-            }
-          } else {
-            showEmptyMessage('learningEmptyMessage');
-          }
-        } else {
-          showEmptyMessage('learningEmptyMessage');
-        }
-
-        if (Array.isArray(succession.labels) && succession.labels.length > 0 && Array.isArray(succession.values) && succession.values.some(v => v > 0)) {
-          if (successionCtx && window.Chart) {
-            showCanvas('successionChart');
-            const chart = new Chart(successionCtx, {
-              type: 'doughnut',
-              data: {
-                labels: succession.labels,
-                datasets: [{
-                  data: succession.values,
-                  backgroundColor: ['#f97316', '#facc15', '#22c55e', '#0ea5e9', '#6366f1']
-                }]
-              },
-              options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                  legend: {
-                    position: 'bottom'
-                  },
-                  tooltip: {
-                    callbacks: {
-                      label: ctx => {
-                        const total = ctx.dataset.data.reduce((sum, v) => sum + v, 0);
-                        const val = ctx.parsed;
-                        const pct = total > 0 ? ((val / total) * 100).toFixed(1) : 0;
-                        return `${ctx.label}: ${val} (${pct}%)`;
-                      }
-                    }
-                  }
-                },
-                cutout: '60%'
-              }
-            });
-            attachDrilldown(chart, 'succession');
-            charts.succession = chart;
-          }
-        } else {
-          showEmptyMessage('successionEmptyMessage');
-        }
-
-        if (Array.isArray(competency.labels) && competency.labels.length > 0 && Array.isArray(competency.values) && competency.values.some(v => v > 0)) {
-          if (competencyCtx && window.Chart) {
-            showCanvas('competencyChart');
-            const chart = new Chart(competencyCtx, {
-              type: 'bar',
-              data: {
-                labels: competency.labels,
-                datasets: [{
-                  label: 'Average Gap (%)',
-                  data: competency.values,
-                  backgroundColor: slateColor,
-                  borderRadius: 4,
-                  maxBarThickness: 28
-                }]
-              },
-              options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                  legend: {
-                    display: false
-                  },
-                  tooltip: {
-                    callbacks: {
-                      label: ctx => ctx.parsed.y.toFixed(1) + '% gap'
-                    }
-                  }
-                },
-                scales: {
-                  x: {
-                    ticks: {
-                      maxRotation: 45,
-                      minRotation: 0
-                    }
-                  },
-                  y: {
-                    beginAtZero: true,
-                    max: 100,
-                    title: {
-                      display: true,
-                      text: 'Average Gap (%)'
-                    }
-                  }
-                }
-              }
-            });
-            attachDrilldown(chart, 'competency');
-            charts.competency = chart;
-          }
-        } else {
-          showEmptyMessage('competencyEmptyMessage');
-        }
-      }
-
-      function renderTrainingRequests(data) {
-        const analytics = data.trainingRequests || {};
-        const total = analytics.total || 0;
-        const onboarding = analytics.onboarding || {};
-        const idp = analytics.idp || {};
-
-        const summaryEl = document.getElementById('trainingRequestsSummary');
-        if (summaryEl) {
-          summaryEl.textContent = total > 0 ? `${total} requests in selected period` : 'No training requests in selected period';
-        }
-
-        const onboardingCountEl = document.getElementById('onboardingRequestsCount');
-        const onboardingMetaEl = document.getElementById('onboardingRequestsMeta');
-        const idpCountEl = document.getElementById('idpTrainingRequestsCount');
-        const idpMetaEl = document.getElementById('idpTrainingRequestsMeta');
-        const processingEl = document.getElementById('trainingProcessingTime');
-
-        if (onboardingCountEl) onboardingCountEl.textContent = onboarding.count ?? 0;
-        if (onboardingMetaEl) onboardingMetaEl.textContent = onboarding.approvalRate != null ? `${onboarding.approvalRate.toFixed(1)}% approval` : 'No approval data';
-        if (idpCountEl) idpCountEl.textContent = idp.count ?? 0;
-        if (idpMetaEl) idpMetaEl.textContent = idp.approvalRate != null ? `${idp.approvalRate.toFixed(1)}% approval` : 'No approval data';
-        if (processingEl) processingEl.textContent = analytics.avgProcessingDays != null ? `${analytics.avgProcessingDays.toFixed(1)}d` : '0d';
-
-        hideSkeleton('trainingRequests');
-        hideSkeleton('trainingApproval');
-
-        const trend = analytics.trend || {};
-        if (Array.isArray(trend.labels) && trend.labels.length > 0 && ((trend.onboarding && trend.onboarding.some(v => v > 0)) || (trend.idp && trend.idp.some(v => v > 0)))) {
-          const ctx = document.getElementById('trainingRequestsChart');
-          if (ctx && window.Chart) {
-            showCanvas('trainingRequestsChart');
-            const chart = new Chart(ctx, {
-              type: 'line',
-              data: {
-                labels: trend.labels.map(formatDateLabel),
-                datasets: [{
-                    label: 'Onboarding',
-                    data: trend.onboarding || [],
-                    borderColor: primaryColor,
-                    backgroundColor: primaryColor,
-                    tension: 0.3,
-                    fill: false
-                  },
-                  {
-                    label: 'IDP',
-                    data: trend.idp || [],
-                    borderColor: infoColor,
-                    backgroundColor: infoColor,
-                    tension: 0.3,
-                    fill: false
-                  }
-                ]
-              },
-              options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                  legend: {
-                    position: 'bottom'
-                  }
-                },
-                scales: {
-                  y: {
-                    beginAtZero: true,
-                    title: {
-                      display: true,
-                      text: 'Requests'
-                    }
-                  }
-                }
-              }
-            });
-            attachDrilldown(chart, 'trainingRequests');
-            charts.trainingRequests = chart;
-          }
-        } else {
-          showEmptyMessage('trainingRequestsEmptyMessage');
-        }
-
-        const approval = analytics.approval || {};
-        if (Array.isArray(approval.labels) && approval.labels.length > 0 && Array.isArray(approval.values) && approval.values.some(v => v > 0)) {
-          const ctx = document.getElementById('trainingApprovalChart');
-          if (ctx && window.Chart) {
-            showCanvas('trainingApprovalChart');
-            const chart = new Chart(ctx, {
-              type: 'bar',
-              data: {
-                labels: approval.labels,
-                datasets: [{
-                  label: 'Requests',
-                  data: approval.values,
-                  backgroundColor: [successColor, dangerColor, warningColor, slateColor]
-                }]
-              },
-              options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                  legend: {
-                    display: false
-                  }
-                },
-                scales: {
-                  y: {
-                    beginAtZero: true,
-                    title: {
-                      display: true,
-                      text: 'Requests'
-                    }
-                  }
-                }
-              }
-            });
-            attachDrilldown(chart, 'trainingApproval');
-            charts.trainingApproval = chart;
-          }
-        } else {
-          showEmptyMessage('trainingApprovalEmptyMessage');
-        }
-      }
+      function renderTrainingRequests() {}
 
       function renderLearningModules(data) {
         const analytics = data.learningModules || {};
@@ -1815,14 +1329,13 @@ if (isset($_GET['analytics'])) {
         hideSkeleton('learningModulesTrend');
 
         const statusCounts = analytics.statusCounts || {};
-        const statusOrder = analytics.statusOrder || ['approved', 'rejected', 'for_compliance', 'posted', 'hold', 'pending'];
+        const statusOrder = analytics.statusOrder || ['approved', 'rejected', 'for_compliance', 'posted', 'hold'];
         const statusLabels = analytics.statusLabels || {
           approved: 'Approved',
           rejected: 'Rejected',
           for_compliance: 'For Compliance',
           posted: 'Posted',
-          hold: 'On Hold',
-          pending: 'Pending'
+          hold: 'On Hold'
         };
 
         const total = Object.values(statusCounts).reduce((sum, v) => sum + (v || 0), 0);
@@ -1862,7 +1375,7 @@ if (isset($_GET['analytics'])) {
                 datasets: [{
                   label: 'Modules',
                   data: statusChart.values,
-                  backgroundColor: ['#22c55e', '#ef4444', '#f97316', '#0ea5e9', '#eab308', '#6b7280']
+                  backgroundColor: ['#22c55e', '#ef4444', '#f97316', '#0ea5e9', '#eab308']
                 }]
               },
               options: {
@@ -1902,8 +1415,7 @@ if (isset($_GET['analytics'])) {
               rejected: '#ef4444',
               for_compliance: '#f97316',
               posted: '#0ea5e9',
-              hold: '#eab308',
-              pending: '#6b7280'
+              hold: '#eab308'
             };
             Object.keys(trend.series || {}).forEach(key => {
               const arr = trend.series[key] || [];
@@ -1949,59 +1461,25 @@ if (isset($_GET['analytics'])) {
         }
       }
 
-      function renderCompetencyProfiles(data) {
-        const analytics = data.competencyProfiles || {};
-        const counts = analytics.counts || {};
-        const trend = analytics.trend || {};
-
-        const summaryEl = document.getElementById('competencyProfilesSummary');
-        if (summaryEl) {
-          const total = Object.values(counts).reduce((sum, v) => sum + (v || 0), 0);
-          summaryEl.textContent = total > 0 ? `${total} employees with active development statuses` : 'No employees with tracked development statuses';
-        }
-
-        const idMap = {
-          ongoing_training: 'statusOngoingTraining',
-          forwarded_idp: 'statusForwardedIdp',
-          training_requested: 'statusTrainingRequested',
-          idp_created: 'statusIdpCreated'
-        };
-        Object.keys(idMap).forEach(key => {
-          const el = document.getElementById(idMap[key]);
-          if (el) el.textContent = counts[key] ?? 0;
-        });
-
-        hideSkeleton('competencyStatusTrend');
-        if (Array.isArray(trend.labels) && trend.labels.length > 0 && Object.values(trend.series || {}).some(arr => Array.isArray(arr) && arr.some(v => v > 0))) {
-          const ctx = document.getElementById('competencyStatusTrendChart');
+      function renderExaminations(data) {
+        const analytics = data.examinations || {};
+        const chartData = analytics.statusChart || {};
+        const summaryEl = document.getElementById('examCreatedSummary');
+        hideSkeleton('examCreatedStatus');
+        const labels = Array.isArray(chartData.labels) ? chartData.labels : [];
+        const values = Array.isArray(chartData.values) ? chartData.values : [];
+        if (labels.length > 0 && values.some(v => v > 0)) {
+          const ctx = document.getElementById('examCreatedStatusChart');
           if (ctx && window.Chart) {
-            showCanvas('competencyStatusTrendChart');
-            const series = trend.series || {};
-            const colors = {
-              ongoing_training: '#ef4444',
-              forwarded_idp: '#f97316',
-              training_requested: '#0ea5e9',
-              idp_created: '#22c55e'
-            };
-            const labelsMap = {
-              ongoing_training: 'On-going Training',
-              forwarded_idp: 'Forwarded for IDP',
-              training_requested: 'Training Requested',
-              idp_created: 'IDP Created'
-            };
-            const datasets = Object.keys(series).map(key => ({
-              label: labelsMap[key] || key,
-              data: series[key] || [],
-              borderColor: colors[key] || primaryColor,
-              backgroundColor: colors[key] || primaryColor,
-              tension: 0.3,
-              fill: false
-            }));
+            showCanvas('examCreatedStatusChart');
             const chart = new Chart(ctx, {
-              type: 'line',
+              type: 'pie',
               data: {
-                labels: trend.labels.map(formatDateLabel),
-                datasets
+                labels,
+                datasets: [{
+                  data: values,
+                  backgroundColor: ['#0ea5e9', '#22c55e', '#f97316']
+                }]
               },
               options: {
                 responsive: true,
@@ -2009,74 +1487,126 @@ if (isset($_GET['analytics'])) {
                 plugins: {
                   legend: {
                     position: 'bottom'
-                  }
-                },
-                scales: {
-                  y: {
-                    beginAtZero: true,
-                    title: {
-                      display: true,
-                      text: 'Employees'
+                  },
+                  tooltip: {
+                    callbacks: {
+                      label: ctx => {
+                        const total = ctx.dataset.data.reduce((sum, v) => sum + v, 0);
+                        const val = ctx.parsed;
+                        const pct = total > 0 ? ((val / total) * 100).toFixed(1) : 0;
+                        return ctx.label + ': ' + val + ' (' + pct + '%)';
+                      }
                     }
                   }
                 }
               }
             });
-            attachDrilldown(chart, 'competencyStatusTrend');
-            charts.competencyStatusTrend = chart;
+            charts.examCreatedStatus = chart;
+            if (summaryEl) {
+              const total = values.reduce((sum, v) => sum + v, 0);
+              summaryEl.textContent = total + ' examinations created';
+            }
           }
         } else {
-          showEmptyMessage('competencyStatusTrendEmptyMessage');
+          showEmptyMessage('examCreatedStatusEmptyMessage');
+          if (summaryEl) {
+            summaryEl.textContent = 'No examinations created';
+          }
         }
       }
 
-      function renderIdp(data) {
-        const analytics = data.idp || {};
-        const summaryEl = document.getElementById('idpSummary');
-        const statusCardsRoot = document.getElementById('idpStatusCards');
-        hideSkeleton('idpStatus');
-        hideSkeleton('idpDepartment');
-
+      function renderCompetencyStatus(data) {
+        const analytics = data.competencyStatus || {};
         const statusCounts = analytics.statusCounts || {};
-        const statusOrder = analytics.statusOrder || [];
-        const total = Object.values(statusCounts).reduce((sum, v) => sum + (v || 0), 0);
-        if (summaryEl) summaryEl.textContent = total > 0 ? `${total} IDPs in selected period` : 'No IDPs in selected period';
+        const labels = Array.isArray(analytics.labels) ? analytics.labels : [];
+        const values = Array.isArray(analytics.values) ? analytics.values : [];
+        const total = typeof analytics.total === 'number' ? analytics.total : 0;
 
-        if (statusCardsRoot) {
-          statusCardsRoot.innerHTML = '';
-          statusOrder.forEach(key => {
-            const count = statusCounts[key] ?? null;
-            if (count === null) return;
-            const label = analytics.statusLabels && analytics.statusLabels[key] ? analytics.statusLabels[key] : key;
-            const card = document.createElement('button');
-            card.type = 'button';
-            card.className = 'text-left rounded-xl border border-gray-200 p-3 bg-white hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-slate-50';
-            card.dataset.status = key;
-            card.innerHTML = '<div class="text-[0.65rem] font-semibold text-gray-500 uppercase tracking-wider mb-1">' +
-              label +
-              '</div><div class="text-xl font-bold text-gray-900">' +
-              count +
+        const cardsRoot = document.getElementById('competencyStatusCards');
+        const summaryEl = document.getElementById('competencyStatusSummary');
+        hideSkeleton('competencyStatus');
+
+        if (summaryEl) {
+          summaryEl.textContent = total > 0 ? total + ' employees with competency status' : 'No employees with competency status';
+        }
+
+        if (cardsRoot) {
+          cardsRoot.innerHTML = '';
+          const statuses = [{
+              key: 'Retrain',
+              label: 'Retrain',
+              icon: 'rotate-ccw',
+              iconBg: 'bg-red-100',
+              iconColor: 'text-red-600'
+            },
+            {
+              key: 'Reskilling',
+              label: 'Reskilling',
+              icon: 'refresh-ccw',
+              iconBg: 'bg-orange-100',
+              iconColor: 'text-orange-600'
+            },
+            {
+              key: 'Refresher Training',
+              label: 'Refresher',
+              icon: 'repeat',
+              iconBg: 'bg-yellow-100',
+              iconColor: 'text-yellow-600'
+            },
+            {
+              key: 'Upskilling',
+              label: 'Upskilling',
+              icon: 'trending-up',
+              iconBg: 'bg-emerald-100',
+              iconColor: 'text-emerald-600'
+            },
+            {
+              key: 'Succession Ready',
+              label: 'Succession Ready',
+              icon: 'award',
+              iconBg: 'bg-sky-100',
+              iconColor: 'text-sky-600'
+            },
+          ];
+
+          statuses.forEach(item => {
+            const count = statusCounts[item.key] || 0;
+            if (count === 0 && total === 0) {
+              return;
+            }
+            const pct = total > 0 ? ((count / total) * 100).toFixed(1) : '0.0';
+            const card = document.createElement('div');
+            card.className = 'rounded-xl shadow-md p-6 bg-white';
+            card.innerHTML =
+              '<div class="flex items-start justify-between">' +
+              '<div>' +
+              '<div class="text-xs font-semibold text-gray-500 uppercase tracking-wider">' + item.label + '</div>' +
+              '<div class="mt-1 text-3xl font-bold text-gray-900">' + count + '</div>' +
+              '<div class="text-xs text-gray-500 mt-1">' + pct + '% of employees</div>' +
+              '</div>' +
+              '<div class="p-2 rounded-xl ' + item.iconBg + '">' +
+              '<i data-lucide="' + item.icon + '" class="w-5 h-5 ' + item.iconColor + '"></i>' +
+              '</div>' +
               '</div>';
-            card.addEventListener('click', () => {
-              window.location.href = 'COMPETENCY/criticalgaps/idp_repository.php?source=dashboard&status=' + encodeURIComponent(key);
-            });
-            statusCardsRoot.appendChild(card);
+            cardsRoot.appendChild(card);
           });
+
+          if (typeof lucide !== 'undefined' && lucide.createIcons) {
+            lucide.createIcons();
+          }
         }
 
-        const statusChart = analytics.statusChart || {};
-        if (Array.isArray(statusChart.labels) && statusChart.labels.length > 0 && Array.isArray(statusChart.values) && statusChart.values.some(v => v > 0)) {
-          const ctx = document.getElementById('idpStatusChart');
+        if (labels.length > 0 && values.some(v => v > 0)) {
+          const ctx = document.getElementById('competencyStatusChart');
           if (ctx && window.Chart) {
-            showCanvas('idpStatusChart');
+            showCanvas('competencyStatusChart');
             const chart = new Chart(ctx, {
-              type: 'bar',
+              type: 'pie',
               data: {
-                labels: statusChart.labels,
+                labels,
                 datasets: [{
-                  label: 'IDPs',
-                  data: statusChart.values,
-                  backgroundColor: [primaryColor, successColor, warningColor, dangerColor, slateColor]
+                  data: values,
+                  backgroundColor: ['#dc2626', '#f97316', '#facc15', '#22c55e', '#0ea5e9']
                 }]
               },
               options: {
@@ -2084,113 +1614,47 @@ if (isset($_GET['analytics'])) {
                 maintainAspectRatio: false,
                 plugins: {
                   legend: {
-                    display: false
-                  }
-                },
-                scales: {
-                  y: {
-                    beginAtZero: true,
-                    title: {
-                      display: true,
-                      text: 'IDPs'
+                    position: 'bottom'
+                  },
+                  tooltip: {
+                    callbacks: {
+                      label: ctx => {
+                        const totalVal = ctx.dataset.data.reduce((sum, v) => sum + v, 0);
+                        const val = ctx.parsed;
+                        const pct = totalVal > 0 ? ((val / totalVal) * 100).toFixed(1) : 0;
+                        return ctx.label + ': ' + val + ' (' + pct + '%)';
+                      }
                     }
                   }
                 }
               }
             });
-            attachDrilldown(chart, 'idpStatus');
-            charts.idpStatus = chart;
+            charts.competencyStatus = chart;
           }
         } else {
-          showEmptyMessage('idpStatusEmptyMessage');
-        }
-
-        const byDepartment = analytics.byDepartment || {};
-        if (Array.isArray(byDepartment.labels) && byDepartment.labels.length > 0 && Array.isArray(byDepartment.values) && byDepartment.values.some(v => v > 0)) {
-          const ctx = document.getElementById('idpDepartmentChart');
-          if (ctx && window.Chart) {
-            showCanvas('idpDepartmentChart');
-            const chart = new Chart(ctx, {
-              type: 'bar',
-              data: {
-                labels: byDepartment.labels,
-                datasets: [{
-                  label: 'IDPs',
-                  data: byDepartment.values,
-                  backgroundColor: primaryColor
-                }]
-              },
-              options: {
-                indexAxis: 'y',
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                  legend: {
-                    display: false
-                  }
-                },
-                scales: {
-                  x: {
-                    beginAtZero: true,
-                    title: {
-                      display: true,
-                      text: 'IDPs'
-                    }
-                  }
-                }
-              }
-            });
-            attachDrilldown(chart, 'idpDepartment');
-            charts.idpDepartment = chart;
-          }
-        } else {
-          showEmptyMessage('idpDepartmentEmptyMessage');
+          showEmptyMessage('competencyStatusEmptyMessage');
         }
       }
-
-      let currentFilters = {
-        department: 'all',
-        range: '30d'
-      };
 
       function loadAnalytics() {
-        const url = buildQuery({
-          department: currentFilters.department,
-          range: currentFilters.range
-        });
-        fetch(url, {
+        fetch(analyticsEndpoint, {
             headers: {
               'Accept': 'application/json'
             }
           })
           .then(resp => resp.json())
           .then(payload => {
-            if (!payload || !payload.success) return;
+            if (!payload || !payload.success) {
+              return;
+            }
             const data = payload.data || {};
-            renderOverviewCharts(data);
-            renderTrainingRequests(data);
             renderLearningModules(data);
-            renderCompetencyProfiles(data);
-            renderIdp(data);
+            renderExaminations(data);
+            renderCompetencyStatus(data);
           })
           .catch(err => {
             console.error('Analytics load error', err);
           });
-      }
-
-      const deptSelect = document.getElementById('analyticsDepartmentFilter');
-      const rangeSelect = document.getElementById('analyticsRangeFilter');
-      if (deptSelect) {
-        deptSelect.addEventListener('change', () => {
-          currentFilters.department = deptSelect.value || 'all';
-          loadAnalytics();
-        });
-      }
-      if (rangeSelect) {
-        rangeSelect.addEventListener('change', () => {
-          currentFilters.range = rangeSelect.value || '30d';
-          loadAnalytics();
-        });
       }
 
       loadAnalytics();

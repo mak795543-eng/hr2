@@ -12,15 +12,23 @@ $permissions = include __DIR__ . '/role_permissions.php';
 $allowed_modules = $permissions[$role] ?? [];
 $is_supervisor = ($role === 'admin' || $role === 'supervisor');
 
+$currentPage = basename($_SERVER['SCRIPT_NAME'] ?? '');
+
 // Define base path for consistent URL structure
 // $base_url = getenv('APP_BASE_PATH') ?: '/hr2/'; // Set this to your base path if needed, e.g., '/restaurant-system'
 
 // Check if function already exists before declaring
 if (!function_exists('hasAccess')) {
-    // Function to check if user has access to a module
     function hasAccess($module, $allowed_modules, $is_supervisor)
     {
         return $is_supervisor || in_array($module, $allowed_modules);
+    }
+}
+
+if (!function_exists('sidebarActiveClass')) {
+    function sidebarActiveClass($file, $currentPage)
+    {
+        return $currentPage === $file ? ' bg-blue-700' : '';
     }
 }
 // $base = '/hr2';
@@ -45,7 +53,7 @@ if (!function_exists('hasAccess')) {
             <!-- DASHBOARD SECTION -->
             <?php if (hasAccess('dashboard', $allowed_modules, $is_supervisor)): ?>
                 <a href="/../hr2/dashboard.php" class="block">
-                    <div class="flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-all hover:bg-blue-600/50 text-white group">
+                    <div class="flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-all hover:bg-blue-600/50 text-white group<?php echo sidebarActiveClass('dashboard.php', $currentPage); ?>">
                         <div class="p-1.5 rounded-lg bg-blue-800/30 group-hover:bg-blue-700/50 transition-colors">
                             <i data-lucide="layout-dashboard" class="w-5 h-5 text-[#F7B32B] group-hover:text-white"></i>
                         </div>
@@ -212,7 +220,7 @@ if (!function_exists('hasAccess')) {
                 </div>
 
                 <a href="/../hr2/SUCCESSION/HR_director/succession_dashboard.php" class="block">
-                    <div class="flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-all hover:bg-blue-600/50 text-white group">
+                    <div class="flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-all hover:bg-blue-600/50 text-white group<?php echo sidebarActiveClass('succession_dashboard.php', $currentPage); ?>">
                         <div class="p-1 rounded-lg bg-blue-800/30 group-hover:bg-blue-700/50 transition-colors">
                             <i data-lucide="users" class="w-5 h-5 text-[#F7B32B] group-hover:text-white"></i>
                         </div>
@@ -221,7 +229,7 @@ if (!function_exists('hasAccess')) {
                 </a>
 
                 <a href="/../hr2/SUCCESSION/HR_director/requested_idps_repository.php" class="block">
-                    <div class="flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-all hover:bg-blue-600/50 text-white group">
+                    <div class="flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-all hover:bg-blue-600/50 text-white group<?php echo sidebarActiveClass('requested_idps_repository.php', $currentPage); ?>">
                         <div class="p-1 rounded-lg bg-blue-800/30 group-hover:bg-blue-700/50 transition-colors">
                             <i data-lucide="users" class="w-5 h-5 text-[#F7B32B] group-hover:text-white"></i>
                         </div>
@@ -230,11 +238,20 @@ if (!function_exists('hasAccess')) {
                 </a>
 
                 <a href="/../hr2/SUCCESSION/HR_director/individual_development_plans.php" class="block">
-                    <div class="flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-all hover:bg-blue-600/50 text-white group">
+                    <div class="flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-all hover:bg-blue-600/50 text-white group<?php echo sidebarActiveClass('individual_development_plans.php', $currentPage); ?>">
                         <div class="p-1 rounded-lg bg-blue-800/30 group-hover:bg-blue-700/50 transition-colors">
                             <i data-lucide="users" class="w-5 h-5 text-[#F7B32B] group-hover:text-white"></i>
                         </div>
                         <span class="ml-3 sidebar-text">IDP Repository</span>
+                    </div>
+                </a>
+
+                <a href="/../hr2/SUCCESSION/HR_director/pre-promotion-table.php" class="block">
+                    <div class="flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-all hover:bg-blue-600/50 text-white group<?php echo sidebarActiveClass('pre-promotion-table.php', $currentPage); ?>">
+                        <div class="p-1 rounded-lg bg-blue-800/30 group-hover:bg-blue-700/50 transition-colors">
+                            <i data-lucide="arrow-up-circle" class="w-5 h-5 text-[#F7B32B] group-hover:text-white"></i>
+                        </div>
+                        <span class="ml-3 sidebar-text">Pre-Promotion</span>
                     </div>
                 </a>
             <?php endif; ?>
