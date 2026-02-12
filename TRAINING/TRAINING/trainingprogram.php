@@ -1518,8 +1518,13 @@ require('../../partials/header.php');
                 <!-- Add Training Modal -->
                 <dialog id="training-modal" class="modal">
                     <div class="modal-box w-11/12 max-w-6xl">
-                        <h3 class="font-bold text-2xl mb-2" id="modal-title">Create New Training Program</h3>
-                        <p class="text-gray-600 mb-6" id="modal-subtitle">Fill in all required information to create a new training program</p>
+                        <div class="flex items-start justify-between gap-4">
+                            <div>
+                                <h3 class="font-bold text-2xl mb-2" id="modal-title">Create New Training Program</h3>
+                                <p class="text-gray-600 mb-6" id="modal-subtitle">Fill in all required information to create a new training program</p>
+                            </div>
+                            <button type="button" id="training-modal-exit-btn" class="btn btn-ghost btn-sm">✕</button>
+                        </div>
                         <div id="idp-list-container" class="mb-6">
                             <div class="flex items-center justify-between mb-3">
                                 <div class="text-sm font-semibold text-gray-800">Training Requests</div>

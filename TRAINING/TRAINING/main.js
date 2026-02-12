@@ -276,6 +276,7 @@
   const trainingModal = qs('#training-modal');
   const viewTrainingModal = qs('#view-training-modal');
   const cancelBtn = qs('#cancel-btn');
+  const trainingExitBtn = qs('#training-modal-exit-btn');
   const saveTrainingBtn = qs('#save-training-btn');
   const trainingForm = qs('#training-form');
   const closeViewModal = qs('#close-view-modal');
@@ -2123,6 +2124,15 @@
   };
 
   const setupEventListeners = () => {
+    const closeTrainingModal = () => {
+      if (trainingModal) trainingModal.close();
+      resetForm();
+      if (idpListContainer) idpListContainer.classList.add('hidden');
+      const banner = document.getElementById('idp-request-banner');
+      if (banner) banner.classList.add('hidden');
+      if (trainingForm) trainingForm.classList.add('hidden');
+    };
+
     if (addTrainingBtn && trainingModal && (String(addTrainingBtn.tagName || '').toUpperCase() === 'BUTTON' || String(addTrainingBtn.tagName || '').toUpperCase() === 'A')) {
       addTrainingBtn.addEventListener('click', async (e) => {
         if (e && e.preventDefault) e.preventDefault();
@@ -2133,14 +2143,11 @@
     }
 
     if (cancelBtn && trainingModal) {
-      cancelBtn.addEventListener('click', () => {
-        trainingModal.close();
-        resetForm();
-        if (idpListContainer) idpListContainer.classList.add('hidden');
-        const banner = document.getElementById('idp-request-banner');
-        if (banner) banner.classList.add('hidden');
-        if (trainingForm) trainingForm.classList.add('hidden');
-      });
+      cancelBtn.addEventListener('click', closeTrainingModal);
+    }
+
+    if (trainingExitBtn && trainingModal) {
+      trainingExitBtn.addEventListener('click', closeTrainingModal);
     }
 
     if (closeViewModal && viewTrainingModal) {

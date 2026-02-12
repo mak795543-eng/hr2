@@ -241,7 +241,12 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && $employee_ID && $password) {
             $_SESSION["role"] = $Role;
             $_SESSION["Dept_id"] = $row["Dept_id"];
             $_SESSION["email"] = $row["email"] ?? $row["Email"] ?? '';
-            header("Location: dashboard.php");
+            $roleLower = strtolower(trim((string)$Role));
+            if ($roleLower === 'sous chef') {
+                header("Location: ../ESS/dashboard.php");
+            } else {
+                header("Location: ../dashboard.php");
+            }
             exit();
         } else {
             incrementLoginAttempts($employee_ID);

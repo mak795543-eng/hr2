@@ -5,6 +5,136 @@ require_once __DIR__ . '/db.php';
 
 $employeeId = ess_employee_id($conn);
 
+function formatDateLabel(?string $date): string
+{
+  $d = trim((string)$date);
+  if ($d === '') return '-';
+  $ts = strtotime($d);
+  if ($ts === false) return '-';
+  return date('M d, Y', $ts);
+}
+
+function formatPeriodLabel(?string $start, ?string $end): string
+{
+  $s = trim((string)$start);
+  $e = trim((string)$end);
+  if ($s === '' || $e === '') return '-';
+  $tsS = strtotime($s);
+  $tsE = strtotime($e);
+  if ($tsS === false || $tsE === false) return $s . ' - ' . $e;
+  return date('M d, Y', $tsS) . ' - ' . date('M d, Y', $tsE);
+}
+
+function renderPayslip(array $row): string
+{
+  $gross = (float)($row['basic_pay'] ?? 0) + (float)($row['allowances'] ?? 0);
+  $net = (float)($row['net_pay'] ?? 0);
+  $ded = (float)($row['deductions'] ?? 0);
+  $basic = (float)($row['basic_pay'] ?? 0);
+  $allow = (float)($row['allowances'] ?? 0);
+
+  $paymentDate = formatDateLabel((string)($row['payment_date'] ?? ''));
+  $period = formatPeriodLabel((string)($row['pay_period_start'] ?? ''), (string)($row['pay_period_end'] ?? ''));
+  $status = htmlspecialchars((string)($row['status'] ?? ''), ENT_QUOTES, 'UTF-8');
+
+  $peso = fn($amount) => '₱' . number_format((float)$amount, 2);
+
+  return '<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pay Stub</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://cdn.jsdelivr.net/npm/daisyui@4.6.0/dist/full.css" rel="stylesheet" type="text/css" />
+</head>
+<body class="bg-gray-50 min-h-screen p-4">
+  <div class="max-w-2xl mx-auto">
+    <div class="card bg-base-100 shadow-sm border border-base-200">
+      <div class="card-body">
+        <div class="flex items-start justify-between gap-4">
+          <div>
+            <h1 class="text-xl font-bold text-gray-800">Pay Stub</h1>
+            <div class="mt-1 text-sm text-gray-600">Pay Period: ' . htmlspecialchars($period, ENT_QUOTES, 'UTF-8') . '</div>
+            <div class="text-sm text-gray-600">Pay Date: ' . htmlspecialchars($paymentDate, ENT_QUOTES, 'UTF-8') . '</div>
+          </div>
+          <div class="badge badge-outline">' . $status . '</div>
+        </div>
+
+        <div class="mt-6 grid grid-cols-2 gap-3">
+          <div class="p-3 rounded-xl border border-base-200 bg-base-100">
+            <div class="text-xs text-gray-500">Basic Pay</div>
+            <div class="text-lg font-semibold">' . htmlspecialchars($peso($basic), ENT_QUOTES, 'UTF-8') . '</div>
+          </div>
+          <div class="p-3 rounded-xl border border-base-200 bg-base-100">
+            <div class="text-xs text-gray-500">Allowances</div>
+            <div class="text-lg font-semibold">' . htmlspecialchars($peso($allow), ENT_QUOTES, 'UTF-8') . '</div>
+          </div>
+          <div class="p-3 rounded-xl border border-base-200 bg-base-100">
+            <div class="text-xs text-gray-500">Gross Pay</div>
+            <div class="text-lg font-semibold">' . htmlspecialchars($peso($gross), ENT_QUOTES, 'UTF-8') . '</div>
+          </div>
+          <div class="p-3 rounded-xl border border-base-200 bg-base-100">
+            <div class="text-xs text-gray-500">Deductions</div>
+            <div class="text-lg font-semibold text-error">' . htmlspecialchars($peso($ded), ENT_QUOTES, 'UTF-8') . '</div>
+          </div>
+        </div>
+
+        <div class="mt-4 p-4 rounded-xl border border-base-200 bg-base-100">
+          <div class="flex items-center justify-between">
+            <div class="text-sm text-gray-600">Net Pay</div>
+            <div class="text-2xl font-bold">' . htmlspecialchars($peso($net), ENT_QUOTES, 'UTF-8') . '</div>
+          </div>
+        </div>
+
+        <div class="mt-6 flex justify-end gap-2 print:hidden">
+          <button class="btn btn-outline" type="button" onclick="window.print()">Print</button>
+          <button class="btn" type="button" onclick="window.close()">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>';
+}
+
+if ($conn && $employeeId && isset($_GET['id']) && (isset($_GET['view']) || isset($_GET['download']))) {
+  $paymentId = (int)($_GET['id'] ?? 0);
+  if ($paymentId > 0) {
+    $stmt = mysqli_prepare(
+      $conn,
+      'SELECT id, pay_period_start, pay_period_end, basic_pay, allowances, deductions, net_pay, payment_date, status
+       FROM payment_history
+       WHERE employee_id = ? AND id = ?
+       LIMIT 1'
+    );
+    if ($stmt) {
+      mysqli_stmt_bind_param($stmt, 'ii', $employeeId, $paymentId);
+      mysqli_stmt_execute($stmt);
+      $res = mysqli_stmt_get_result($stmt);
+      $row = $res ? mysqli_fetch_assoc($res) : null;
+      mysqli_stmt_close($stmt);
+
+      if (!$row) {
+        http_response_code(404);
+        echo 'Payroll record not found.';
+        exit;
+      }
+
+      $fileSafeDate = preg_replace('/[^0-9\-]/', '', (string)($row['payment_date'] ?? ''));
+      $filename = 'paystub_' . ($fileSafeDate !== '' ? $fileSafeDate : 'date') . '_' . (int)$row['id'] . '.html';
+
+      header('Content-Type: text/html; charset=utf-8');
+      if (isset($_GET['download'])) {
+        header('Content-Disposition: attachment; filename="' . $filename . '"');
+      }
+
+      echo renderPayslip($row);
+      exit;
+    }
+  }
+}
+
 $rows = [];
 
 if ($conn && $employeeId) {
@@ -20,6 +150,7 @@ if ($conn && $employeeId) {
 
   if (!$has) {
     $now = new DateTime('now');
+    $today = new DateTimeImmutable('today');
     $periods = [];
     $curY = (int)$now->format('Y');
     $curM = (int)$now->format('n');
@@ -55,7 +186,8 @@ if ($conn && $employeeId) {
 
       $stmtIns = mysqli_prepare($conn, 'INSERT INTO payment_history (employee_id, pay_period_start, pay_period_end, basic_pay, allowances, deductions, net_pay, payment_date, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
       if ($stmtIns) {
-        $status = 'Paid';
+        $pd = new DateTimeImmutable($payDate);
+        $status = ($pd > $today) ? 'Pending' : 'Paid';
         mysqli_stmt_bind_param($stmtIns, 'issddddss', $employeeId, $ps, $pe, $basic, $allow, $ded, $net, $payDate, $status);
         mysqli_stmt_execute($stmtIns);
         mysqli_stmt_close($stmtIns);
@@ -63,7 +195,51 @@ if ($conn && $employeeId) {
     }
   }
 
-  $stmt = mysqli_prepare($conn, 'SELECT pay_period_start, pay_period_end, basic_pay, allowances, deductions, net_pay, payment_date, status FROM payment_history WHERE employee_id = ? ORDER BY payment_date DESC');
+  $hasPending = false;
+  $stmtP = mysqli_prepare($conn, "SELECT 1 FROM payment_history WHERE employee_id = ? AND status = 'Pending' LIMIT 1");
+  if ($stmtP) {
+    mysqli_stmt_bind_param($stmtP, 'i', $employeeId);
+    mysqli_stmt_execute($stmtP);
+    $resP = mysqli_stmt_get_result($stmtP);
+    $hasPending = (bool)($resP && mysqli_fetch_assoc($resP));
+    mysqli_stmt_close($stmtP);
+  }
+
+  if (!$hasPending) {
+    $nextMonth = new DateTimeImmutable('first day of next month');
+    $y = $nextMonth->format('Y');
+    $m = $nextMonth->format('m');
+    $ps = $y . '-' . $m . '-01';
+    $pe = $y . '-' . $m . '-15';
+
+    $stmtDup = mysqli_prepare($conn, 'SELECT 1 FROM payment_history WHERE employee_id = ? AND pay_period_start = ? AND pay_period_end = ? LIMIT 1');
+    $exists = false;
+    if ($stmtDup) {
+      mysqli_stmt_bind_param($stmtDup, 'iss', $employeeId, $ps, $pe);
+      mysqli_stmt_execute($stmtDup);
+      $resDup = mysqli_stmt_get_result($stmtDup);
+      $exists = (bool)($resDup && mysqli_fetch_assoc($resDup));
+      mysqli_stmt_close($stmtDup);
+    }
+
+    if (!$exists) {
+      $basic = 15000.00;
+      $allow = 2000.00;
+      $ded = 1500.00;
+      $net = $basic + $allow - $ded;
+      $payDate = $pe;
+      $status = 'Pending';
+
+      $stmtIns = mysqli_prepare($conn, 'INSERT INTO payment_history (employee_id, pay_period_start, pay_period_end, basic_pay, allowances, deductions, net_pay, payment_date, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
+      if ($stmtIns) {
+        mysqli_stmt_bind_param($stmtIns, 'issddddss', $employeeId, $ps, $pe, $basic, $allow, $ded, $net, $payDate, $status);
+        mysqli_stmt_execute($stmtIns);
+        mysqli_stmt_close($stmtIns);
+      }
+    }
+  }
+
+  $stmt = mysqli_prepare($conn, 'SELECT id, pay_period_start, pay_period_end, basic_pay, allowances, deductions, net_pay, payment_date, status FROM payment_history WHERE employee_id = ? ORDER BY payment_date DESC, id DESC');
   if ($stmt) {
     mysqli_stmt_bind_param($stmt, 'i', $employeeId);
     mysqli_stmt_execute($stmt);
@@ -72,10 +248,18 @@ if ($conn && $employeeId) {
       while ($r = mysqli_fetch_assoc($res)) {
         $start = (string)($r['pay_period_start'] ?? '');
         $end = (string)($r['pay_period_end'] ?? '');
-        $gross = (float)($r['basic_pay'] ?? 0) + (float)($r['allowances'] ?? 0);
+        $basic = (float)($r['basic_pay'] ?? 0);
+        $allow = (float)($r['allowances'] ?? 0);
+        $ded = (float)($r['deductions'] ?? 0);
+        $gross = $basic + $allow;
         $rows[] = [
+          'id' => (int)($r['id'] ?? 0),
           'check_date' => (string)($r['payment_date'] ?? ''),
-          'period' => $start . ' - ' . $end,
+          'start' => $start,
+          'end' => $end,
+          'basic' => $basic,
+          'allow' => $allow,
+          'ded' => $ded,
           'gross' => $gross,
           'net' => (float)($r['net_pay'] ?? 0),
           'status' => (string)($r['status'] ?? 'Paid'),
@@ -160,8 +344,8 @@ function statusBadgeClass($status)
                   <tbody>
                     <?php foreach ($rows as $r): ?>
                       <tr>
-                        <td class="font-medium"><?php echo htmlspecialchars(date('M d, Y', strtotime($r['check_date']))); ?></td>
-                        <td class="text-gray-600"><?php echo htmlspecialchars($r['period']); ?></td>
+                        <td class="font-medium"><?php echo htmlspecialchars(formatDateLabel($r['check_date'])); ?></td>
+                        <td class="text-gray-600"><?php echo htmlspecialchars(formatPeriodLabel($r['start'], $r['end'])); ?></td>
                         <td class="text-right"><?php echo htmlspecialchars(peso($r['gross'])); ?></td>
                         <td class="text-right font-semibold"><?php echo htmlspecialchars(peso($r['net'])); ?></td>
                         <td>
@@ -169,10 +353,10 @@ function statusBadgeClass($status)
                         </td>
                         <td class="text-center">
                           <div class="flex items-center justify-center gap-2">
-                            <button class="btn btn-ghost btn-xs" type="button" aria-label="View">
+                            <button class="btn btn-ghost btn-xs" type="button" aria-label="View" onclick="viewPayroll(<?php echo (int)$r['id']; ?>)">
                               <i data-lucide="eye" class="w-4 h-4"></i>
                             </button>
-                            <button class="btn btn-ghost btn-xs" type="button" aria-label="Download">
+                            <button class="btn btn-ghost btn-xs" type="button" aria-label="Download" onclick="downloadPayroll(<?php echo (int)$r['id']; ?>)">
                               <i data-lucide="download" class="w-4 h-4"></i>
                             </button>
                           </div>
@@ -195,6 +379,18 @@ function statusBadgeClass($status)
 
   <script>
     lucide.createIcons();
+
+    function viewPayroll(paymentId) {
+      const id = Number(paymentId || 0);
+      if (!Number.isFinite(id) || id <= 0) return;
+      window.open(`paymenthistory.php?view=1&id=${encodeURIComponent(id)}`, '_blank', 'noopener');
+    }
+
+    function downloadPayroll(paymentId) {
+      const id = Number(paymentId || 0);
+      if (!Number.isFinite(id) || id <= 0) return;
+      window.location.href = `paymenthistory.php?download=1&id=${encodeURIComponent(id)}`;
+    }
   </script>
 </body>
 

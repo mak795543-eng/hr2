@@ -8,7 +8,6 @@ return [
         'competency_management',
         'succession_planning',
         'approvals',
-        'employee_self_service',
         'applicant_assessment',
         'table_reservation',
         'kitchen_orders',
@@ -25,6 +24,12 @@ return [
         'user_management',
 
     ],
+    // HR Manager - Higher level approvals
+    'Learning & Development Officer' => [
+        'dashboard',
+        'learning_management',
+        'employee_self_service'
+    ],
 
     'superviser' => [
         'dashboard',
@@ -34,7 +39,6 @@ return [
         'succession_planning',
         'approvals',
         'gap_analysis',
-        'employee_self_service',
         'applicant_assessment',
         'table_reservation',
         'kitchen_orders',
@@ -68,7 +72,6 @@ return [
 
     // Employee - Regular staff access
     'sous chef' => [
-        'dashboard',
         'employee_self_service'
     ],
 
@@ -95,10 +98,5 @@ return [
         'employee_self_service'
     ],
 
-    // HR Manager - Higher level approvals
-    'Learning & Development officer' => [
-        'dashboard',
-        'learning_management',
-        'employee_self_service'
-    ]
+
 ];
