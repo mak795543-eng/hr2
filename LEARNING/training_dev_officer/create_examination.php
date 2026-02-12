@@ -671,10 +671,6 @@ $conn->close();
       margin-top: 1rem !important;
     }
 
-    .swal2-actions-hidden {
-      display: none !important;
-    }
-
     .swal2-confirm-button,
     .swal2-cancel-button {
       display: inline-flex !important;
@@ -3176,8 +3172,6 @@ $conn->close();
 
             console.log('Exam data to submit:', examData);
 
-            let createExamConfirmed = false;
-
             // Show confirmation dialog
             Swal.fire({
               title: isEditMode ? 'Update Examination?' : 'Create Examination?',
@@ -3191,46 +3185,23 @@ $conn->close();
                     <p><strong>Total Points:</strong> ${examData.total_points}</p>
                   </div>
                   <p class="mt-3 text-sm text-gray-600">It will be submitted for review.</p>
-                  <div class="mt-6 flex gap-3 justify-center">
-                    <button type="button" id="swalCreateExamConfirm" style="display:inline-flex;align-items:center;justify-content:center;min-height:44px;padding:0.75rem 1rem;border-radius:0.375rem;font-weight:600;background:#3b82f6;color:#fff;border:none;min-width:160px;">${isEditMode ? 'Yes, Update Exam!' : 'Yes, Create Exam!'}</button>
-                    <button type="button" id="swalCreateExamCancel" style="display:inline-flex;align-items:center;justify-content:center;min-height:44px;padding:0.75rem 1rem;border-radius:0.375rem;font-weight:600;background:#6b7280;color:#fff;border:none;min-width:160px;">Cancel</button>
-                  </div>
                 </div>
               `,
               icon: 'question',
-              showConfirmButton: false,
-              showCancelButton: false,
-              customClass: {
-                actions: 'swal2-actions-hidden'
-              },
+              showCancelButton: true,
+              confirmButtonText: isEditMode ? 'Yes, Update Exam!' : 'Yes, Create Exam!',
+              cancelButtonText: 'Cancel',
+              confirmButtonColor: '#3b82f6',
+              cancelButtonColor: '#6b7280',
+              reverseButtons: true,
               allowOutsideClick: false,
-              allowEscapeKey: true,
-              didOpen: () => {
-                const popup = Swal.getPopup();
-                const confirmBtn = popup ? popup.querySelector('#swalCreateExamConfirm') : null;
-                const cancelBtn = popup ? popup.querySelector('#swalCreateExamCancel') : null;
-
-                if (confirmBtn) {
-                  confirmBtn.addEventListener('click', () => {
-                    createExamConfirmed = true;
-                    Swal.close();
-                    saveExaminationToDatabase(examData);
-                  });
-                }
-
-                if (cancelBtn) {
-                  cancelBtn.addEventListener('click', () => {
-                    Swal.close();
-                    createExamBtn.classList.remove('btn-loading');
-                    createExamBtn.disabled = false;
-                  });
-                }
-              },
-              didClose: () => {
-                if (!createExamConfirmed) {
-                  createExamBtn.classList.remove('btn-loading');
-                  createExamBtn.disabled = false;
-                }
+              allowEscapeKey: true
+            }).then((result) => {
+              if (result.isConfirmed) {
+                saveExaminationToDatabase(examData);
+              } else {
+                createExamBtn.classList.remove('btn-loading');
+                createExamBtn.disabled = false;
               }
             });
           });

@@ -1,4 +1,4 @@
-﻿                                                                                 <?php
+                                                                                 <?php
 session_start();
 // Database connection
 require_once __DIR__ . '/../db.php';
@@ -229,6 +229,90 @@ sort($all_roles);
       height: 90vh;
       max-height: 90vh;
     }
+
+    .modal-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.5rem;
+      height: 100%;
+    }
+
+    @media (max-width: 1024px) {
+      .modal-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .info-section {
+      background-color: #f8fafc;
+      padding: 1.5rem;
+      border-radius: 0.5rem;
+      border: 1px solid #e2e8f0;
+      overflow: hidden;
+    }
+
+    .info-item {
+      display: flex;
+      justify-content: space-between;
+      gap: 1rem;
+      margin-bottom: 0.75rem;
+      padding-bottom: 0.75rem;
+      border-bottom: 1px solid #e2e8f0;
+    }
+
+    .info-item:last-child {
+      margin-bottom: 0;
+      padding-bottom: 0;
+      border-bottom: 0;
+    }
+
+    .info-label {
+      font-weight: 600;
+      color: #4b5563;
+      flex: 0 0 auto;
+    }
+
+    .info-value {
+      color: #1f2937;
+      text-align: right;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      flex: 1 1 auto;
+    }
+
+    .questions-section {
+      background-color: #f8fafc;
+      padding: 1.5rem;
+      border-radius: 0.5rem;
+      border: 1px solid #e2e8f0;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .questions-preview {
+      flex: 1 1 auto;
+      overflow-y: auto;
+      background-color: #fff;
+      border: 1px solid #e2e8f0;
+      border-radius: 0.375rem;
+      padding: 1rem;
+    }
+
+    .preview-question {
+      border: 1px solid #e5e7eb;
+      border-radius: 0.75rem;
+      padding: 1rem;
+      background: white;
+    }
+
+    .preview-option {
+      border: 1px solid #e5e7eb;
+      border-radius: 0.5rem;
+      padding: 0.75rem;
+      background: #fff;
+    }
     
     .document-content {
       height: 70vh;
@@ -442,9 +526,47 @@ sort($all_roles);
         </button>
       </div>
       
-      <div class="flex-1 overflow-y-auto pr-4">
-        <div id="documentPreviewContent">
-          <!-- Preview content will be inserted here -->
+      <div class="flex-1 overflow-hidden pr-2">
+        <div id="documentPreviewContent" class="h-full">
+          <div class="modal-grid">
+            <div class="info-section">
+              <h4 class="font-semibold text-lg mb-4">Info</h4>
+              <div class="info-item">
+                <span class="info-label">Title:</span>
+                <span class="info-value" id="previewInfoTitle">-</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">Topic:</span>
+                <span class="info-value" id="previewInfoTopic">-</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">Department:</span>
+                <span class="info-value" id="previewInfoDepartment">-</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">Role:</span>
+                <span class="info-value" id="previewInfoRole">-</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">Status:</span>
+                <span class="info-value" id="previewInfoStatus">-</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">Date Created:</span>
+                <span class="info-value" id="previewInfoDate">-</span>
+              </div>
+            </div>
+
+            <div class="questions-section">
+              <div class="flex items-center justify-between mb-4">
+                <h4 class="font-semibold text-lg">EXAM QUESTIONS</h4>
+                <div class="badge badge-outline" id="previewQuestionCount">0 Questions</div>
+              </div>
+              <div class="questions-preview" id="examQuestionsPreview">
+                <div class="text-center py-8 text-gray-500">Select an examination to preview.</div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
       
@@ -689,10 +811,24 @@ sort($all_roles);
       
       // Show loading state
       const modal = document.getElementById('document_preview_modal');
-      const previewElement = document.getElementById('documentPreviewContent');
+      const questionsEl = document.getElementById('examQuestionsPreview');
 
-      if (previewElement) {
-        previewElement.innerHTML = `
+      const setText = (id, value) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.textContent = value;
+      };
+
+      setText('previewInfoTitle', 'Loading...');
+      setText('previewInfoTopic', 'Loading...');
+      setText('previewInfoDepartment', 'Loading...');
+      setText('previewInfoRole', 'Loading...');
+      setText('previewInfoStatus', 'Loading...');
+      setText('previewInfoDate', 'Loading...');
+      setText('previewQuestionCount', 'Loading...');
+
+      if (questionsEl) {
+        questionsEl.innerHTML = `
           <div class="flex items-center justify-center py-12">
             <div class="text-center">
               <div class="loading-spinner mx-auto"></div>
@@ -721,19 +857,37 @@ sort($all_roles);
           const exam = data;
           currentExamData = exam;
 
-          if (previewElement) {
-            previewElement.innerHTML = generateExamPreview(exam);
+          setText('previewInfoTitle', String(exam.title || '-'));
+          setText('previewInfoTopic', String(exam.description || exam.module_title || '-'));
+          setText('previewInfoDepartment', formatDepartmentLabel(exam.department));
+          setText('previewInfoRole', formatRolesLabel(exam.roles));
+          setText('previewInfoStatus', titleCase(String(exam.status || 'posted')));
+          setText('previewInfoDate', formatDateLabel(exam.created_at));
+
+          const qCount = Array.isArray(exam.questions) ? exam.questions.length : 0;
+          setText('previewQuestionCount', `${qCount} Question${qCount === 1 ? '' : 's'}`);
+
+          if (questionsEl) {
+            questionsEl.innerHTML = generateExamPreview(exam);
           }
         })
         .catch(error => {
           console.error('Fetch error:', error);
 
-          if (previewElement) {
-            previewElement.innerHTML = `
+          setText('previewInfoTitle', String(title || '-'));
+          setText('previewInfoTopic', '-');
+          setText('previewInfoDepartment', '-');
+          setText('previewInfoRole', '-');
+          setText('previewInfoStatus', '-');
+          setText('previewInfoDate', '-');
+          setText('previewQuestionCount', '0 Questions');
+
+          if (questionsEl) {
+            questionsEl.innerHTML = `
               <div class="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
                 <i class="fas fa-exclamation-triangle text-3xl text-red-500 mb-3"></i>
                 <p class="text-red-700 font-medium">Error loading examination</p>
-                <p class="text-red-600 text-sm">${error.message || 'Please try again or contact support.'}</p>
+                <p class="text-red-600 text-sm">${escapeHtml(error.message || 'Please try again or contact support.')}</p>
               </div>
             `;
           }
@@ -747,127 +901,132 @@ sort($all_roles);
         });
     }
     
+    function escapeHtml(input) {
+      const s = String(input ?? '');
+      return s
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    function titleCase(s) {
+      return String(s || '')
+        .replace(/[_-]+/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .toLowerCase()
+        .replace(/\b\w/g, (c) => c.toUpperCase());
+    }
+
+    function formatDepartmentLabel(department) {
+      const d = String(department || '').trim();
+      return d ? titleCase(d) : '-';
+    }
+
+    function formatRolesLabel(roles) {
+      if (Array.isArray(roles)) {
+        const cleaned = roles.map(r => String(r || '').trim()).filter(Boolean);
+        return cleaned.length ? cleaned.join(', ') : '-';
+      }
+      const s = String(roles || '').trim();
+      if (!s) return '-';
+      return s.split(',').map(r => r.trim()).filter(Boolean).join(', ');
+    }
+
+    function formatDateLabel(value) {
+      const raw = String(value || '').trim();
+      if (!raw) return '-';
+      const datePart = raw.includes(' ') ? raw.split(' ')[0] : raw;
+      const d = new Date(raw);
+      if (!Number.isNaN(d.getTime())) {
+        return d.toISOString().slice(0, 10);
+      }
+      return datePart;
+    }
+
     // Generate exam preview HTML
     function generateExamPreview(exam) {
-      // Fetch questions from original exam
       let questionsHTML = '';
-      if (exam.questions && exam.questions.length > 0) {
-          exam.questions.forEach((question, index) => {
-              questionsHTML += `
-                  <div class="preview-question">
-                      <div class="flex justify-between items-start mb-4">
-                          <div class="flex items-center">
-                              <span class="question-number font-bold text-lg text-primary mr-3">Q${index + 1}</span>
-                              <span class="question-type-badge badge badge-outline badge-sm">${getQuestionTypeLabel(question.question_type)}</span>
-                          </div>
-                          <span class="preview-points">${question.points || 1} point${question.points > 1 ? 's' : ''}</span>
-                      </div>
-                      
-                      <h3 class="text-lg font-semibold text-gray-800 mb-4">${question.question_text}</h3>
-              `;
-              
-              if (question.question_type === 'multiple' || question.question_type === 'truefalse') {
-                  const options = question.options ? JSON.parse(question.options) : [];
-                  const answerKey = question.answer_key ? JSON.parse(question.answer_key) : { correctAnswers: [] };
-                  
-                  questionsHTML += `<div class="preview-options space-y-2">`;
-                  options.forEach((option, optIndex) => {
-                      const isCorrect = answerKey.correctAnswers.includes(option);
-                      const correctClass = isCorrect ? 'bg-green-50 border-green-200' : '';
-                      const letter = String.fromCharCode(65 + optIndex);
-                      
-                      questionsHTML += `
-                          <div class="preview-option ${correctClass}">
-                              <div class="flex items-center gap-2">
-                                  <span class="w-6 h-6 flex items-center justify-center rounded-full ${isCorrect ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-700'}">
-                                      ${letter}
-                                  </span>
-                                  <span class="flex-1">${option}</span>
-                                  ${isCorrect ? '<span class="text-green-600 font-semibold">âœ“ Correct</span>' : ''}
-                              </div>
-                          </div>
-                      `;
-                  });
-                  questionsHTML += `</div>`;
-              } else if (question.question_type === 'shortanswer' || question.question_type === 'identification') {
-                  const answerKey = question.answer_key ? JSON.parse(question.answer_key) : { correctAnswers: [] };
-                  const expectedAnswer = answerKey.correctAnswers.length > 0 ? answerKey.correctAnswers[0] : '';
-                  
-                  questionsHTML += `
-                      <div class="preview-answer">
-                          <div class="form-control">
-                              <label class="label">
-                                  <span class="label-text font-semibold">Expected Answer:</span>
-                              </label>
-                              <div class="bg-green-50 border border-green-200 p-3 rounded-lg">
-                                  <p class="text-green-800 font-medium">${expectedAnswer}</p>
-                              </div>
-                          </div>
-                      </div>
-                  `;
-              }
-              
-              questionsHTML += `</div>`;
-          });
-      } else {
-          questionsHTML = `
-              <div class="text-center py-8">
-                  <i class="fas fa-question-circle text-4xl text-gray-400 mb-4"></i>
-                  <p class="text-gray-500 text-lg">No questions available</p>
+      const questions = Array.isArray(exam?.questions) ? exam.questions : [];
+
+      if (questions.length > 0) {
+        questions.forEach((question, index) => {
+          const qText = escapeHtml(question?.question_text ?? question?.question ?? '');
+          const qType = String(question?.question_type || '').trim();
+          const pointsRaw = Number(question?.points);
+          const points = Number.isFinite(pointsRaw) && pointsRaw > 0 ? pointsRaw : 1;
+
+          questionsHTML += `
+            <div class="preview-question mb-4">
+              <div class="flex justify-between items-start mb-4">
+                <div class="flex items-center">
+                  <span class="question-number font-bold text-lg text-primary mr-3">Q${index + 1}</span>
+                  <span class="question-type-badge badge badge-outline badge-sm">${escapeHtml(getQuestionTypeLabel(qType))}</span>
+                </div>
+                <span class="preview-points text-sm text-gray-500">${points} point${points === 1 ? '' : 's'}</span>
               </div>
+              <h3 class="text-base font-semibold text-gray-800 mb-4">${qText || '-'}</h3>
           `;
-      }
-      
-      const formattedDate = new Date(exam.created_at).toLocaleDateString('en-US', {
-          year: 'numeric',
-          month: 'long',
-          day: 'numeric'
-      });
-      
-      return `
-          <div class="preview-header" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 2rem; border-radius: 0.5rem 0.5rem 0 0; margin-bottom: 1.5rem;">
-              <h1 class="text-3xl font-bold mb-2">${exam.title}</h1>
-              <p class="text-primary-content opacity-90">${exam.description || 'No description provided'}</p>
-              <div class="flex flex-wrap gap-4 mt-4">
-                  <div class="bg-white bg-opacity-20 p-3 rounded-lg">
-                      <p class="text-sm opacity-80">Status</p>
-                      <p class="text-lg font-semibold">${exam.status.charAt(0).toUpperCase() + exam.status.slice(1)}</p>
+
+          if (qType === 'multiple' || qType === 'truefalse') {
+            let options = [];
+            let answerKey = { correctAnswers: [] };
+            try { options = question?.options ? JSON.parse(String(question.options)) : []; } catch (e) { options = []; }
+            try { answerKey = question?.answer_key ? JSON.parse(String(question.answer_key)) : { correctAnswers: [] }; } catch (e2) { answerKey = { correctAnswers: [] }; }
+            const correctAnswers = Array.isArray(answerKey?.correctAnswers) ? answerKey.correctAnswers : [];
+
+            questionsHTML += `<div class="preview-options space-y-2">`;
+            (Array.isArray(options) ? options : []).forEach((opt, optIndex) => {
+              const optionText = escapeHtml(opt);
+              const isCorrect = correctAnswers.includes(opt);
+              const correctClass = isCorrect ? 'bg-green-50 border-green-200' : '';
+              const letter = String.fromCharCode(65 + optIndex);
+
+              questionsHTML += `
+                <div class="preview-option ${correctClass}">
+                  <div class="flex items-center gap-2">
+                    <span class="w-6 h-6 flex items-center justify-center rounded-full ${isCorrect ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-700'}">${letter}</span>
+                    <span class="flex-1">${optionText}</span>
+                    ${isCorrect ? '<span class="text-green-600 font-semibold">&#10003; Correct</span>' : ''}
                   </div>
-                  <div class="bg-white bg-opacity-20 p-3 rounded-lg">
-                      <p class="text-sm opacity-80">Duration</p>
-                      <p class="text-lg font-semibold">${exam.duration} minutes</p>
+                </div>
+              `;
+            });
+            questionsHTML += `</div>`;
+          } else if (qType === 'shortanswer' || qType === 'identification') {
+            let answerKey = { correctAnswers: [] };
+            try { answerKey = question?.answer_key ? JSON.parse(String(question.answer_key)) : { correctAnswers: [] }; } catch (e3) { answerKey = { correctAnswers: [] }; }
+            const correctAnswers = Array.isArray(answerKey?.correctAnswers) ? answerKey.correctAnswers : [];
+            const expectedAnswer = escapeHtml(correctAnswers.length > 0 ? correctAnswers[0] : '');
+
+            questionsHTML += `
+              <div class="preview-answer">
+                <div class="form-control">
+                  <label class="label">
+                    <span class="label-text font-semibold">Expected Answer:</span>
+                  </label>
+                  <div class="bg-green-50 border border-green-200 p-3 rounded-lg">
+                    <p class="text-green-800 font-medium">${expectedAnswer || '-'}</p>
                   </div>
-                  <div class="bg-white bg-opacity-20 p-3 rounded-lg">
-                      <p class="text-sm opacity-80">Passing Score</p>
-                      <p class="text-lg font-semibold">${exam.passing_score}%</p>
-                  </div>
-                  <div class="bg-white bg-opacity-20 p-3 rounded-lg">
-                      <p class="text-sm opacity-80">Department</p>
-                      <p class="text-lg font-semibold">${exam.department || 'General'}</p>
-                  </div>
-                  <div class="bg-white bg-opacity-20 p-3 rounded-lg">
-                      <p class="text-sm opacity-80">Created</p>
-                      <p class="text-lg font-semibold">${formattedDate}</p>
-                  </div>
+                </div>
               </div>
+            `;
+          }
+
+          questionsHTML += `</div>`;
+        });
+      } else {
+        questionsHTML = `
+          <div class="text-center py-8">
+            <i class="fas fa-question-circle text-4xl text-gray-400 mb-4"></i>
+            <p class="text-gray-500 text-lg">No questions available</p>
           </div>
-          
-          <div class="preview-instructions" style="background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 0.5rem; padding: 1.5rem; margin-bottom: 1.5rem;">
-              <h3 class="font-semibold text-blue-800 mb-2">Instructions:</h3>
-              <ul class="text-blue-700 text-sm space-y-1">
-                  <li>â€¢ Read each question carefully before answering</li>
-                  <li>â€¢ Select the best answer for each question</li>
-                  <li>â€¢ You cannot go back to previous questions once answered</li>
-                  <li>â€¢ Ensure all answers are final before submitting</li>
-                  <li>â€¢ You have ${exam.duration} minutes to complete this examination</li>
-                  <li>â€¢ Passing score is ${exam.passing_score}%</li>
-              </ul>
-          </div>
-          
-          <div class="preview-questions space-y-6 mt-8">
-              ${questionsHTML}
-          </div>
-      `;
+        `;
+      }
+
+      return `<div class="preview-questions">${questionsHTML}</div>`;
     }
     
     // Get question type label
@@ -1211,14 +1370,32 @@ sort($all_roles);
           });
           
           // Send request to update status to hold
-          fetch('update_exam_status.php', {
+          const body = new URLSearchParams({
+            exam_id: String(id),
+            new_status: 'hold',
+            remarks: ''
+          });
+
+          fetch('../hr_manager/update_exam_status.php', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/x-www-form-urlencoded',
             },
-            body: `exam_id=${id}&new_status=hold`
+            body: body.toString()
           })
-          .then(response => response.json())
+          .then(async (response) => {
+            const text = await response.text();
+            let data = null;
+            try {
+              data = JSON.parse(text);
+            } catch (e) {
+              throw new Error('Unexpected response: ' + text.slice(0, 120));
+            }
+            if (!response.ok) {
+              throw new Error((data && data.message) ? data.message : 'Request failed');
+            }
+            return data;
+          })
           .then(data => {
             Swal.close();
             if (data.success) {
@@ -1244,7 +1421,7 @@ sort($all_roles);
           .catch(error => {
             Swal.fire({
               title: 'Error!',
-              text: 'Failed to update examination status',
+              text: error.message || 'Failed to update examination status',
               icon: 'error',
               confirmButtonText: 'OK'
             });

@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 session_start();
 // Database connection
 require_once __DIR__ . '/../db.php';
@@ -50,6 +50,16 @@ if ($result && $result->num_rows > 0) {
   while ($row = $result->fetch_assoc()) {
     $examinations[] = $row;
   }
+}
+
+$under_review_count = 0;
+$approved_count = 0;
+$cancelled_count = 0;
+foreach ($examinations as $exam) {
+  $status = (string)($exam['status'] ?? '');
+  if ($status === 'pending') $under_review_count++;
+  if ($status === 'approved') $approved_count++;
+  if ($status === 'cancelled') $cancelled_count++;
 }
 
 $conn->close();
@@ -725,6 +735,35 @@ $conn->close();
             </div>
           </div>
 
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            <div class="stat hr2-summary-card rounded-lg p-6">
+              <div class="stat-figure text-yellow-600">
+                <i class="fas fa-hourglass-half text-3xl"></i>
+              </div>
+              <div class="stat-title text-gray-600">Under Review</div>
+              <div class="stat-value text-gray-800"><?php echo (int)$under_review_count; ?></div>
+              <div class="stat-desc text-gray-500">Pending examinations</div>
+            </div>
+
+            <div class="stat hr2-summary-card rounded-lg p-6">
+              <div class="stat-figure text-yellow-600">
+                <i class="fas fa-check-circle text-3xl"></i>
+              </div>
+              <div class="stat-title text-gray-600">Approved</div>
+              <div class="stat-value text-gray-800"><?php echo (int)$approved_count; ?></div>
+              <div class="stat-desc text-gray-500">Ready for posting</div>
+            </div>
+
+            <div class="stat hr2-summary-card rounded-lg p-6">
+              <div class="stat-figure text-yellow-600">
+                <i class="fas fa-ban text-3xl"></i>
+              </div>
+              <div class="stat-title text-gray-600">Cancelled</div>
+              <div class="stat-value text-gray-800"><?php echo (int)$cancelled_count; ?></div>
+              <div class="stat-desc text-gray-500">Canceled examinations</div>
+            </div>
+          </div>
+
           <!-- Filter Section -->
           <div class="bg-white p-4 rounded-lg shadow-sm mb-6">
             <div class="flex flex-wrap gap-4">
@@ -821,7 +860,7 @@ $conn->close();
 
   <!-- View Document Modal -->
   <dialog id="view_document_modal" class="modal modal-middle">
-    <div class="modal-box max-w-4xl">
+    <div class="modal-box max-w-6xl">
       <div class="flex justify-between items-center mb-4 w-full">
         <h3 class="font-bold text-lg" id="documentTitle">Examination Document</h3>
         <form method="dialog">
@@ -829,42 +868,60 @@ $conn->close();
         </form>
       </div>
 
-      <!-- Document Preview Section -->
-      <div class="bg-base-200 p-5 rounded-lg mb-4">
-        <div class="flex justify-between items-start mb-4">
-          <div>
-            <h4 class="text-lg font-semibold" id="previewExamTitle">Employee Policy Examination</h4>
-            <div class="flex flex-wrap gap-2 mt-2">
-              <div class="badge badge-primary" id="previewDepartment">Human Resources</div>
-              <div class="badge badge-outline" id="previewQuestionCount">10 Questions</div>
-              <div class="badge" id="previewStatusBadge">Pending</div>
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-4">
+        <div class="bg-base-200 p-5 rounded-lg">
+          <h4 class="text-lg font-semibold mb-4">Info</h4>
+
+          <div class="divide-y divide-gray-200">
+            <div class="py-3 grid grid-cols-[120px_1fr] gap-4 items-start">
+              <div class="text-sm font-medium text-gray-600">Title:</div>
+              <div class="text-sm text-gray-800" id="previewExamTitle">Employee Policy Examination</div>
+            </div>
+
+            <div class="py-3 grid grid-cols-[120px_1fr] gap-4 items-start">
+              <div class="text-sm font-medium text-gray-600">Topic:</div>
+              <div class="text-sm text-gray-800" id="previewDescription">This examination tests knowledge of company policies and procedures.</div>
+            </div>
+
+            <div class="py-3 grid grid-cols-[120px_1fr] gap-4 items-start">
+              <div class="text-sm font-medium text-gray-600">Department:</div>
+              <div class="text-sm text-gray-800" id="previewDepartment">Human Resources</div>
+            </div>
+
+            <div class="py-3 grid grid-cols-[120px_1fr] gap-4 items-start">
+              <div class="text-sm font-medium text-gray-600">Status:</div>
+              <div class="flex items-center">
+                <span class="badge" id="previewStatusBadge">Pending</span>
+              </div>
+            </div>
+
+            <div class="py-3 grid grid-cols-[120px_1fr] gap-4 items-start">
+              <div class="text-sm font-medium text-gray-600">Questions:</div>
+              <div class="text-sm text-gray-800" id="previewQuestionCount">10 Questions</div>
+            </div>
+
+            <div class="py-3 grid grid-cols-[120px_1fr] gap-4 items-start">
+              <div class="text-sm font-medium text-gray-600">Duration:</div>
+              <div class="text-sm text-gray-800" id="previewDuration">30 minutes</div>
+            </div>
+
+            <div class="py-3 grid grid-cols-[120px_1fr] gap-4 items-start">
+              <div class="text-sm font-medium text-gray-600">Passing:</div>
+              <div class="text-sm text-gray-800" id="previewPassingScore">70%</div>
+            </div>
+
+            <div class="py-3 grid grid-cols-[120px_1fr] gap-4 items-start">
+              <div class="text-sm font-medium text-gray-600">Date Created:</div>
+              <div class="text-sm text-gray-800" id="previewCreatedAt">—</div>
             </div>
           </div>
         </div>
 
-        <div class="grid grid-cols-2 gap-4 mb-4">
-          <div>
-            <p class="text-sm text-gray-500">Duration</p>
-            <p class="font-medium" id="previewDuration">30 minutes</p>
+        <div class="bg-base-200 p-5 rounded-lg">
+          <div class="flex items-center justify-between mb-4">
+            <h4 class="font-semibold tracking-wide text-gray-700">DOCUMENT PREVIEW</h4>
           </div>
-          <div>
-            <p class="text-sm text-gray-500">Passing Score</p>
-            <p class="font-medium" id="previewPassingScore">70%</p>
-          </div>
-        </div>
-
-        <div class="mb-4">
-          <p class="text-sm text-gray-500">Description</p>
-          <p id="previewDescription">This examination tests knowledge of company policies and procedures.</p>
-        </div>
-
-        <div class="card bg-white">
-          <div class="card-body p-4">
-            <div class="flex items-center justify-between mb-2">
-              <h4 class="font-semibold">Document Preview</h4>
-            </div>
-            <div id="documentPreviewContent" class="document-content"></div>
-          </div>
+          <div id="documentPreviewContent" class="document-content"></div>
         </div>
       </div>
 
@@ -2083,6 +2140,10 @@ $conn->close();
           document.getElementById('previewDuration').textContent = `${exam.duration || 60} minutes`;
           document.getElementById('previewPassingScore').textContent = `${exam.passing_score || 70}%`;
           document.getElementById('previewDescription').textContent = exam.description || 'No description provided.';
+          const createdAtEl = document.getElementById('previewCreatedAt');
+          if (createdAtEl) {
+            createdAtEl.textContent = exam.created_at ? String(exam.created_at).slice(0, 10) : '—';
+          }
 
           renderStudentExamPreviewToDocumentModal(exam, 'db');
         })
@@ -2148,8 +2209,11 @@ $conn->close();
 
         case 'hold':
           html += `
-            <button class="btn btn-success" style="min-width: 140px" onclick="postExam('${currentExamId}')">
-              <i class="fas fa-share-square mr-1"></i> Post
+            <button class="btn btn-success" style="min-width: 140px" onclick="editExam('${currentExamId}')">
+              <i class="fas fa-edit mr-1"></i> Edit
+            </button>
+            <button class="btn btn-danger" style="min-width: 140px" onclick="deleteDbExam('${currentExamId}')">
+              <i class="fas fa-trash mr-1"></i> Delete
             </button>
           `;
           break;

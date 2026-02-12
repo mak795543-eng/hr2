@@ -332,6 +332,18 @@ if ($result && $result->num_rows > 0) {
   }
 }
 
+$under_review_count = 0;
+$approved_count = 0;
+$rejected_count = 0;
+$compliance_count = 0;
+foreach ($modules as $module) {
+  $status = (string)($module['status'] ?? '');
+  if ($status === 'pending') $under_review_count++;
+  if ($status === 'approved') $approved_count++;
+  if ($status === 'rejected') $rejected_count++;
+  if ($status === 'compliance' || $status === 'for-compliance') $compliance_count++;
+}
+
 $conn->close();
 ?>
 
@@ -909,6 +921,44 @@ $conn->close();
                 <i class="fas fa-plus mr-2"></i>Upload Module
               </button>
 
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+            <div class="stat hr2-summary-card rounded-lg p-6">
+              <div class="stat-figure text-yellow-600">
+                <i class="fas fa-hourglass-half text-3xl"></i>
+              </div>
+              <div class="stat-title text-gray-600">Under Review</div>
+              <div class="stat-value text-gray-800"><?php echo (int)$under_review_count; ?></div>
+              <div class="stat-desc text-gray-500">Pending modules</div>
+            </div>
+
+            <div class="stat hr2-summary-card rounded-lg p-6">
+              <div class="stat-figure text-yellow-600">
+                <i class="fas fa-check-circle text-3xl"></i>
+              </div>
+              <div class="stat-title text-gray-600">Approved</div>
+              <div class="stat-value text-gray-800"><?php echo (int)$approved_count; ?></div>
+              <div class="stat-desc text-gray-500">Ready for posting</div>
+            </div>
+
+            <div class="stat hr2-summary-card rounded-lg p-6">
+              <div class="stat-figure text-yellow-600">
+                <i class="fas fa-clipboard-check text-3xl"></i>
+              </div>
+              <div class="stat-title text-gray-600">For Compliance</div>
+              <div class="stat-value text-gray-800"><?php echo (int)$compliance_count; ?></div>
+              <div class="stat-desc text-gray-500">Needs updates</div>
+            </div>
+
+            <div class="stat hr2-summary-card rounded-lg p-6">
+              <div class="stat-figure text-yellow-600">
+                <i class="fas fa-times-circle text-3xl"></i>
+              </div>
+              <div class="stat-title text-gray-600">Rejected</div>
+              <div class="stat-value text-gray-800"><?php echo (int)$rejected_count; ?></div>
+              <div class="stat-desc text-gray-500">Requires revision</div>
             </div>
           </div>
 
