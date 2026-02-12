@@ -135,12 +135,6 @@ function hr_dashboard_build_analytics(string $departmentFilter, string $rangeKey
       ],
       'statusChart' => ['labels' => [], 'values' => []],
     ],
-    'competencyStatus' => [
-      'statusCounts' => [],
-      'labels' => [],
-      'values' => [],
-      'total' => 0,
-    ],
     'idp' => [
       'statusCounts' => [],
       'statusOrder' => ['approved', 'rejected', 'for_compliance', 'requested'],
@@ -663,68 +657,9 @@ function hr_dashboard_build_analytics(string $departmentFilter, string $rangeKey
         'values' => $deptValues,
       ];
 
-      if (function_exists('ensureKpiSchema')) {
-        ensureKpiSchema();
-      }
-
-      global $pdo;
-      if (isset($pdo) && $pdo instanceof PDO) {
-        $statusCounts = [
-          'Retrain' => 0,
-          'Reskilling' => 0,
-          'Refresher Training' => 0,
-          'Upskilling' => 0,
-          'Succession Ready' => 0,
-        ];
-
-        $compSql = "
-          SELECT 
-            CASE
-              WHEN COALESCE(AVG(COALESCE(s.score, 0)) / 5 * 100, 0) <= 20 THEN 'Retrain'
-              WHEN COALESCE(AVG(COALESCE(s.score, 0)) / 5 * 100, 0) <= 40 THEN 'Reskilling'
-              WHEN COALESCE(AVG(COALESCE(s.score, 0)) / 5 * 100, 0) <= 60 THEN 'Refresher Training'
-              WHEN COALESCE(AVG(COALESCE(s.score, 0)) / 5 * 100, 0) <= 80 THEN 'Upskilling'
-              ELSE 'Succession Ready'
-            END AS status,
-            COUNT(*) AS c
-          FROM employees e
-          LEFT JOIN employee_kpi_scores s 
-            ON s.employee_id = e.employee_id";
-
-        $compWhere = [];
-        if ($departmentFilter !== '' && $departmentFilter !== 'all') {
-          $compWhere[] = "e.department = :dept4";
-        }
-        if (!empty($compWhere)) {
-          $compSql .= " WHERE " . implode(' AND ', $compWhere);
-        }
-        $compSql .= " GROUP BY status";
-
-        $compStmt = $pdo->prepare($compSql);
-        if ($departmentFilter !== '' && $departmentFilter !== 'all') {
-          $compStmt->bindValue(':dept4', $departmentFilter, PDO::PARAM_STR);
-        }
-        $compStmt->execute();
-
-        while ($row = $compStmt->fetch(PDO::FETCH_ASSOC)) {
-          $status = (string)($row['status'] ?? '');
-          $cnt = (int)($row['c'] ?? 0);
-          if (isset($statusCounts[$status])) {
-            $statusCounts[$status] += $cnt;
-          }
-        }
-
-        $totalEmployees = 0;
-        foreach ($statusCounts as $cnt) {
-          $totalEmployees += (int)$cnt;
-        }
-
-        $data['competencyStatus'] = [
-          'statusCounts' => $statusCounts,
-          'labels' => array_keys($statusCounts),
-          'values' => array_values($statusCounts),
-          'total' => $totalEmployees,
-        ];
+      if (function_exists('getEmployees')) {
+        $deptParam = ($departmentFilter !== '' && $departmentFilter !== 'all') ? $departmentFilter : 'all';
+        getEmployees('all', '', $deptParam);
       }
     }
   } catch (Throwable $e) {
@@ -824,16 +759,6 @@ if (isset($_GET['analytics'])) {
           $trainingSummary = ['programs' => 0, 'completed' => 0, 'upcoming' => 0];
           $learningSummary = ['taken' => 0, 'pass' => 0, 'fail' => 0];
           $successionSummary = ['candidates' => 0, 'avg' => 0.0, 'departments' => 0];
-          $competencySummary = [
-            'employees' => 0,
-            'bands' => [
-              'Retrain' => 0,
-              'Reskilling' => 0,
-              'Refresher Training' => 0,
-              'Upskilling' => 0,
-              'Succession Ready' => 0,
-            ],
-          ];
           try {
             require_once __DIR__ . '/TRAINING/TRAINING/db.php';
             $tconn = training_db_connect();
@@ -862,44 +787,15 @@ if (isset($_GET['analytics'])) {
             error_log('dashboard_learning_summary_error: ' . $e->getMessage());
           }
           try {
-            if (isset($pdo)) {
-              $successionSummary['candidates'] = (int)($pdo->query("SELECT COUNT(*) FROM succession_submissions WHERE is_pushed = 1")->fetchColumn() ?? 0);
-              $stmtAvg = $pdo->query("SELECT AVG(comp) FROM (SELECT AVG(COALESCE(s2.score,0))/5*100 AS comp FROM employee_kpi_scores s2 JOIN succession_submissions ss ON ss.employee_id = s2.employee_id WHERE ss.is_pushed = 1 GROUP BY s2.employee_id) t");
-              $successionSummary['avg'] = (float)($stmtAvg ? ($stmtAvg->fetchColumn() ?? 0.0) : 0.0);
-              $successionSummary['departments'] = (int)($pdo->query("SELECT COUNT(DISTINCT department) FROM succession_submissions WHERE is_pushed = 1")->fetchColumn() ?? 0);
-              $bandsSql = "
-                SELECT 
-                  CASE
-                    WHEN COALESCE(AVG(COALESCE(s.score, 0)) / 5 * 100, 0) <= 20 THEN 'Retrain'
-                    WHEN COALESCE(AVG(COALESCE(s.score, 0)) / 5 * 100, 0) <= 40 THEN 'Reskilling'
-                    WHEN COALESCE(AVG(COALESCE(s.score, 0)) / 5 * 100, 0) <= 60 THEN 'Refresher Training'
-                    WHEN COALESCE(AVG(COALESCE(s.score, 0)) / 5 * 100, 0) <= 80 THEN 'Upskilling'
-                    ELSE 'Succession Ready'
-                  END AS status,
-                  COUNT(*) AS c
-                FROM employees e
-                LEFT JOIN employee_kpi_scores s 
-                  ON s.employee_id = e.employee_id
-                GROUP BY status";
-              $stmtBands = $pdo->query($bandsSql);
-              $rows = $stmtBands ? $stmtBands->fetchAll(PDO::FETCH_ASSOC) : [];
-              foreach ($rows as $row) {
-                $status = (string)($row['status'] ?? '');
-                $cnt = (int)($row['c'] ?? 0);
-                if (isset($competencySummary['bands'][$status])) {
-                  $competencySummary['bands'][$status] += $cnt;
-                }
-              }
-              $competencySummary['employees'] = 0;
-              foreach ($competencySummary['bands'] as $cnt) {
-                $competencySummary['employees'] += (int)$cnt;
-              }
-            }
+            $successionSummary['candidates'] = (int)($pdo->query("SELECT COUNT(*) FROM succession_submissions WHERE is_pushed = 1")->fetchColumn() ?? 0);
+            $stmtAvg = $pdo->query("SELECT AVG(comp) FROM (SELECT AVG(COALESCE(s2.score,0))/5*100 AS comp FROM employee_kpi_scores s2 JOIN succession_submissions ss ON ss.employee_id = s2.employee_id WHERE ss.is_pushed = 1 GROUP BY s2.employee_id) t");
+            $successionSummary['avg'] = (float)($stmtAvg ? ($stmtAvg->fetchColumn() ?? 0.0) : 0.0);
+            $successionSummary['departments'] = (int)($pdo->query("SELECT COUNT(DISTINCT department) FROM succession_submissions WHERE is_pushed = 1")->fetchColumn() ?? 0);
           } catch (Throwable $e) {
-            error_log('dashboard_competency_summary_error: ' . $e->getMessage());
+            error_log('dashboard_succession_summary_error: ' . $e->getMessage());
           }
           ?>
-          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
             <div class="rounded-xl shadow-md p-6 bg-white">
               <div class="flex items-start justify-between">
                 <div>
@@ -933,27 +829,6 @@ if (isset($_GET['analytics'])) {
                 </div>
                 <div class="p-2 rounded-xl bg-violet-100">
                   <i data-lucide="pie-chart" class="w-5 h-5 text-violet-600"></i>
-                </div>
-              </div>
-            </div>
-            <div class="rounded-xl shadow-md p-6 bg-white">
-              <div class="flex items-start justify-between">
-                <div>
-                  <div class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Competency Readiness</div>
-                  <div class="mt-1 text-3xl font-bold text-gray-900"><?php echo (int)$competencySummary['employees']; ?></div>
-                  <div class="text-xs text-gray-500 mt-1">
-                    <?php
-                    $bands = $competencySummary['bands'];
-                    echo 'Re: ' . (int)$bands['Retrain']
-                      . ' • ReSk: ' . (int)$bands['Reskilling']
-                      . ' • Ref: ' . (int)$bands['Refresher Training']
-                      . ' • Up: ' . (int)$bands['Upskilling']
-                      . ' • Succ: ' . (int)$bands['Succession Ready'];
-                    ?>
-                  </div>
-                </div>
-                <div class="p-2 rounded-xl bg-purple-100">
-                  <i data-lucide="bar-chart-2" class="w-5 h-5 text-purple-600"></i>
                 </div>
               </div>
             </div>
@@ -1092,33 +967,6 @@ if (isset($_GET['analytics'])) {
                         <div class="analytics-skeleton h-56 rounded-lg bg-gray-100 animate-pulse" data-skeleton="examCreatedStatus"></div>
                         <canvas id="examCreatedStatusChart" class="w-full h-56 hidden" aria-label="Examinations by status chart" role="img"></canvas>
                         <div class="text-sm text-gray-500 mt-2 hidden" id="examCreatedStatusEmptyMessage">No examinations created in this period.</div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </section>
-
-              <section aria-label="Competency status analytics" class="space-y-4">
-                <div class="flex items-center justify-between">
-                  <h3 class="text-sm font-semibold text-gray-700 uppercase tracking-wider">Competency Status</h3>
-                  <div class="text-xs text-gray-500" id="competencyStatusSummary"></div>
-                </div>
-                <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
-                  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2 gap-4" id="competencyStatusCards"></div>
-                  <div class="card border border-gray-200">
-                    <div class="card-body">
-                      <div class="flex items-center justify-between mb-2">
-                        <h4 class="card-title text-sm font-semibold">Employees by Status</h4>
-                        <div class="flex gap-2 text-xs">
-                          <button type="button" class="btn btn-ghost btn-xs" data-export="competencyStatus" data-format="png">PNG</button>
-                          <button type="button" class="btn btn-ghost btn-xs" data-export="competencyStatus" data-format="csv">CSV</button>
-                          <button type="button" class="btn btn-ghost btn-xs" data-export="competencyStatus" data-format="pdf">PDF</button>
-                        </div>
-                      </div>
-                      <div class="mt-2">
-                        <div class="analytics-skeleton h-56 rounded-lg bg-gray-100 animate-pulse" data-skeleton="competencyStatus"></div>
-                        <canvas id="competencyStatusChart" class="w-full h-56 hidden" aria-label="Competency status pie chart" role="img"></canvas>
-                        <div class="text-sm text-gray-500 mt-2 hidden" id="competencyStatusEmptyMessage">No competency status data available.</div>
                       </div>
                     </div>
                   </div>
@@ -1515,127 +1363,6 @@ if (isset($_GET['analytics'])) {
         }
       }
 
-      function renderCompetencyStatus(data) {
-        const analytics = data.competencyStatus || {};
-        const statusCounts = analytics.statusCounts || {};
-        const labels = Array.isArray(analytics.labels) ? analytics.labels : [];
-        const values = Array.isArray(analytics.values) ? analytics.values : [];
-        const total = typeof analytics.total === 'number' ? analytics.total : 0;
-
-        const cardsRoot = document.getElementById('competencyStatusCards');
-        const summaryEl = document.getElementById('competencyStatusSummary');
-        hideSkeleton('competencyStatus');
-
-        if (summaryEl) {
-          summaryEl.textContent = total > 0 ? total + ' employees with competency status' : 'No employees with competency status';
-        }
-
-        if (cardsRoot) {
-          cardsRoot.innerHTML = '';
-          const statuses = [{
-              key: 'Retrain',
-              label: 'Retrain',
-              icon: 'rotate-ccw',
-              iconBg: 'bg-red-100',
-              iconColor: 'text-red-600'
-            },
-            {
-              key: 'Reskilling',
-              label: 'Reskilling',
-              icon: 'refresh-ccw',
-              iconBg: 'bg-orange-100',
-              iconColor: 'text-orange-600'
-            },
-            {
-              key: 'Refresher Training',
-              label: 'Refresher',
-              icon: 'repeat',
-              iconBg: 'bg-yellow-100',
-              iconColor: 'text-yellow-600'
-            },
-            {
-              key: 'Upskilling',
-              label: 'Upskilling',
-              icon: 'trending-up',
-              iconBg: 'bg-emerald-100',
-              iconColor: 'text-emerald-600'
-            },
-            {
-              key: 'Succession Ready',
-              label: 'Succession Ready',
-              icon: 'award',
-              iconBg: 'bg-sky-100',
-              iconColor: 'text-sky-600'
-            },
-          ];
-
-          statuses.forEach(item => {
-            const count = statusCounts[item.key] || 0;
-            if (count === 0 && total === 0) {
-              return;
-            }
-            const pct = total > 0 ? ((count / total) * 100).toFixed(1) : '0.0';
-            const card = document.createElement('div');
-            card.className = 'rounded-xl shadow-md p-6 bg-white';
-            card.innerHTML =
-              '<div class="flex items-start justify-between">' +
-              '<div>' +
-              '<div class="text-xs font-semibold text-gray-500 uppercase tracking-wider">' + item.label + '</div>' +
-              '<div class="mt-1 text-3xl font-bold text-gray-900">' + count + '</div>' +
-              '<div class="text-xs text-gray-500 mt-1">' + pct + '% of employees</div>' +
-              '</div>' +
-              '<div class="p-2 rounded-xl ' + item.iconBg + '">' +
-              '<i data-lucide="' + item.icon + '" class="w-5 h-5 ' + item.iconColor + '"></i>' +
-              '</div>' +
-              '</div>';
-            cardsRoot.appendChild(card);
-          });
-
-          if (typeof lucide !== 'undefined' && lucide.createIcons) {
-            lucide.createIcons();
-          }
-        }
-
-        if (labels.length > 0 && values.some(v => v > 0)) {
-          const ctx = document.getElementById('competencyStatusChart');
-          if (ctx && window.Chart) {
-            showCanvas('competencyStatusChart');
-            const chart = new Chart(ctx, {
-              type: 'pie',
-              data: {
-                labels,
-                datasets: [{
-                  data: values,
-                  backgroundColor: ['#dc2626', '#f97316', '#facc15', '#22c55e', '#0ea5e9']
-                }]
-              },
-              options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                  legend: {
-                    position: 'bottom'
-                  },
-                  tooltip: {
-                    callbacks: {
-                      label: ctx => {
-                        const totalVal = ctx.dataset.data.reduce((sum, v) => sum + v, 0);
-                        const val = ctx.parsed;
-                        const pct = totalVal > 0 ? ((val / totalVal) * 100).toFixed(1) : 0;
-                        return ctx.label + ': ' + val + ' (' + pct + '%)';
-                      }
-                    }
-                  }
-                }
-              }
-            });
-            charts.competencyStatus = chart;
-          }
-        } else {
-          showEmptyMessage('competencyStatusEmptyMessage');
-        }
-      }
-
       function loadAnalytics() {
         fetch(analyticsEndpoint, {
             headers: {
@@ -1650,7 +1377,6 @@ if (isset($_GET['analytics'])) {
             const data = payload.data || {};
             renderLearningModules(data);
             renderExaminations(data);
-            renderCompetencyStatus(data);
           })
           .catch(err => {
             console.error('Analytics load error', err);

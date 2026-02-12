@@ -218,12 +218,11 @@ require('../../partials/header.php');
                                             <div class="chart-background" style="--percentage: 100"></div>
                                             <div class="chart-fill"
                                                 style="--percentage: <?php echo min(100, $emp['competency']); ?>; --chart-color: <?php echo $chartColor; ?>"></div>
-                                            <div class="chart-inner">
-                                                <div class="chart-value" style="color: <?php echo $chartColor; ?>">
-                                                    <?php echo number_format($emp['competency'], 1); ?>%
+                                                <div class="chart-inner">
+                                                    <div class="chart-value" style="color: <?php echo $chartColor; ?>">
+                                                        <?php echo number_format($emp['competency'], 1); ?>%
+                                                    </div>
                                                 </div>
-                                                <div class="chart-label">Competency Level</div>
-                                            </div>
 
                                         </div>
                                     </div>
