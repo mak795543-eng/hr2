@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 session_start();
 
 // Database connection
@@ -330,6 +330,18 @@ if ($result && $result->num_rows > 0) {
   while ($row = $result->fetch_assoc()) {
     $modules[] = $row;
   }
+}
+
+$under_review_count = 0;
+$approved_count = 0;
+$rejected_count = 0;
+$compliance_count = 0;
+foreach ($modules as $module) {
+  $status = (string)($module['status'] ?? '');
+  if ($status === 'pending') $under_review_count++;
+  if ($status === 'approved') $approved_count++;
+  if ($status === 'rejected') $rejected_count++;
+  if ($status === 'compliance' || $status === 'for-compliance') $compliance_count++;
 }
 
 $conn->close();
@@ -764,52 +776,6 @@ $conn->close();
       margin-bottom: 0.5rem;
     }
 
-    /* SweetAlert2 custom styles to ensure buttons are visible and in front of modals */
-    .swal2-popup {
-      font-size: 1rem !important;
-      z-index: 2147483647 !important;
-      /* Higher than modal z-index */
-    }
-
-    .swal2-container {
-      position: fixed !important;
-      inset: 0 !important;
-      z-index: 2147483647 !important;
-      /* Ensure it's above modals */
-      pointer-events: auto !important;
-    }
-
-    .swal2-confirm,
-    .swal2-deny,
-    .swal2-cancel {
-      padding: 0.5rem 1.5rem !important;
-      font-size: 0.875rem !important;
-      border-radius: 0.375rem !important;
-      display: inline-block !important;
-      opacity: 1 !important;
-      visibility: visible !important;
-    }
-
-    .swal2-confirm {
-      background-color: #3b82f6 !important;
-      border: 1px solid #3b82f6 !important;
-    }
-
-    .swal2-cancel {
-      background-color: #6b7280 !important;
-      border: 1px solid #6b7280 !important;
-      color: white !important;
-    }
-
-    /* Ensure modals have proper z-index but lower than SweetAlert */
-    .modal {
-      z-index: 9999;
-    }
-
-    .modal-box {
-      z-index: 10000;
-    }
-
     /* Optional file upload indicator */
     .optional-indicator {
       color: #6b7280;
@@ -951,10 +917,48 @@ $conn->close();
             </div>
             <div class="top-nav-buttons">
 
-              <button class="btn btn-border" onclick="upload_modal.showModal()">
+              <button class="btn btn-border" onclick="openUploadModal()">
                 <i class="fas fa-plus mr-2"></i>Upload Module
               </button>
 
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+            <div class="stat hr2-summary-card rounded-lg p-6">
+              <div class="stat-figure text-yellow-600">
+                <i class="fas fa-hourglass-half text-3xl"></i>
+              </div>
+              <div class="stat-title text-gray-600">Under Review</div>
+              <div class="stat-value text-gray-800"><?php echo (int)$under_review_count; ?></div>
+              <div class="stat-desc text-gray-500">Pending modules</div>
+            </div>
+
+            <div class="stat hr2-summary-card rounded-lg p-6">
+              <div class="stat-figure text-yellow-600">
+                <i class="fas fa-check-circle text-3xl"></i>
+              </div>
+              <div class="stat-title text-gray-600">Approved</div>
+              <div class="stat-value text-gray-800"><?php echo (int)$approved_count; ?></div>
+              <div class="stat-desc text-gray-500">Ready for posting</div>
+            </div>
+
+            <div class="stat hr2-summary-card rounded-lg p-6">
+              <div class="stat-figure text-yellow-600">
+                <i class="fas fa-clipboard-check text-3xl"></i>
+              </div>
+              <div class="stat-title text-gray-600">For Compliance</div>
+              <div class="stat-value text-gray-800"><?php echo (int)$compliance_count; ?></div>
+              <div class="stat-desc text-gray-500">Needs updates</div>
+            </div>
+
+            <div class="stat hr2-summary-card rounded-lg p-6">
+              <div class="stat-figure text-yellow-600">
+                <i class="fas fa-times-circle text-3xl"></i>
+              </div>
+              <div class="stat-title text-gray-600">Rejected</div>
+              <div class="stat-value text-gray-800"><?php echo (int)$rejected_count; ?></div>
+              <div class="stat-desc text-gray-500">Requires revision</div>
             </div>
           </div>
 
@@ -1529,49 +1533,24 @@ $conn->close();
   <script src="https://unpkg.com/mammoth/mammoth.browser.min.js"></script>
 
   <script>
-    (function() {
-      if (!window.Swal || Swal.__hrPatched) return;
-
-      const origFire = Swal.fire.bind(Swal);
-      Swal.fire = function() {
-        let opts = null;
-        if (arguments.length === 1 && arguments[0] && typeof arguments[0] === 'object') {
-          opts = Object.assign({}, arguments[0]);
-        } else {
-          opts = {
-            title: arguments[0],
-            html: arguments[1],
-            icon: arguments[2]
-          };
-        }
-
-        try {
-          const openDialogs = Array.from(document.querySelectorAll('dialog[open]'));
-          const topDialog = openDialogs.length ? openDialogs[openDialogs.length - 1] : null;
-          if (topDialog && !opts.target) {
-            opts.target = topDialog;
-          }
-        } catch (e) {}
-
-        if (typeof opts.heightAuto === 'undefined') {
-          opts.heightAuto = false;
-        }
-
-        return origFire(opts);
-      };
-
-      Swal.__hrPatched = true;
-    })();
-
     // File handling variables
     let uploadedFiles = [];
     let selectedFileContent = '';
+    let currentModal = null;
 
     // Function to close current modal
     function closeCurrentModal() {
       if (currentModal) {
         currentModal.close();
         currentModal = null;
+      }
+    }
+
+    function openUploadModal() {
+      const modal = document.getElementById('upload_modal');
+      if (modal && typeof modal.showModal === 'function') {
+        currentModal = modal;
+        modal.showModal();
       }
     }
 
@@ -1582,7 +1561,10 @@ $conn->close();
 
       // Show drafts modal
       const draftsModal = document.getElementById('drafts_modal');
-      draftsModal.showModal();
+      if (draftsModal && typeof draftsModal.showModal === 'function') {
+        currentModal = draftsModal;
+        draftsModal.showModal();
+      }
 
       // Load drafts
       loadDrafts();
@@ -3140,6 +3122,7 @@ $conn->close();
         }
 
         if (openUpload === '1' && uploadModal && typeof uploadModal.showModal === 'function') {
+          currentModal = uploadModal;
           uploadModal.showModal();
         }
       } catch (e) {}
