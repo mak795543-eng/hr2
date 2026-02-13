@@ -956,7 +956,7 @@ $conn->close();
 
   <!-- View Examination Modal -->
   <dialog id="view_exam_modal" class="modal">
-    <div class="modal-box max-w-6xl p-0 overflow-hidden">
+    <div class="modal-box max-w-6xl p-0 overflow-hidden flex flex-col max-h-[90vh]">
       <div class="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-6">
         <div class="flex justify-between items-start">
           <div class="flex-1">
@@ -976,84 +976,98 @@ $conn->close();
               </span>
             </div>
           </div>
-          <button class="btn btn-circle btn-ghost btn-sm text-white hover:bg-white hover:bg-opacity-20" onclick="view_exam_modal.close()">
-            <i class="fas fa-times text-lg"></i>
+          <button class="btn btn-circle btn-sm bg-white hover:bg-gray-100 border border-white text-black" onclick="this.closest('dialog').close()" aria-label="Close">
+            <i class="fas fa-times text-lg text-black"></i>
           </button>
         </div>
       </div>
 
-      <!-- Learning Module Reference Section (Collapsible) -->
-      <div class="border-b border-gray-200">
-        <div class="flex items-center justify-between p-4 cursor-pointer bg-gray-50" onclick="toggleModulePreview()">
-          <div class="flex items-center">
-            <i class="fas fa-book text-blue-600 mr-3 text-lg"></i>
-            <h4 class="font-semibold text-gray-800">Learning Module Reference</h4>
-          </div>
-          <i class="fas fa-chevron-down text-gray-500 transition-transform" id="moduleToggleIcon"></i>
-        </div>
-        <div class="hidden" id="modulePreviewContent">
-          <div class="p-4 bg-gray-50 border-t border-gray-200 max-h-60 overflow-y-auto">
-            <div id="moduleContentPreview">
-              <!-- Module content will be loaded here -->
-              <div class="text-center py-4">
-                <div class="loading-spinner inline-block"></div>
-                <p class="text-gray-500 mt-2">Loading module content...</p>
+      <div class="p-6 flex-1 overflow-y-auto">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div class="border border-gray-200 rounded-lg overflow-hidden flex flex-col min-h-0 h-[60vh] max-h-[60vh]">
+            <div class="p-4 bg-gray-50 border-b border-gray-200">
+              <div class="flex items-center">
+                <i class="fas fa-book text-blue-600 mr-3 text-lg"></i>
+                <h4 class="font-semibold text-gray-800">Learning Module Reference</h4>
               </div>
+            </div>
+
+            <div class="p-4 bg-gray-50 flex-1 overflow-y-auto min-h-0">
+              <div id="moduleContentPreview">
+                <div class="text-center py-4">
+                  <div class="loading-spinner inline-block"></div>
+                  <p class="text-gray-500 mt-2">Loading module reference...</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="p-4 bg-white border-t border-gray-200 flex gap-2 justify-end">
+              <button class="btn btn-sm btn-border" type="button" onclick="downloadCurrentModuleReference()">
+                <i class="fas fa-download mr-2"></i>Download
+              </button>
+              <button class="btn btn-sm btn-border" type="button" onclick="openCurrentModuleFullContent()">
+                <i class="fas fa-external-link-alt mr-2"></i>View Full Content
+              </button>
+            </div>
+          </div>
+
+          <div class="border border-gray-200 rounded-lg overflow-hidden flex flex-col min-h-0 h-[60vh] max-h-[60vh]">
+            <div class="p-4 bg-gray-50 border-b border-gray-200">
+              <div class="flex items-center">
+                <i class="fas fa-file-alt text-blue-600 mr-2"></i>
+                <h4 class="font-semibold text-lg text-gray-800">Examination Preview</h4>
+                <span class="ml-auto text-sm text-gray-500" id="examQuestionCount">0 Questions</span>
+              </div>
+            </div>
+
+            <div class="p-4 flex-1 overflow-y-auto min-h-0">
+              <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+                <h5 class="font-semibold text-blue-800 mb-2 flex items-center">
+                  <i class="fas fa-info-circle mr-2"></i>
+                  Instructions:
+                </h5>
+                <ul class="text-blue-700 text-sm space-y-1">
+                  <li>• Read each question carefully before answering</li>
+                  <li>• Select the best answer for each question</li>
+                  <li>• Ensure all answers are final before submitting</li>
+                  <li>• Time limit: <span id="examDurationPreview">60</span> minutes</li>
+                </ul>
+              </div>
+
+              <div id="exam_questions" class="space-y-4">
+                <div class="text-center py-8">
+                  <div class="loading-spinner"></div>
+                  <p class="mt-2 text-gray-500">Loading examination questions...</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="p-4 bg-white border-t border-gray-200 flex gap-2 justify-end">
+              <button class="btn btn-sm btn-border" type="button" onclick="downloadCurrentExamPreview()">
+                <i class="fas fa-download mr-2"></i>Download
+              </button>
+              <button class="btn btn-sm btn-border" type="button" onclick="showFullExamPreview()">
+                <i class="fas fa-external-link-alt mr-2"></i>View Full Content
+              </button>
             </div>
           </div>
         </div>
       </div>
 
-      <!-- Examination Preview Content -->
-      <div class="p-6 max-h-[60vh] overflow-y-auto">
-        <div class="mb-6">
-          <div class="flex items-center mb-4">
-            <i class="fas fa-file-alt text-blue-600 mr-2"></i>
-            <h4 class="font-semibold text-lg text-gray-800">Examination Preview</h4>
-            <span class="ml-auto text-sm text-gray-500" id="examQuestionCount">0 Questions</span>
-          </div>
-
-          <!-- Instructions Box -->
-          <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-            <h5 class="font-semibold text-blue-800 mb-2 flex items-center">
-              <i class="fas fa-info-circle mr-2"></i>
-              Instructions:
-            </h5>
-            <ul class="text-blue-700 text-sm space-y-1">
-              <li>â€¢ Read each question carefully before answering</li>
-              <li>â€¢ Select the best answer for each question</li>
-              <li>â€¢ Ensure all answers are final before submitting</li>
-              <li>â€¢ Time limit: <span id="examDurationPreview">60</span> minutes</li>
-            </ul>
-          </div>
-
-          <!-- Questions Container -->
-          <div id="exam_questions" class="space-y-4">
-            <!-- Questions will be inserted here -->
-            <div class="text-center py-8">
-              <div class="loading-spinner"></div>
-              <p class="mt-2 text-gray-500">Loading examination questions...</p>
-            </div>
-          </div>
-        </div>
-
-        <!-- Action Section -->
-        <div class="action-section">
-          <p class="text-sm text-gray-500 mb-3">Examination Actions</p>
-          <div class="action-buttons">
-            <button class="action-btn approve" onclick="approveExam()">
-              <i class="fas fa-check mr-2"></i>Approve
-            </button>
-            <button class="action-btn reject" onclick="rejectExam()">
-              <i class="fas fa-times mr-2"></i>Reject
-            </button>
-            <button class="action-btn compliance" onclick="forExamCompliance()">
-              <i class="fas fa-exclamation-triangle mr-2"></i>For Compliance
-            </button>
-            <button class="action-btn" id="examCancelBtn" onclick="cancelPendingExam()" style="display:none;">
-              <i class="fas fa-ban mr-2"></i>Cancel
-            </button>
-          </div>
+      <div class="p-4 bg-white border-t border-gray-200">
+        <div class="action-buttons justify-end">
+          <button class="action-btn approve" onclick="approveExam()">
+            <i class="fas fa-check mr-2"></i>Approve
+          </button>
+          <button class="action-btn reject" onclick="rejectExam()">
+            <i class="fas fa-times mr-2"></i>Reject
+          </button>
+          <button class="action-btn compliance" onclick="forExamCompliance()">
+            <i class="fas fa-exclamation-triangle mr-2"></i>For Compliance
+          </button>
+          <button class="action-btn" id="examCancelBtn" style="display:none;" onclick="cancelPendingExam()">
+            <i class="fas fa-ban mr-2"></i>Cancel
+          </button>
         </div>
       </div>
     </div>
@@ -1116,6 +1130,7 @@ $conn->close();
     // Examination data storage
     let currentExamId = null;
     let currentExamData = null;
+    let currentModuleReferenceData = null;
 
     // Simplified SweetAlert2 function
     function showSweetAlert(options) {
@@ -1696,9 +1711,51 @@ $conn->close();
       window.location.href = `review_dashboard.php?exam_department=all`;
     }
 
+    function getAppBasePath() {
+      const path = window.location.pathname || '';
+      const idx = path.indexOf('/LEARNING/');
+      return idx >= 0 ? path.slice(0, idx) : '';
+    }
+
+    function buildLearningUrl(relativePath, queryParams = {}) {
+      const base = getAppBasePath();
+      const qs = new URLSearchParams();
+      Object.entries(queryParams).forEach(([key, value]) => {
+        if (value !== undefined && value !== null && String(value) !== '') {
+          qs.set(key, String(value));
+        }
+      });
+      const query = qs.toString();
+      return `${base}/LEARNING/${relativePath}${query ? `?${query}` : ''}`;
+    }
+
+    function fetchJsonSafe(url) {
+      return fetch(url, {
+          credentials: 'same-origin'
+        })
+        .then(async (response) => {
+          const text = await response.text();
+          try {
+            const data = JSON.parse(text);
+            if (!response.ok) {
+              const msg = (data && (data.error || data.message)) ? String(data.error || data.message) : `Request failed (${response.status})`;
+              throw new Error(msg);
+            }
+            return data;
+          } catch (e) {
+            if (!response.ok) {
+              throw new Error(`Request failed (${response.status})`);
+            }
+            const snippet = (text || '').trim().slice(0, 140);
+            throw new Error(`Invalid JSON response: ${snippet}`);
+          }
+        });
+    }
+
     // **FIXED EXAMINATION REVIEW FUNCTIONS**
     function viewExam(examId, title, department, roles, duration, questionCount) {
       currentExamId = examId;
+      currentModuleReferenceData = null;
 
       // Set basic exam info
       document.getElementById('exam_title').textContent = title;
@@ -1709,17 +1766,12 @@ $conn->close();
       document.getElementById('examQuestionCount').textContent = `${questionCount} Questions`;
 
       // Reset module preview
-      document.getElementById('modulePreviewContent').classList.add('hidden');
       document.getElementById('moduleContentPreview').innerHTML = `
             <div class="text-center py-4">
                 <div class="loading-spinner inline-block"></div>
-                <p class="text-gray-500 mt-2">Loading module content...</p>
+                <p class="text-gray-500 mt-2">Loading module reference...</p>
             </div>
         `;
-
-      // Reset toggle icon
-      document.getElementById('moduleToggleIcon').classList.remove('fa-chevron-up');
-      document.getElementById('moduleToggleIcon').classList.add('fa-chevron-down');
 
       // Show loading state for questions
       const questionsContainer = document.getElementById('exam_questions');
@@ -1730,13 +1782,9 @@ $conn->close();
       modal.showModal();
 
       // Fetch exam data from server
-      fetch(`../training_dev_officer/fetch_exam_data.php?exam_id=${examId}`)
-        .then(response => {
-          if (!response.ok) {
-            throw new Error('Network response was not ok');
-          }
-          return response.json();
-        })
+      fetchJsonSafe(buildLearningUrl('training_dev_officer/fetch_exam_data.php', {
+          exam_id: examId
+        }))
         .then(examData => {
           currentExamData = examData;
           displayExamQuestions(examData);
@@ -1747,9 +1795,17 @@ $conn->close();
           if (editBtn) editBtn.style.display = isPending ? 'inline-flex' : 'none';
           if (cancelBtn) cancelBtn.style.display = isPending ? 'inline-flex' : 'none';
 
-          // Load module content if module_id exists
-          if (examData.module_id) {
-            loadModuleContent(examData.module_id);
+          const moduleId = examData?.module_id ?? examData?.moduleId ?? null;
+          if (moduleId !== null && String(moduleId) !== '' && String(moduleId) !== '0') {
+            loadModuleContent(moduleId);
+          } else {
+            const moduleTitle = examData?.module_title || examData?.moduleTitle || '';
+            document.getElementById('moduleContentPreview').innerHTML = `
+              <div class="bg-white p-4 rounded border border-gray-200">
+                <div class="font-semibold text-gray-800">${moduleTitle ? moduleTitle : 'No module reference'}</div>
+                <div class="text-sm text-gray-600 mt-1">This examination has no linked learning module reference.</div>
+              </div>
+            `;
           }
         })
         .catch(error => {
@@ -1761,6 +1817,17 @@ $conn->close();
                         <p class="text-red-600 text-sm">Please try again or contact support.</p>
                     </div>
                 `;
+          document.getElementById('moduleContentPreview').innerHTML = `
+            <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+              <div class="flex items-start">
+                <i class="fas fa-exclamation-triangle text-yellow-500 mr-3 mt-0.5"></i>
+                <div>
+                  <p class="font-medium text-yellow-700">Module reference not available</p>
+                  <p class="text-yellow-600 text-sm">The linked learning module could not be loaded.</p>
+                </div>
+              </div>
+            </div>
+          `;
         });
     }
 
@@ -1769,6 +1836,7 @@ $conn->close();
       const moduleContent = document.getElementById('modulePreviewContent');
       const toggleIcon = document.getElementById('moduleToggleIcon');
 
+      if (!moduleContent || !toggleIcon) return;
       moduleContent.classList.toggle('hidden');
 
       // Toggle icon
@@ -1783,30 +1851,51 @@ $conn->close();
 
     // Function to load module content
     function loadModuleContent(moduleId) {
-      fetch(`fetch_module_content.php?module_id=${moduleId}`)
-        .then(response => {
-          if (!response.ok) {
-            throw new Error('Network response was not ok');
-          }
-          return response.json();
-        })
+      fetchJsonSafe(buildLearningUrl('training_dev_officer/fetch_module_content.php', {
+          module_id: moduleId
+        }))
         .then(moduleData => {
+          if (moduleData && moduleData.error) {
+            throw new Error(moduleData.error);
+          }
+          currentModuleReferenceData = moduleData || null;
           displayModuleContent(moduleData);
         })
         .catch(error => {
           console.error('Error loading module content:', error);
+          currentModuleReferenceData = null;
           document.getElementById('moduleContentPreview').innerHTML = `
                     <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-6">
                         <div class="flex items-center">
                             <i class="fas fa-exclamation-triangle text-yellow-500 mr-3"></i>
                             <div>
                                 <p class="font-medium text-yellow-700">Module content not available</p>
-                                <p class="text-yellow-600 text-sm">The learning module content could not be loaded.</p>
+                                <p class="text-yellow-600 text-sm">${(error && error.message) ? String(error.message) : 'The learning module content could not be loaded.'}</p>
                             </div>
                         </div>
                     </div>
                 `;
         });
+    }
+
+    function openCurrentModuleFullContent() {
+      if (!currentModuleReferenceData || !currentModuleReferenceData.id) {
+        showErrorAlert('No linked learning module to view.');
+        return;
+      }
+      showFullContentModal(currentModuleReferenceData);
+    }
+
+    function downloadCurrentModuleReference() {
+      if (!currentModuleReferenceData) {
+        showErrorAlert('No linked learning module to download.');
+        return;
+      }
+      downloadReviewModuleFile({
+        topic: currentModuleReferenceData.topic || 'N/A',
+        status: currentModuleReferenceData.status || 'N/A',
+        ...currentModuleReferenceData
+      });
     }
 
     // **UPDATED: Function to display module content with image handling**
@@ -1828,38 +1917,14 @@ $conn->close();
       if (moduleData.content && moduleData.content.trim() !== '') {
         // Process content to handle images
         const processedContent = processContentWithImages(moduleData.content);
-
-        // Truncate content if too long
-        const tempDiv = document.createElement('div');
-        tempDiv.innerHTML = processedContent;
-        const textContent = tempDiv.textContent || tempDiv.innerText || '';
-        const isLong = textContent.length > 500;
-
-        if (isLong) {
-          // Show first 500 characters with "Read More" option
-          const truncatedDiv = document.createElement('div');
-          truncatedDiv.innerHTML = processedContent.substring(0, 500) + '...';
-          html += `
-                    <div class="bg-white p-3 rounded border border-gray-200">
-                        <h6 class="font-medium text-gray-700 mb-1 text-sm">Content Preview:</h6>
-                        <div class="text-gray-600 text-sm max-h-32 overflow-y-auto">
-                            ${truncatedDiv.innerHTML}
-                        </div>
-                        <button class="text-blue-600 text-xs mt-2 hover:underline" onclick="showFullModuleContent(${moduleData.id})">
-                            <i class="fas fa-external-link-alt mr-1"></i>View Full Content
-                        </button>
-                    </div>
-                `;
-        } else {
-          html += `
-                    <div class="bg-white p-3 rounded border border-gray-200">
-                        <h6 class="font-medium text-gray-700 mb-1 text-sm">Content Preview:</h6>
-                        <div class="text-gray-600 text-sm max-h-32 overflow-y-auto">
-                            ${processedContent}
-                        </div>
-                    </div>
-                `;
-        }
+        html += `
+                  <div class="bg-white p-3 rounded border border-gray-200">
+                      <h6 class="font-medium text-gray-700 mb-2 text-sm">Content:</h6>
+                      <div class="text-gray-600 text-sm">
+                          ${processedContent}
+                      </div>
+                  </div>
+              `;
       }
 
       // Add key points if available
@@ -1885,9 +1950,13 @@ $conn->close();
 
     // **NEW: Function to show full module content in a modal**
     function showFullModuleContent(moduleId) {
-      fetch(`fetch_module_content.php?module_id=${moduleId}`)
-        .then(response => response.json())
+      fetchJsonSafe(buildLearningUrl('training_dev_officer/fetch_module_content.php', {
+          module_id: moduleId
+        }))
         .then(moduleData => {
+          if (moduleData && moduleData.error) {
+            throw new Error(moduleData.error);
+          }
           // Create a simple modal to show full content
           const fullContent = moduleData.content || 'No content available';
           const processedContent = processContentWithImages(fullContent);
@@ -1914,6 +1983,208 @@ $conn->close();
           console.error('Error loading full module content:', error);
           showErrorAlert('Could not load full module content');
         });
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    function parseJsonOrFallback(value, fallback) {
+      try {
+        if (value === null || value === undefined || value === '') return fallback;
+        if (typeof value === 'object') return value;
+        return JSON.parse(value);
+      } catch (e) {
+        return fallback;
+      }
+    }
+
+    function buildExamPreviewBodyHtml(examData) {
+      const questions = Array.isArray(examData?.questions) ? examData.questions : [];
+      let html = `<div class="space-y-4">`;
+
+      if (questions.length === 0) {
+        html += `<div class="bg-yellow-50 border border-yellow-200 rounded-lg p-6 text-center">
+          <div class="text-yellow-700 font-medium">No questions found in this examination.</div>
+        </div>`;
+        html += `</div>`;
+        return html;
+      }
+
+      questions.forEach((question, index) => {
+        const qText = escapeHtml(question?.question_text || question?.question || question?.text || '');
+        const qType = escapeHtml(question?.question_type || question?.type || '');
+        const answerKey = parseJsonOrFallback(question?.answer_key ?? question?.answerKey, null);
+        const points = escapeHtml(answerKey?.points ?? 1);
+        const correctAnswers = Array.isArray(answerKey?.correctAnswers) ? answerKey.correctAnswers : [];
+
+        const rawOptions = parseJsonOrFallback(question?.options, []);
+        const options = Array.isArray(rawOptions) ? rawOptions : [];
+
+        html += `<div class="bg-white rounded-lg border border-gray-200 p-4">`;
+        html += `<div class="flex items-start gap-3 mb-3">`;
+        html += `<div class="font-semibold text-gray-800">Q${index + 1}</div>`;
+        html += `<div class="text-xs px-2 py-1 rounded bg-gray-100 text-gray-700">${qType || 'question'}</div>`;
+        html += `<div class="ml-auto text-xs px-2 py-1 rounded bg-blue-600 text-white">Points: ${points}</div>`;
+        html += `</div>`;
+        html += `<div class="text-gray-800 mb-3">${qText || '<span class="text-gray-500 italic">No question text</span>'}</div>`;
+
+        if (options.length > 0) {
+          html += `<div class="space-y-2">`;
+          options.forEach((opt, optIndex) => {
+            const optText = typeof opt === 'string' ? opt : (opt?.text ?? opt?.label ?? '');
+            const normalized = String(optText ?? '');
+            const isCorrect = correctAnswers.some(a => String(a).trim() === normalized.trim());
+            html += `<div class="flex items-start gap-3 p-2 rounded border ${isCorrect ? 'border-green-300 bg-green-50' : 'border-gray-200 bg-gray-50'}">`;
+            html += `<div class="text-xs font-semibold text-gray-600 mt-0.5">${String.fromCharCode(65 + optIndex)}</div>`;
+            html += `<div class="text-sm text-gray-800">${escapeHtml(optText)}</div>`;
+            html += `</div>`;
+          });
+          html += `</div>`;
+        } else if (correctAnswers.length > 0) {
+          html += `<div class="text-sm text-gray-700"><span class="font-medium">Answer:</span> ${escapeHtml(correctAnswers.join(', '))}</div>`;
+        }
+
+        html += `</div>`;
+      });
+
+      html += `</div>`;
+      return html;
+    }
+
+    function buildExamPreviewBodyHtmlForDownload(examData) {
+      const questions = Array.isArray(examData?.questions) ? examData.questions : [];
+      let html = '';
+
+      if (questions.length === 0) {
+        return `<div style="border:1px solid #fde68a;background:#fffbeb;padding:14px;border-radius:10px;color:#92400e;">No questions found in this examination.</div>`;
+      }
+
+      questions.forEach((question, index) => {
+        const qText = escapeHtml(question?.question_text || question?.question || question?.text || '');
+        const qType = escapeHtml(question?.question_type || question?.type || '');
+        const answerKey = parseJsonOrFallback(question?.answer_key ?? question?.answerKey, null);
+        const points = escapeHtml(answerKey?.points ?? 1);
+        const correctAnswers = Array.isArray(answerKey?.correctAnswers) ? answerKey.correctAnswers : [];
+
+        const rawOptions = parseJsonOrFallback(question?.options, []);
+        const options = Array.isArray(rawOptions) ? rawOptions : [];
+
+        html += `<div style="border:1px solid #e5e7eb;border-radius:12px;padding:14px;margin-bottom:12px;">`;
+        html += `<div style="display:flex;gap:10px;align-items:flex-start;margin-bottom:10px;">`;
+        html += `<div style="font-weight:700;">Q${index + 1}</div>`;
+        html += `<div style="font-size:12px;padding:2px 8px;border-radius:999px;background:#f3f4f6;color:#374151;">${qType || 'question'}</div>`;
+        html += `<div style="margin-left:auto;font-size:12px;padding:2px 8px;border-radius:999px;background:#2563eb;color:#fff;">Points: ${points}</div>`;
+        html += `</div>`;
+        html += `<div style="margin-bottom:10px;">${qText || '<span style="color:#6b7280;font-style:italic;">No question text</span>'}</div>`;
+
+        if (options.length > 0) {
+          options.forEach((opt, optIndex) => {
+            const optText = typeof opt === 'string' ? opt : (opt?.text ?? opt?.label ?? '');
+            const normalized = String(optText ?? '');
+            const isCorrect = correctAnswers.some(a => String(a).trim() === normalized.trim());
+            html += `<div style="display:flex;gap:10px;align-items:flex-start;padding:10px;border-radius:10px;border:1px solid ${isCorrect ? '#86efac' : '#e5e7eb'};background:${isCorrect ? '#f0fdf4' : '#f9fafb'};margin-bottom:8px;">`;
+            html += `<div style="font-size:12px;font-weight:700;color:#6b7280;margin-top:2px;">${String.fromCharCode(65 + optIndex)}</div>`;
+            html += `<div style="font-size:14px;">${escapeHtml(optText)}</div>`;
+            html += `</div>`;
+          });
+        } else if (correctAnswers.length > 0) {
+          html += `<div style="font-size:14px;color:#374151;"><span style="font-weight:600;">Answer:</span> ${escapeHtml(correctAnswers.join(', '))}</div>`;
+        }
+
+        html += `</div>`;
+      });
+
+      return html;
+    }
+
+    function showFullExamPreview() {
+      if (!currentExamData) {
+        showErrorAlert('Examination preview not ready yet.');
+        return;
+      }
+
+      const title = document.getElementById('exam_title')?.textContent || 'Examination Preview';
+      const department = document.getElementById('exam_department')?.textContent || '';
+      const roles = document.getElementById('exam_roles')?.textContent || '';
+      const duration = document.getElementById('exam_duration')?.textContent || '';
+
+      const fullContentDisplay = document.getElementById('full-content-display');
+      if (fullContentDisplay) {
+        fullContentDisplay.innerHTML = `
+          <div class="mb-3 flex flex-wrap gap-2">
+            ${department ? `<span class="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded">${escapeHtml(department)}</span>` : ''}
+            ${roles ? `<span class="bg-green-100 text-green-800 text-xs px-2 py-1 rounded">${escapeHtml(roles)}</span>` : ''}
+            ${duration ? `<span class="bg-gray-100 text-gray-800 text-xs px-2 py-1 rounded">${escapeHtml(duration)} min</span>` : ''}
+          </div>
+          ${buildExamPreviewBodyHtml(currentExamData)}
+        `;
+        setTimeout(() => {
+          fullContentDisplay.style.overflowY = 'auto';
+        }, 100);
+      }
+
+      document.getElementById('full-content-title').textContent = `${title} - Full Content`;
+      const modal = document.getElementById('full_content_modal');
+      if (modal) modal.showModal();
+    }
+
+    function downloadCurrentExamPreview() {
+      if (!currentExamData) {
+        showErrorAlert('Examination preview not ready yet.');
+        return;
+      }
+
+      const title = document.getElementById('exam_title')?.textContent || 'Examination';
+      const department = document.getElementById('exam_department')?.textContent || 'N/A';
+      const roles = document.getElementById('exam_roles')?.textContent || 'N/A';
+      const duration = document.getElementById('exam_duration')?.textContent || 'N/A';
+
+      const body = buildExamPreviewBodyHtmlForDownload(currentExamData);
+      const blob = new Blob([`
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8" />
+          <title>${escapeHtml(title)}</title>
+          <style>
+            body { font-family: Arial, sans-serif; margin: 40px; line-height: 1.6; background: #fff; color: #111827; }
+            .header { border-bottom: 2px solid #111827; padding-bottom: 16px; margin-bottom: 20px; }
+            .title { font-size: 24px; font-weight: 700; margin-bottom: 8px; }
+            .meta { color: #4b5563; font-size: 14px; }
+            .meta span { margin-right: 12px; }
+            .q { border: 1px solid #e5e7eb; border-radius: 10px; padding: 14px; margin-bottom: 12px; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <div class="title">${escapeHtml(title)}</div>
+            <div class="meta">
+              <span>Department: ${escapeHtml(department)}</span>
+              <span>Roles: ${escapeHtml(roles)}</span>
+              <span>Duration: ${escapeHtml(duration)} min</span>
+            </div>
+          </div>
+          ${body}
+        </body>
+        </html>
+      `], {
+        type: 'text/html'
+      });
+
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${String(title).replace(/\s+/g, '_')}_exam_preview.html`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
     }
 
     // Function to display exam questions in compact preview
@@ -2092,7 +2363,7 @@ $conn->close();
       document.getElementById('reject_exam_name').textContent = `"${examTitle}"`;
       document.getElementById('reject_exam_reason').value = '';
 
-      view_exam_modal.close();
+      document.getElementById('view_exam_modal')?.close();
       reject_exam_modal.showModal();
     }
 
@@ -2135,7 +2406,7 @@ $conn->close();
       document.getElementById('compliance_exam_name').textContent = `"${examTitle}"`;
       document.getElementById('compliance_exam_requirements').value = '';
 
-      view_exam_modal.close();
+      document.getElementById('view_exam_modal')?.close();
       compliance_exam_modal.showModal();
     }
 
@@ -2206,7 +2477,7 @@ $conn->close();
             });
 
             // Close modals
-            view_exam_modal.close();
+            document.getElementById('view_exam_modal')?.close();
 
             // Remove the exam card from UI
             removeExamCard(examId);

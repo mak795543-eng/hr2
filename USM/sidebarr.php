@@ -34,10 +34,25 @@ if (!function_exists('sidebarActiveClass')) {
 // $base = '/hr2';
 ?>
 
+<style>
+    #sidebar-scroll {
+        overflow-y: auto;
+        overflow-x: hidden;
+        scrollbar-width: none;
+        -ms-overflow-style: none;
+    }
+
+    #sidebar-scroll::-webkit-scrollbar {
+        width: 0;
+        height: 0;
+        display: none;
+    }
+</style>
+
 <div class="bg-[#001f54] pt-5 pb-4 flex flex-col fixed md:relative h-full w-64 transition-all duration-300 ease-in-out shadow-xl transform -translate-x-full md:transform-none md:translate-x-0" id="sidebar">
     <!-- Sidebar Header -->
-    <div class="flex flex-col sm:flex-row items-center justify-between px-4 mb-6 text-center">
-        <h1 class="text-xl sm:text-2xl font-bold text-white flex items-center gap-2">
+    <div class="flex items-center justify-center px-4 mb-6 text-center">
+        <h1 class="text-xl sm:text-2xl font-bold text-white flex items-center justify-center gap-2">
             <img id="sidebar-logo" src="/hr2/logofinal.png"
                 alt="Logo"
                 class="h-12 sm:h-16 md:h-20 w-auto max-w-full">
@@ -48,7 +63,7 @@ if (!function_exists('sidebarActiveClass')) {
     </div>
 
     <!-- Navigsdation Menu -->
-    <div id="sidebar-scroll" class="flex-1 flex flex-col overflow-hidden hover:overflow-y-auto">
+    <div id="sidebar-scroll" class="flex-1 flex flex-col">
         <nav class="flex-1 px-2 space-y-1">
             <!-- DASHBOARD SECTION -->
             <?php if (hasAccess('dashboard', $allowed_modules, $is_supervisor)): ?>
@@ -268,6 +283,15 @@ if (!function_exists('sidebarActiveClass')) {
                             <i data-lucide="check-circle" class="w-5 h-5 text-[#F7B32B] group-hover:text-white"></i>
                         </div>
                         <span class="ml-3 sidebar-text">Training Approvals</span>
+                    </div>
+                </a>
+
+                <a href="/../hr2/SUCCESSION/HR_director/review_page_idp.php" class="block">
+                    <div class="flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-all hover:bg-blue-600/50 text-white group">
+                        <div class="p-1 rounded-lg bg-blue-800/30 group-hover:bg-blue-700/50 transition-colors">
+                            <i data-lucide="check-circle" class="w-5 h-5 text-[#F7B32B] group-hover:text-white"></i>
+                        </div>
+                        <span class="ml-3 sidebar-text">Succession Approvals</span>
                     </div>
                 </a>
 
