@@ -194,15 +194,11 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && $employee_ID && $password) {
 
             if (sendOTP($row["email"], $otp)) {
                 logAttempt($hr_2usm, $employee_ID, $Name, $Role, 'Authenticating', 'Login', 0, 'Authenticating', '');
-
                 logDepartmentAttempt($hr_2usm, $Department_ID, $employee_ID, $Name, $Role, 'Success', 'Login', 0, 'Login Successful', '');
-
                 header("Location: USM/2fa_verify.php");
                 exit();
             } else {
-                dd("failed");
                 logAttempt($hr_2usm, $employee_ID, $Name, $Role, 'Failed', 'Login', 0, 'Failed to send OTP email', '');
-
                 $_SESSION["loginError"] = "Failed to send OTP email.";
                 header("Location: index.php");
                 exit();
