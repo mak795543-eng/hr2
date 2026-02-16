@@ -291,6 +291,7 @@
   const employeeContainer = qs('#employee-container');
   const trainingEmployeeInput = qs('#training-employee');
   const trainingMentorSelect = qs('#training-mentor');
+  const alternativeMentorsSelect = qs('#alternative-mentors');
   const subDepartmentSelect = qs('#training-sub-department');
   const trainingCategoryByDept = qs('#training-category-by-department');
   const trainingCategoryContainer = qs('#training-category-container');
@@ -300,6 +301,7 @@
   const idpListContainer = qs('#idp-list-container');
   const idpListTable = qs('#idp-list-table');
   const idpListLoading = qs('#idp-list-loading');
+  const idpTabBtn = qs('#tab-idp-requests');
 
   const needBudgetSelect = qs('#need-budget');
   const needItemsSelect = qs('#need-items');
@@ -515,6 +517,8 @@
   const syncMentorOptionsForTargetAudience = () => {
     if (!trainingMentorSelect) return;
     const dept = (qs('#training-department') || {}).value || '';
+    const requestedBy = qs('#requested-by');
+    const requestedVal = requestedBy ? String(requestedBy.value || '') : '';
 
     let deptHeadId = null;
     let deptMgrId = null;
@@ -559,8 +563,21 @@
       opt.disabled = !ok;
     });
 
+    const supervisorId = (window && window.SUPERVISOR_MENTOR_ID) ? String(window.SUPERVISOR_MENTOR_ID || '') : '';
+
     if (!dept) {
       trainingMentorSelect.value = '';
+      if (alternativeMentorsSelect) {
+        alternativeMentorsSelect.value = '';
+      }
+      return;
+    }
+
+    if (requestedVal === 'New Hire Onboarding' && supervisorId) {
+      trainingMentorSelect.value = supervisorId;
+      if (alternativeMentorsSelect && alternativeMentorsSelect.options.length > 1) {
+        alternativeMentorsSelect.selectedIndex = 1;
+      }
       return;
     }
 
@@ -744,6 +761,15 @@
         </div>
       </div>
     `;
+  };
+
+  const scrollToRequestSummary = () => {
+    const el = document.getElementById('request-summary');
+    if (!el) return;
+    try {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } catch (_) {
+    }
   };
 
   const updateRequestSummaries = () => {
@@ -1074,16 +1100,15 @@
       const st = String(t && t.status ? t.status : '');
       const s = st.toLowerCase();
 
-      let html = '';
-
       const viewBtn = `
         <button data-action="view" data-id="${t.id}" class="btn btn-xs btn-ghost" title="View Details">
           <i data-lucide="eye" class="h-4 w-4"></i>
         </button>
       `;
 
+      let html = viewBtn;
+
       if (s === 'approved') {
-        html += viewBtn;
         html += `
           <button data-action="edit" data-id="${t.id}" class="btn btn-xs btn-outline" title="Edit">
             <i data-lucide="pencil" class="h-4 w-4"></i>
@@ -1108,21 +1133,26 @@
           </button>
         `;
       } else if (s === 'rejected') {
-        html += viewBtn;
         html += `
           <button data-action="delete" data-id="${t.id}" class="btn btn-xs btn-error" title="Delete">
             <i data-lucide="trash-2" class="h-4 w-4"></i>
           </button>
         `;
-      } else if (s === 'under review' || s === 'pending') {
-        html += viewBtn;
+      } else if (s === 'under review') {
+        html += `
+          <button data-action="edit" data-id="${t.id}" class="btn btn-xs btn-outline" title="Edit">
+            <i data-lucide="pencil" class="h-4 w-4"></i>
+          </button>
+          <button data-action="cancel" data-id="${t.id}" class="btn btn-xs btn-ghost" title="Cancel">
+            <i data-lucide="x" class="h-4 w-4"></i>
+          </button>
+        `;
+      } else if (s === 'pending') {
         html += `
           <button data-action="cancel" data-id="${t.id}" class="btn btn-xs btn-ghost" title="Cancel">
             <i data-lucide="x" class="h-4 w-4"></i>
           </button>
         `;
-      } else {
-        html += viewBtn;
       }
 
       return html;
@@ -2044,6 +2074,19 @@
     }
   };
 
+  const setRequestTab = () => {
+    if (idpTabBtn) {
+      idpTabBtn.classList.add('btn-active');
+      idpTabBtn.classList.remove('btn-ghost');
+    }
+    if (idpListContainer) {
+      idpListContainer.classList.remove('hidden');
+    }
+    if (modalSubtitle) {
+      modalSubtitle.textContent = 'Pick a request to prefill the training program';
+    }
+  };
+
   const showFormView = () => {
     if (idpListContainer) idpListContainer.classList.add('hidden');
     const banner = document.getElementById('idp-request-banner');
@@ -2056,9 +2099,8 @@
     if (trainingForm) trainingForm.classList.add('hidden');
     const banner = document.getElementById('idp-request-banner');
     if (banner) banner.classList.add('hidden');
-    if (idpListContainer) idpListContainer.classList.remove('hidden');
+    setRequestTab('idp');
     if (modalTitle) modalTitle.textContent = 'Select Training Request';
-    if (modalSubtitle) modalSubtitle.textContent = 'Pick a request to prefill the training program';
     if (idpListLoading) idpListLoading.classList.remove('hidden');
     try {
       const fd = new FormData();
@@ -2083,6 +2125,12 @@
             return 'N/A';
           })();
           const status = String(r.idp_status || '');
+          const normalizedStatus = status.toLowerCase();
+          const isOnProcess =
+            normalizedStatus === 'approved' ||
+            normalizedStatus === 'under_review' ||
+            normalizedStatus === 'on_hold' ||
+            normalizedStatus === 'for_compliance';
           const mode = String(r.requested_training_mode || r.delivery_mode || '');
           return `
             <div class="bg-white rounded-lg shadow-sm border border-gray-100 p-4 flex flex-col justify-between">
@@ -2106,9 +2154,13 @@
                 <button type="button" class="btn btn-sm btn-ghost" data-action="view-idp" data-id="${String(r.id)}">
                   View
                 </button>
-                <button type="button" class="btn btn-sm bg-gray-900 text-white hover:bg-gray-800 border-0" data-action="pick-idp" data-id="${String(r.id)}">
+                ${
+                  isOnProcess
+                    ? `<button type="button" class="btn btn-sm btn-disabled" disabled>ON PROCESS</button>`
+                    : `<button type="button" class="btn btn-sm bg-gray-900 text-white hover:bg-gray-800 border-0" data-action="pick-idp" data-id="${String(r.id)}">
                   Create
-                </button>
+                </button>`
+                }
               </div>
             </div>
           `;
@@ -2128,6 +2180,7 @@
       if (trainingModal) trainingModal.close();
       resetForm();
       if (idpListContainer) idpListContainer.classList.add('hidden');
+      if (traineeListContainer) traineeListContainer.classList.add('hidden');
       const banner = document.getElementById('idp-request-banner');
       if (banner) banner.classList.add('hidden');
       if (trainingForm) trainingForm.classList.add('hidden');
@@ -2139,6 +2192,14 @@
         resetForm();
         if (trainingModal) trainingModal.showModal();
         await showIdpListInModal();
+      });
+    }
+
+    const createDeptProgramBtn = document.getElementById('create-department-program-btn');
+    if (createDeptProgramBtn) {
+      createDeptProgramBtn.addEventListener('click', (e) => {
+        if (e && e.preventDefault) e.preventDefault();
+        window.location.href = 'add_training.php';
       });
     }
 
@@ -2396,18 +2457,20 @@
           return;
         }
 
-        if (window.Swal) {
-          const res = await swalFire({
-            icon: 'question',
-            title: 'Save Budget Request?',
-            text: 'Are you sure you want to save this budget request as complete?',
-            showCancelButton: true,
-            confirmButtonText: 'Yes, save',
-            cancelButtonText: 'Cancel'
-          }, budgetRequestModal);
-          if (!res.isConfirmed) return;
-        } else {
-          if (!window.confirm('Save this budget request as complete?')) return;
+        if (!isAddTrainingPage) {
+          if (window.Swal) {
+            const res = await swalFire({
+              icon: 'question',
+              title: 'Save Budget Request?',
+              text: 'Are you sure you want to save this budget request as complete?',
+              showCancelButton: true,
+              confirmButtonText: 'Yes, save',
+              cancelButtonText: 'Cancel'
+            }, budgetRequestModal);
+            if (!res.isConfirmed) return;
+          } else {
+            if (!window.confirm('Save this budget request as complete?')) return;
+          }
         }
 
         const items = getBudgetItemsFromUI();
@@ -2433,6 +2496,7 @@
         budgetRequestModal.close();
 
         updateRequestSummaries();
+        scrollToRequestSummary();
 
         if (window.Swal) await swalFire({ icon: 'success', title: 'Saved', text: 'Budget request saved.', timer: 1200, showConfirmButton: false }, getOpenDialogTarget());
       });
@@ -2446,18 +2510,20 @@
           return;
         }
 
-        if (window.Swal) {
-          const res = await swalFire({
-            icon: 'question',
-            title: 'Save Logistics Request?',
-            text: 'Are you sure you want to save this logistics request as complete?',
-            showCancelButton: true,
-            confirmButtonText: 'Yes, save',
-            cancelButtonText: 'Cancel'
-          }, logisticsRequestModal);
-          if (!res.isConfirmed) return;
-        } else {
-          if (!window.confirm('Save this logistics request as complete?')) return;
+        if (!isAddTrainingPage) {
+          if (window.Swal) {
+            const res = await swalFire({
+              icon: 'question',
+              title: 'Save Logistics Request?',
+              text: 'Are you sure you want to save this logistics request as complete?',
+              showCancelButton: true,
+              confirmButtonText: 'Yes, save',
+              cancelButtonText: 'Cancel'
+            }, logisticsRequestModal);
+            if (!res.isConfirmed) return;
+          } else {
+            if (!window.confirm('Save this logistics request as complete?')) return;
+          }
         }
 
         const items = getLogisticsItemsFromUI();
@@ -2485,6 +2551,7 @@
         logisticsRequestModal.close();
 
         updateRequestSummaries();
+        scrollToRequestSummary();
 
         if (window.Swal) await swalFire({ icon: 'success', title: 'Saved', text: 'Logistics request saved.', timer: 1200, showConfirmButton: false }, getOpenDialogTarget());
       });
@@ -2498,18 +2565,20 @@
           return;
         }
 
-        if (window.Swal) {
-          const res = await swalFire({
-            icon: 'question',
-            title: 'Save Location Request?',
-            text: 'Are you sure you want to save this location request as complete?',
-            showCancelButton: true,
-            confirmButtonText: 'Yes, save',
-            cancelButtonText: 'Cancel'
-          }, facilityRequestModal);
-          if (!res.isConfirmed) return;
-        } else {
-          if (!window.confirm('Save this location request as complete?')) return;
+        if (!isAddTrainingPage) {
+          if (window.Swal) {
+            const res = await swalFire({
+              icon: 'question',
+              title: 'Save Location Request?',
+              text: 'Are you sure you want to save this location request as complete?',
+              showCancelButton: true,
+              confirmButtonText: 'Yes, save',
+              cancelButtonText: 'Cancel'
+            }, facilityRequestModal);
+            if (!res.isConfirmed) return;
+          } else {
+            if (!window.confirm('Save this location request as complete?')) return;
+          }
         }
 
         requestDraft.facility.basic = {
@@ -2536,6 +2605,7 @@
         facilityRequestModal.close();
 
         updateRequestSummaries();
+        scrollToRequestSummary();
 
         if (window.Swal) await swalFire({ icon: 'success', title: 'Saved', text: 'Location request saved.', timer: 1200, showConfirmButton: false }, getOpenDialogTarget());
       });
@@ -2608,6 +2678,10 @@
         fd.append('need_budget', needBudgetSelect ? needBudgetSelect.value : '0');
         fd.append('need_items', needItemsSelect ? needItemsSelect.value : '0');
         fd.append('need_facility', needFacilitySelect ? needFacilitySelect.value : '0');
+
+        if (isAddTrainingPage && !editProgramId && idpRequestId) {
+          fd.append('idp_id', String(idpRequestId));
+        }
 
         if (needBudgetSelect && needBudgetSelect.value === '1') {
           fd.append('budget_amount', String(requestDraft.budget.total_cost || 0));
@@ -2757,7 +2831,7 @@
                 await swalFire({
                   title: 'Training Request Details',
                   html
-                }, getOpenDialogTarget());
+                }, document.body);
               }
             } catch (_) {
             }
