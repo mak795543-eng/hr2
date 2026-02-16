@@ -633,6 +633,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         $facilityDetails = trim((string)($_POST['facility_details'] ?? ''));
         $adminDetailsJson = trim((string)($_POST['admin_details_json'] ?? ''));
 
+        $idpIdRaw = trim((string)($_POST['idp_id'] ?? ''));
+        $idpId = $idpIdRaw !== '' ? (int)$idpIdRaw : null;
+
         if ($trainingTitle === '' || $trainingType === '' || $description === '' || $targetAudience === '' || $startDatetime === '' || $endDatetime === '') {
             echo json_encode(['success' => false, 'message' => 'Missing required fields.']);
             exit;
@@ -749,6 +752,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         $stmt->bind_param('i', $programId);
         $stmt->execute();
         $program = $stmt->get_result()->fetch_assoc();
+
+        if ($idpId !== null && $idpId > 0) {
+            try {
+                require_once __DIR__ . '/../../COMPETENCY/criticalgaps/config.php';
+                $stmtRepo = $pdo->prepare(
+                    "UPDATE requested_idps_repository
+                     SET idp_status = 'under_review', updated_at = CURRENT_TIMESTAMP
+                     WHERE id = ? AND idp_status = 'requested'"
+                );
+                $stmtRepo->execute([$idpId]);
+            } catch (Throwable $e) {
+            }
+        }
 
         echo json_encode(['success' => true, 'program' => $program, 'request_ids' => []]);
         exit;
@@ -1521,13 +1537,21 @@ require('../../partials/header.php');
                         <div class="flex items-start justify-between gap-4">
                             <div>
                                 <h3 class="font-bold text-2xl mb-2" id="modal-title">Create New Training Program</h3>
-                                <p class="text-gray-600 mb-6" id="modal-subtitle">Fill in all required information to create a new training program</p>
+                                <p class="text-gray-600 mb-4" id="modal-subtitle">Fill in all required information to create a new training program</p>
+                                <button type="button" id="create-department-program-btn" class="btn btn-sm btn-outline">
+                                    Create Department Program
+                                </button>
                             </div>
                             <button type="button" id="training-modal-exit-btn" class="btn btn-ghost btn-sm">✕</button>
                         </div>
+                        <div class="mb-4 mt-4">
+                            <div class="inline-flex gap-2 rounded-lg bg-gray-100 p-1">
+                                <button type="button" id="tab-idp-requests" class="btn btn-sm btn-active">IDP Requests</button>
+                            </div>
+                        </div>
                         <div id="idp-list-container" class="mb-6">
                             <div class="flex items-center justify-between mb-3">
-                                <div class="text-sm font-semibold text-gray-800">Training Requests</div>
+                                <div class="text-sm font-semibold text-gray-800">IDP Training Requests</div>
                             </div>
                             <div id="idp-list-loading" class="text-sm text-gray-600">Loading...</div>
                             <div id="idp-list-table" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
@@ -2183,4 +2207,4 @@ require('../../partials/header.php');
                     </form>
                 </dialog>
                 <?php require('../../partials/footer.php') ?>
-                <script src="main.js?v=2"></script>
+                <script src="main.js?v=6"></script>

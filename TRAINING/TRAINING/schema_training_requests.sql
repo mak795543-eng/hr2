@@ -152,6 +152,18 @@ CREATE TABLE IF NOT EXISTS employees (
   INDEX idx_employee_name (last_name, first_name)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+INSERT IGNORE INTO employees (employee_no, first_name, last_name, department, role) VALUES
+('KT-0001', 'Kitchen', 'Trainee One', 'Kitchen / Culinary', 'Commis Chef'),
+('KT-0002', 'Kitchen', 'Trainee Two', 'Kitchen / Culinary', 'Line Cook'),
+('KT-0003', 'Kitchen', 'Trainee Three', 'Kitchen / Culinary', 'Prep Cook'),
+('KT-0004', 'Kitchen', 'Trainee Four', 'Kitchen / Culinary', 'Pastry Assistant'),
+('KT-0005', 'Kitchen', 'Trainee Five', 'Kitchen / Culinary', 'Kitchen Helper'),
+('KT-0006', 'Kitchen', 'Trainee Six', 'Kitchen / Culinary', 'Steward'),
+('KT-0007', 'Kitchen', 'Trainee Seven', 'Kitchen / Culinary', 'Grill Cook'),
+('KT-0008', 'Kitchen', 'Trainee Eight', 'Kitchen / Culinary', 'Sous Chef Trainee'),
+('KT-0009', 'Kitchen', 'Trainee Nine', 'Kitchen / Culinary', 'Cold Kitchen Trainee'),
+('KT-0010', 'Kitchen', 'Trainee Ten', 'Kitchen / Culinary', 'Breakfast Cook');
+
 CREATE TABLE IF NOT EXISTS training_posts (
   id INT AUTO_INCREMENT PRIMARY KEY,
   program_id INT NOT NULL,

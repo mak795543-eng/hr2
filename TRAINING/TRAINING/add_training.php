@@ -49,6 +49,7 @@ try {
 }
 
 $mentors = [];
+$supervisorMentorId = null;
 try {
     $conn->query("CREATE TABLE IF NOT EXISTS mentors (id INT AUTO_INCREMENT PRIMARY KEY, mentor_name VARCHAR(150) NOT NULL, expertise VARCHAR(150) NULL, created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, UNIQUE KEY uniq_mentor_name (mentor_name)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
     $conn->query("INSERT IGNORE INTO mentors (mentor_name, expertise) VALUES ('Juan Dela Cruz', 'Leadership'), ('Maria Santos', 'Technical Skills'), ('Jose Reyes', 'Customer Service')");
@@ -70,8 +71,18 @@ try {
     while ($row = $resMentor->fetch_assoc()) {
         $mentors[] = $row;
     }
+
+    try {
+        $resSup = $conn->query("SELECT id FROM mentors WHERE mentor_name = 'Supervisor' LIMIT 1");
+        if ($resSup && ($rowSup = $resSup->fetch_assoc())) {
+            $supervisorMentorId = (int)($rowSup['id'] ?? 0);
+        }
+    } catch (Throwable $eSup) {
+        $supervisorMentorId = null;
+    }
 } catch (Throwable $e) {
     $mentors = [];
+    $supervisorMentorId = null;
 }
 
 $departmentHeads = [];
@@ -344,6 +355,17 @@ require('../../partials/header.php');
                                                         <option value="<?= htmlspecialchars($mid) ?>"><?= htmlspecialchars($label) ?></option>
                                                     <?php endif; ?>
                                                 <?php endforeach; ?>
+                                            </select>
+                                        </div>
+                                        <div class="form-control mt-4">
+                                            <label class="label">
+                                                <span class="label-text font-semibold">Alternative Mentors</span>
+                                            </label>
+                                            <select id="alternative-mentors" class="select select-bordered w-full">
+                                                <option value="" selected>Select alternative mentor</option>
+                                                <option value="alt_old_emp_1">Old Employee One - Senior Staff</option>
+                                                <option value="alt_old_emp_2">Old Employee Two - Senior Supervisor</option>
+                                                <option value="alt_old_emp_3">Old Employee Three - Trainer</option>
                                             </select>
                                         </div>
                                     </div>
@@ -661,47 +683,12 @@ require('../../partials/header.php');
             <script>
                 window.DEPARTMENT_HEADS = <?= json_encode($departmentHeads, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?>;
                 window.DEPARTMENT_MANAGERS = <?= json_encode($departmentManagers, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?>;
+                window.SUPERVISOR_MENTOR_ID = <?= json_encode($supervisorMentorId, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?>;
             </script>
-            <script src="main.js"></script>
+            <script src="main.js?v=6"></script>
             <script src="maintwo.js"></script>
             <script>
                 (function() {
-                    function pad2(n) {
-                        return String(n).padStart(2, '0');
-                    }
-
-                    function todayYmd() {
-                        const d = new Date();
-                        return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate());
-                    }
-
-                    function setMin(el, minValue) {
-                        if (!el) return;
-                        el.setAttribute('min', minValue);
-                    }
-
-                    function initDateRange(startId, endId) {
-                        const start = document.getElementById(startId);
-                        const end = document.getElementById(endId);
-                        if (!start || !end) return;
-
-                        const t = todayYmd();
-                        setMin(start, t);
-                        setMin(end, t);
-
-                        const sync = function() {
-                            const s = String(start.value || t);
-                            setMin(end, s);
-                            if (end.value && end.value < s) {
-                                end.value = s;
-                            }
-                        };
-
-                        start.addEventListener('change', sync);
-                        end.addEventListener('change', sync);
-                        sync();
-                    }
-
                     function autoGrow(el) {
                         if (!el) return;
                         let minH = 0;
@@ -736,11 +723,6 @@ require('../../partials/header.php');
                     }
 
                     document.addEventListener('DOMContentLoaded', function() {
-                        initDateRange('start-date', 'end-date');
-
-                        const t = todayYmd();
-                        setMin(document.getElementById('logistics-needed-by-date'), t);
-
                         const areas = Array.from(document.querySelectorAll('textarea'));
                         areas.forEach((ta) => {
                             ta.style.resize = 'vertical';
@@ -846,19 +828,20 @@ require('../../partials/header.php');
                                         }
                                     });
                                 }
+                            }
 
-                                var lockOnce = function(id) {
-                                    var el = document.getElementById(id);
-                                    if (!el) return;
-                                    el.addEventListener('change', function() {
-                                        if (el.disabled) return;
-                                        el.disabled = true;
-                                    });
-                                };
-
-                                lockOnce('need-budget');
-                                lockOnce('need-items');
-                                lockOnce('need-facility');
+                            var traineeId = url.searchParams.get('trainee_id');
+                            if (traineeId && requestedBy) {
+                                requestedBy.value = 'New Hire Onboarding';
+                                applyRequestedRules();
+                                var empSelect = document.getElementById('training-employee');
+                                if (empSelect) {
+                                    empSelect.value = traineeId;
+                                    var empContainer = document.getElementById('employee-container');
+                                    if (empContainer) {
+                                        empContainer.classList.remove('hidden');
+                                    }
+                                }
                             }
                         } catch (e) {}
                     });
