@@ -1,6 +1,5 @@
 <?php
 require_once __DIR__ . '/../../COMPETENCY/criticalgaps/config.php';
-require_once __DIR__ . '/development_plans.php';
 
 // jjj
 if (!function_exists('h')) {
@@ -39,14 +38,183 @@ function mapTargetDateToReadiness(?string $targetDate): string
 }
 
 $employeeId = trim((string)($_GET['employee_id'] ?? ''));
+$idpId = (int)($_GET['idp_id'] ?? 0);
+$existingIdp = null;
+if ($idpId > 0) {
+    try {
+        $stmt = $pdo->prepare("SELECT * FROM individual_development_plans WHERE id = ? LIMIT 1");
+        $stmt->execute([$idpId]);
+        $existingIdp = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+        if ($existingIdp && $employeeId === '') {
+            $employeeId = trim((string)($existingIdp['employee_id'] ?? ''));
+        }
+    } catch (Throwable $e) {
+        $existingIdp = null;
+    }
+}
+if ($employeeId !== '' && !$existingIdp) {
+    try {
+        $stmt = $pdo->prepare("SELECT * FROM individual_development_plans WHERE employee_id = ? LIMIT 1");
+        $stmt->execute([$employeeId]);
+        $existingIdp = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+    } catch (Throwable $e) {
+        $existingIdp = null;
+    }
+}
 $viewOnly = (string)($_GET['view'] ?? '') === '1';
 
 $period = date('Y') . '-Q' . (string)ceil((int)date('n') / 3);
 
+$isApi = (string)($_GET['api'] ?? '') === '1';
+if ($isApi) {
+    header('Content-Type: application/json; charset=utf-8');
+    $action = trim((string)($_GET['action'] ?? ''));
+
+    try {
+        if ($action === 'employee_criteria_plans') {
+            $empId = trim((string)($_GET['employee_id'] ?? ''));
+            $p = trim((string)($_GET['period'] ?? $period));
+            $employeeStatusFilter = trim((string)($_GET['employee_status'] ?? ''));
+            if ($empId === '') {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'message' => 'Missing employee_id.'], JSON_UNESCAPED_SLASHES);
+                exit;
+            }
+            if ($p === '') {
+                $p = $period;
+            }
+
+            $allowedStatuses = ['Retrain', 'Reskilling', 'Refresher Training', 'Upskilling', 'Succession Ready'];
+            if ($employeeStatusFilter !== '' && !in_array($employeeStatusFilter, $allowedStatuses, true)) {
+                $employeeStatusFilter = '';
+            }
+
+            $analysis = function_exists('computeEmployeeKpiAnalysis') ? computeEmployeeKpiAnalysis($empId, $p) : ['computed' => []];
+            $computed = is_array($analysis['computed'] ?? null) ? $analysis['computed'] : [];
+
+            $kpiNames = [];
+            foreach ($computed as $c) {
+                $name = trim((string)($c['kpi_name'] ?? ''));
+                if ($name !== '') {
+                    $kpiNames[$name] = true;
+                }
+            }
+            $kpiNames = array_keys($kpiNames);
+
+            if (count($kpiNames) === 0) {
+                echo json_encode(['success' => true, 'data' => []], JSON_UNESCAPED_SLASHES);
+                exit;
+            }
+
+            $criteriaByName = [];
+            try {
+                $placeholders = implode(',', array_fill(0, count($kpiNames), '?'));
+                $stmt = $pdo->prepare("SELECT id, name, required_level FROM competency_criteria WHERE name IN ($placeholders)");
+                $stmt->execute($kpiNames);
+                $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+                foreach ($rows as $r) {
+                    $name = trim((string)($r['name'] ?? ''));
+                    $id = (int)($r['id'] ?? 0);
+                    if ($id > 0 && $name !== '') {
+                        $criteriaByName[$name] = [
+                            'criteria_id' => $id,
+                            'required_level' => is_numeric($r['required_level'] ?? null) ? (float)$r['required_level'] : 80.0,
+                        ];
+                    }
+                }
+            } catch (Throwable $e) {
+            }
+
+            $criteriaIds = [];
+            foreach ($criteriaByName as $v) {
+                $criteriaIds[] = (int)($v['criteria_id'] ?? 0);
+            }
+            $criteriaIds = array_values(array_unique(array_filter($criteriaIds, static fn($v) => (int)$v > 0)));
+
+            $plansByCriteriaId = [];
+            if (count($criteriaIds) > 0) {
+                try {
+                    $placeholders = implode(',', array_fill(0, count($criteriaIds), '?'));
+                    $stmt = $pdo->prepare(
+                        "SELECT id, criteria_id, status, plan_text, delivery_mode, target_percentage
+                         FROM competency_development_plans
+                         WHERE criteria_id IN ($placeholders)
+                         ORDER BY status ASC, updated_at DESC, id DESC"
+                    );
+                    $stmt->execute($criteriaIds);
+                    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+                    foreach ($rows as $r) {
+                        $cid = (int)($r['criteria_id'] ?? 0);
+                        if ($cid <= 0) continue;
+                        $st = trim((string)($r['status'] ?? ''));
+                        if ($st === '') continue;
+                        if ($employeeStatusFilter !== '' && $st !== $employeeStatusFilter) continue;
+                        if (!isset($plansByCriteriaId[$cid])) $plansByCriteriaId[$cid] = [];
+                        if (!isset($plansByCriteriaId[$cid][$st])) $plansByCriteriaId[$cid][$st] = [];
+                        $plansByCriteriaId[$cid][$st][] = [
+                            'id' => (int)($r['id'] ?? 0),
+                            'plan_text' => (string)($r['plan_text'] ?? ''),
+                            'delivery_mode' => (string)($r['delivery_mode'] ?? 'Onsite'),
+                            'target_percentage' => $r['target_percentage'],
+                        ];
+                    }
+                } catch (Throwable $e) {
+                }
+            }
+
+            $out = [];
+            foreach ($computed as $c) {
+                $name = trim((string)($c['kpi_name'] ?? ''));
+                if ($name === '') continue;
+                $gapPct = is_numeric($c['gap_pct'] ?? null) ? (float)$c['gap_pct'] : 0.0;
+                if ($employeeStatusFilter === 'Succession Ready' && $gapPct <= 0.0) {
+                    continue;
+                }
+                $meta = $criteriaByName[$name] ?? null;
+                $cid = $meta ? (int)($meta['criteria_id'] ?? 0) : 0;
+                $out[] = [
+                    'criteria_id' => $cid,
+                    'criteria_name' => $name,
+                    'kpi_pct' => is_numeric($c['kpi_pct'] ?? null) ? (float)$c['kpi_pct'] : 0.0,
+                    'required_pct' => is_numeric($c['required_pct'] ?? null) ? (float)$c['required_pct'] : 80.0,
+                    'gap_pct' => $gapPct,
+                    'plans_by_status' => ($cid > 0 && isset($plansByCriteriaId[$cid])) ? $plansByCriteriaId[$cid] : new stdClass(),
+                ];
+            }
+
+            echo json_encode(['success' => true, 'status_filter' => $employeeStatusFilter, 'data' => $out], JSON_UNESCAPED_SLASHES);
+            exit;
+        }
+
+        http_response_code(400);
+        echo json_encode(['success' => false, 'message' => 'Invalid action.'], JSON_UNESCAPED_SLASHES);
+        exit;
+    } catch (Throwable $e) {
+        http_response_code(500);
+        echo json_encode(['success' => false, 'message' => 'Server error.'], JSON_UNESCAPED_SLASHES);
+        exit;
+    }
+}
+
 $successMessage = '';
 $errorMessage = '';
 
-if ($employeeId === '') {
+if ($idpId > 0 && !$existingIdp) {
+    http_response_code(404);
+    $errorMessage = 'IDP record not found.';
+}
+
+if ($idpId > 0 && $existingIdp && !$viewOnly) {
+    $st = (string)($existingIdp['idp_status'] ?? '');
+    if (!in_array($st, ['under_review', 'approved'], true)) {
+        $viewOnly = true;
+        if ($errorMessage === '') {
+            $errorMessage = 'This IDP cannot be edited in its current status.';
+        }
+    }
+}
+
+if ($employeeId === '' && $errorMessage === '') {
     http_response_code(400);
     $errorMessage = 'Missing employee_id.';
 }
@@ -59,7 +227,6 @@ if ($errorMessage === '' && $_SERVER['REQUEST_METHOD'] === 'POST' && !$viewOnly)
 
     $succTargetRole = trim((string)($_POST['succ_target_role'] ?? ''));
     $succReadinessLevel = trim((string)($_POST['succ_readiness_level'] ?? ''));
-    $succMentorCoach = trim((string)($_POST['succ_mentor_coach'] ?? ''));
     $succLeadershipFocus = trim((string)($_POST['succ_leadership_focus'] ?? ''));
     $succStretchAssignments = trim((string)($_POST['succ_stretch_assignments'] ?? ''));
     $succCoachingPlan = trim((string)($_POST['succ_coaching_plan'] ?? ''));
@@ -111,15 +278,16 @@ if ($errorMessage === '' && $_SERVER['REQUEST_METHOD'] === 'POST' && !$viewOnly)
         $succReadinessLevel = $autoReadiness;
     }
 
+    if ($isSuccessionReady && $succTargetRole === '') {
+        $errorMessage = 'Target role is required.';
+    }
+
     $succMetaLines = [];
     if ($succTargetRole !== '') {
         $succMetaLines[] = 'Target Succession Role: ' . $succTargetRole;
     }
     if ($succReadinessLevel !== '') {
         $succMetaLines[] = 'Readiness Level: ' . $succReadinessLevel;
-    }
-    if ($succMentorCoach !== '') {
-        $succMetaLines[] = 'Assigned Mentor/Coach: ' . $succMentorCoach;
     }
     if ($succFinalOutcome !== '') {
         $succMetaLines[] = 'Final Succession Validation Outcome: ' . $succFinalOutcome;
@@ -229,7 +397,7 @@ if ($errorMessage === '' && $_SERVER['REQUEST_METHOD'] === 'POST' && !$viewOnly)
                      target_score = VALUES(target_score),
                      target_date = IFNULL(VALUES(target_date), target_date),
                      delivery_mode = VALUES(delivery_mode),
-                     idp_status = CASE WHEN individual_development_plans.idp_status IN ('requested','approved') THEN individual_development_plans.idp_status ELSE 'under_review' END"
+                     idp_status = CASE WHEN individual_development_plans.idp_status = 'requested' THEN 'requested' ELSE 'under_review' END"
                 );
                 $ins->execute([
                     $src['employee_id'],
@@ -308,7 +476,25 @@ if ($errorMessage === '' && $_SERVER['REQUEST_METHOD'] === 'POST' && !$viewOnly)
                                  requested_training_type, requested_training_mode, requested_start_datetime, requested_end_datetime,
                                  idp_status, training_requested_at, learning_requested_at, created_at, updated_at)
                              VALUES
-                                (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'requested', ?, ?, ?, ?)"
+                                (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'requested', ?, ?, ?, ?)
+                             ON DUPLICATE KEY UPDATE
+                                employee_name = VALUES(employee_name),
+                                position = VALUES(position),
+                                department = VALUES(department),
+                                competency = VALUES(competency),
+                                succession_status = VALUES(succession_status),
+                                development_plan = VALUES(development_plan),
+                                target_score = VALUES(target_score),
+                                target_date = VALUES(target_date),
+                                delivery_mode = VALUES(delivery_mode),
+                                requested_training_type = VALUES(requested_training_type),
+                                requested_training_mode = VALUES(requested_training_mode),
+                                requested_start_datetime = VALUES(requested_start_datetime),
+                                requested_end_datetime = VALUES(requested_end_datetime),
+                                idp_status = 'requested',
+                                training_requested_at = VALUES(training_requested_at),
+                                learning_requested_at = VALUES(learning_requested_at),
+                                updated_at = VALUES(updated_at)"
                             );
                             $stmtInsert->execute([
                                 (int)$idpRow['id'],
@@ -332,7 +518,15 @@ if ($errorMessage === '' && $_SERVER['REQUEST_METHOD'] === 'POST' && !$viewOnly)
                                 $now,
                             ]);
 
-                            $pdo->prepare("DELETE FROM individual_development_plans WHERE employee_id = ?")->execute([$employeeId]);
+                            $stmtUpd = $pdo->prepare(
+                                "UPDATE individual_development_plans
+                                 SET idp_status = 'requested',
+                                     training_requested_at = ?,
+                                     learning_requested_at = ?,
+                                     updated_at = ?
+                                 WHERE employee_id = ?"
+                            );
+                            $stmtUpd->execute([$idpRow['training_requested_at'], $now, $now, $employeeId]);
                             $pdo->commit();
 
                             header('Location: individual_development_plans.php?ok=learning_requested');
@@ -437,7 +631,25 @@ if ($errorMessage === '' && $_SERVER['REQUEST_METHOD'] === 'POST' && !$viewOnly)
                                          requested_training_type, requested_training_mode, requested_start_datetime, requested_end_datetime,
                                          idp_status, training_requested_at, learning_requested_at, created_at, updated_at)
                                      VALUES
-                                        (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'requested', ?, ?, ?, ?)"
+                                        (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'requested', ?, ?, ?, ?)
+                                     ON DUPLICATE KEY UPDATE
+                                        employee_name = VALUES(employee_name),
+                                        position = VALUES(position),
+                                        department = VALUES(department),
+                                        competency = VALUES(competency),
+                                        succession_status = VALUES(succession_status),
+                                        development_plan = VALUES(development_plan),
+                                        target_score = VALUES(target_score),
+                                        target_date = VALUES(target_date),
+                                        delivery_mode = VALUES(delivery_mode),
+                                        requested_training_type = VALUES(requested_training_type),
+                                        requested_training_mode = VALUES(requested_training_mode),
+                                        requested_start_datetime = VALUES(requested_start_datetime),
+                                        requested_end_datetime = VALUES(requested_end_datetime),
+                                        idp_status = 'requested',
+                                        training_requested_at = VALUES(training_requested_at),
+                                        learning_requested_at = VALUES(learning_requested_at),
+                                        updated_at = VALUES(updated_at)"
                                     );
                                     $stmtInsert->execute([
                                         (int)$idpRow['id'],
@@ -461,7 +673,15 @@ if ($errorMessage === '' && $_SERVER['REQUEST_METHOD'] === 'POST' && !$viewOnly)
                                         $now,
                                     ]);
 
-                                    $pdo->prepare("DELETE FROM individual_development_plans WHERE employee_id = ?")->execute([$employeeId]);
+                                    $stmtUpd = $pdo->prepare(
+                                        "UPDATE individual_development_plans
+                                         SET idp_status = 'requested',
+                                             training_requested_at = ?,
+                                             learning_requested_at = ?,
+                                             updated_at = ?
+                                         WHERE employee_id = ?"
+                                    );
+                                    $stmtUpd->execute([$trainingRequestedAt, $learningRequestedAt, $now, $employeeId]);
                                     $pdo->commit();
 
                                     header('Location: individual_development_plans.php?ok=training_requested');
@@ -542,6 +762,7 @@ $kpiOverall = is_array($kpiAnalysis['overall'] ?? null) ? $kpiAnalysis['overall'
 
 $employeeStatus = (string)($row['status'] ?? '');
 $isSuccessionReady = $employeeStatus === 'Succession Ready';
+$currentIdpStatusValue = (string)(($existingIdp['idp_status'] ?? null) ?? ($row['idp_status'] ?? ''));
 
 $extractMeta = function (string $plan, string $key): string {
     $plan = (string)$plan;
@@ -552,10 +773,11 @@ $extractMeta = function (string $plan, string $key): string {
     return '';
 };
 
-$prefillPlan = (string)($row['development_plan'] ?? '');
+$prefillPlan = $_SERVER['REQUEST_METHOD'] === 'POST'
+    ? (string)($_POST['development_plan'] ?? '')
+    : (string)(($existingIdp['development_plan'] ?? null) ?? ($row['development_plan'] ?? ''));
 $succTargetRoleValue = $_SERVER['REQUEST_METHOD'] === 'POST' ? (string)($_POST['succ_target_role'] ?? '') : $extractMeta($prefillPlan, 'Target Succession Role');
 $succReadinessLevelValue = $_SERVER['REQUEST_METHOD'] === 'POST' ? (string)($_POST['succ_readiness_level'] ?? '') : $extractMeta($prefillPlan, 'Readiness Level');
-$succMentorCoachValue = $_SERVER['REQUEST_METHOD'] === 'POST' ? (string)($_POST['succ_mentor_coach'] ?? '') : $extractMeta($prefillPlan, 'Assigned Mentor/Coach');
 $succFinalOutcomeValue = $_SERVER['REQUEST_METHOD'] === 'POST' ? (string)($_POST['succ_final_outcome'] ?? '') : $extractMeta($prefillPlan, 'Final Succession Validation Outcome');
 
 $succLeadershipFocusValue = $_SERVER['REQUEST_METHOD'] === 'POST' ? (string)($_POST['succ_leadership_focus'] ?? '') : $extractMeta($prefillPlan, 'Leadership & Strategic Competencies');
@@ -563,62 +785,51 @@ $succStretchAssignmentsValue = $_SERVER['REQUEST_METHOD'] === 'POST' ? (string)(
 $succCoachingPlanValue = $_SERVER['REQUEST_METHOD'] === 'POST' ? (string)($_POST['succ_coaching_plan'] ?? '') : $extractMeta($prefillPlan, 'Coaching & Knowledge Transfer');
 $succAssessmentPlanValue = $_SERVER['REQUEST_METHOD'] === 'POST' ? (string)($_POST['succ_assessment_plan'] ?? '') : $extractMeta($prefillPlan, 'Readiness Assessment & Evaluation');
 
-$targetDateValue = $_SERVER['REQUEST_METHOD'] === 'POST' ? (string)($_POST['target_date'] ?? '') : (string)($row['target_date'] ?? '');
+$targetDateValue = $_SERVER['REQUEST_METHOD'] === 'POST'
+    ? (string)($_POST['target_date'] ?? '')
+    : (string)(($existingIdp['target_date'] ?? null) ?? ($row['target_date'] ?? ''));
 
 
 $suggestedPlans = [];
-if ($row) {
-    $deptForPlans = (string)($row['department'] ?? '');
-    if (!empty($kpiComputed) && function_exists('getDevelopmentPlansForSkill')) {
-        foreach ($kpiComputed as $k) {
-            $kpiName = (string)($k['kpi_name'] ?? '');
-            if ($kpiName === '') {
-                continue;
-            }
-            $kpiPct = (float)($k['kpi_pct'] ?? 0);
-            $kpiStatus = mapCompetencyToStatus($kpiPct);
-            $plansForKpi = getDevelopmentPlansForSkill($deptForPlans, $kpiStatus, $kpiName);
-            if (!is_array($plansForKpi) || count($plansForKpi) === 0) {
-                continue;
-            }
-            $planTexts = [];
-            $deliveryMode = 'Onsite';
-            foreach ($plansForKpi as $p) {
-                $txt = trim((string)($p['plan_text'] ?? ''));
-                if ($txt === '') {
-                    continue;
-                }
-                $planTexts[] = $txt;
-                $deliveryMode = (string)($p['delivery_mode'] ?? $deliveryMode);
-            }
-            if (count($planTexts) === 0) {
-                continue;
-            }
-            $suggestedPlans[$kpiName] = [
-                'plan_text' => implode("\n", $planTexts),
-                'delivery_mode' => $deliveryMode,
-            ];
-        }
-    }
-    if (count($suggestedPlans) === 0) {
-        $suggestedPlans = getSuggestedPlansForDepartmentStatus(
-            (string)($row['department'] ?? ''),
-            (string)($row['status'] ?? ''),
-            (string)($row['position'] ?? '')
-        );
-    }
-}
 
 $trainingTypeValue = $_SERVER['REQUEST_METHOD'] === 'POST' ? (string)($_POST['training_type'] ?? '') : '';
 $succTargetRoleOptions = [];
 if ($row && $isSuccessionReady) {
     $deptNameForRole = trim((string)($row['department'] ?? ''));
+    $currentDeptRole = trim((string)($row['position'] ?? ''));
     $rolesForDept = [];
-    if (isset($deptRoles) && is_array($deptRoles[$deptNameForRole] ?? null)) {
+    if ($deptNameForRole !== '') {
+        try {
+            $stmtRoles = $pdo->prepare(
+                "SELECT DISTINCT position
+                 FROM employees
+                 WHERE department = ?
+                   AND position IS NOT NULL
+                   AND position <> ''
+                 ORDER BY position ASC"
+            );
+            $stmtRoles->execute([$deptNameForRole]);
+            $rolesForDept = array_map(
+                static fn($r) => trim((string)($r['position'] ?? '')),
+                $stmtRoles->fetchAll(PDO::FETCH_ASSOC)
+            );
+        } catch (Throwable $e) {
+            $rolesForDept = [];
+        }
+    }
+    if (empty($rolesForDept) && isset($deptRoles) && is_array($deptRoles[$deptNameForRole] ?? null)) {
         $rolesForDept = array_keys($deptRoles[$deptNameForRole]);
     }
     if (!empty($rolesForDept)) {
-        $succTargetRoleOptions = $rolesForDept;
+        $succTargetRoleOptions = array_values(array_filter($rolesForDept, static function ($r) use ($currentDeptRole) {
+            $r = trim((string)$r);
+            if ($r === '') return false;
+            if ($currentDeptRole !== '' && strcasecmp($r, $currentDeptRole) === 0) return false;
+            return true;
+        }));
+        if (empty($succTargetRoleOptions)) {
+            $succTargetRoleOptions = $rolesForDept;
+        }
     }
     if (empty($succTargetRoleOptions)) {
         $succTargetRoleOptions = ['Promotion Raise'];
@@ -629,7 +840,9 @@ if ($row && $isSuccessionReady) {
 }
 
 $trainingModeValue = $_SERVER['REQUEST_METHOD'] === 'POST' ? (string)($_POST['training_mode'] ?? 'Onsite') : 'Onsite';
-$idpDeliveryModeValue = $_SERVER['REQUEST_METHOD'] === 'POST' ? (string)($_POST['idp_delivery_mode'] ?? $trainingModeValue) : $trainingModeValue;
+$idpDeliveryModeValue = $_SERVER['REQUEST_METHOD'] === 'POST'
+    ? (string)($_POST['idp_delivery_mode'] ?? $trainingModeValue)
+    : (string)(($existingIdp['delivery_mode'] ?? null) ?? $trainingModeValue);
 $idpDeliveryModeValue = in_array($idpDeliveryModeValue, ['Online', 'Onsite', 'Hybrid'], true) ? $idpDeliveryModeValue : 'Onsite';
 $trainingStartDateValue = $_SERVER['REQUEST_METHOD'] === 'POST' ? (string)($_POST['training_start_date'] ?? '') : '';
 $trainingStartDateValue = $_SERVER['REQUEST_METHOD'] === 'POST' ? (string)($_POST['training_start_date'] ?? '') : '';
@@ -688,7 +901,7 @@ require('../../partials/header.php');
                                 </div>
                                 <div>
                                     <label class="block text-xs font-semibold text-gray-500">IDP Status</label>
-                                    <input type="text" readonly value="<?php echo h($row['idp_status']); ?>" class="mt-1 w-full border border-gray-300 rounded-md p-2 text-sm bg-gray-50 text-gray-900" />
+                                    <input type="text" readonly value="<?php echo h($currentIdpStatusValue); ?>" class="mt-1 w-full border border-gray-300 rounded-md p-2 text-sm bg-gray-50 text-gray-900" />
                                 </div>
                             </div>
                         </div>
@@ -780,7 +993,7 @@ require('../../partials/header.php');
                                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                                         <div>
                                             <label class="block text-sm font-semibold text-gray-800 mb-2">Target Role</label>
-                                            <select name="succ_target_role" class="w-full border border-gray-300 rounded-md p-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-gray-900" <?php echo $viewOnly ? 'disabled' : ''; ?>>
+                                            <select name="succ_target_role" class="w-full border border-gray-300 rounded-md p-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-gray-900" <?php echo $viewOnly ? 'disabled' : 'required'; ?>>
                                                 <option value="" <?php echo $succTargetRoleValue === '' ? 'selected' : ''; ?> disabled>Select target role</option>
                                                 <?php foreach ($succTargetRoleOptions as $opt): ?>
                                                     <?php $optVal = (string)$opt; ?>
@@ -804,52 +1017,14 @@ require('../../partials/header.php');
                                                 <?php endforeach; ?>
                                             </select>
                                         </div>
-                                        <div>
-                                            <label class="block text-sm font-semibold text-gray-800 mb-2">Target Promotion Date</label>
-                                            <input type="date" name="target_date" value="<?php echo h($targetDateValue); ?>" class="w-full border border-gray-300 rounded-md p-3 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900" <?php echo $viewOnly ? 'readonly' : ''; ?> />
-                                        </div>
-                                        <div class="md:col-span-2">
-                                            <label class="block text-sm font-semibold text-gray-800 mb-2">Assigned Mentor/Coach</label>
-                                            <input type="text" name="succ_mentor_coach" value="<?php echo h($succMentorCoachValue); ?>" class="w-full border border-gray-300 rounded-md p-3 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900" <?php echo $viewOnly ? 'readonly' : ''; ?> />
-                                        </div>
                                     </div>
                                 </div>
                             <?php endif; ?>
-                            <?php if (count($suggestedPlans) > 0): ?>
+                            <?php if (!$viewOnly): ?>
                                 <div>
                                     <label class="block text-sm font-semibold text-gray-800 mb-2"><?php echo $isSuccessionReady ? 'Strategic Development Activities' : 'Suggested Development Plans'; ?></label>
                                     <div id="suggested_plans" class="space-y-3">
-                                        <?php $skillIndex = 0; ?>
-                                        <?php foreach ($suggestedPlans as $skillName => $planData): ?>
-                                            <?php
-                                            $skillIndex++;
-                                            $skillId = 's' . $skillIndex;
-                                            $planText = is_array($planData) ? (string)($planData['plan_text'] ?? '') : (string)$planData;
-                                            $deliveryMode = is_array($planData) ? (string)($planData['delivery_mode'] ?? 'Onsite') : 'Onsite';
-                                            if ($deliveryMode !== 'Online' && $deliveryMode !== 'Onsite') {
-                                                $deliveryMode = 'Onsite';
-                                            }
-                                            $items = function_exists('splitPlanItems') ? splitPlanItems($planText) : [trim((string)$planText)];
-                                            $items = array_values(array_filter(array_map('trim', $items), function ($v) {
-                                                return (string)$v !== '';
-                                            }));
-                                            ?>
-                                            <div class="border border-gray-200 rounded-md p-3">
-                                                <label class="flex items-center gap-2 text-sm font-semibold text-gray-900">
-                                                    <input type="checkbox" class="skill-checkbox" data-skill-id="<?php echo h($skillId); ?>" data-skill-name="<?php echo h($skillName); ?>" data-delivery-mode="<?php echo h($deliveryMode); ?>" <?php echo $viewOnly ? 'disabled' : ''; ?> />
-                                                    <span><?php echo h($skillName); ?></span>
-                                                </label>
-
-                                                <div class="mt-2 pl-6 space-y-1 hidden" data-skill-items="<?php echo h($skillId); ?>">
-                                                    <?php foreach ($items as $it): ?>
-                                                        <label class="flex items-center gap-2 text-sm text-gray-800">
-                                                            <input type="checkbox" class="training-checkbox" data-skill-id="<?php echo h($skillId); ?>" data-skill-name="<?php echo h($skillName); ?>" data-item-text="<?php echo h($it); ?>" data-delivery-mode="<?php echo h($deliveryMode); ?>" <?php echo $viewOnly ? 'disabled' : ''; ?> />
-                                                            <span><?php echo h($it); ?></span>
-                                                        </label>
-                                                    <?php endforeach; ?>
-                                                </div>
-                                            </div>
-                                        <?php endforeach; ?>
+                                        <div class="text-sm text-gray-600">Loading criteria development plans...</div>
                                     </div>
                                 </div>
                             <?php endif; ?>
@@ -860,7 +1035,7 @@ require('../../partials/header.php');
                                     <div id="development_plan_bubbles_inner" class="flex flex-wrap gap-2"></div>
                                     <div id="development_plan_bubbles_empty" class="text-xs text-gray-500"><?php echo $isSuccessionReady ? 'No selected activities yet.' : 'No selected trainings yet.'; ?></div>
                                 </div>
-                                <textarea id="development_plan" name="development_plan" class="hidden" <?php echo $viewOnly ? 'readonly' : ''; ?>><?php echo h($row['development_plan'] ?? ''); ?></textarea>
+                                <textarea id="development_plan" name="development_plan" class="hidden" <?php echo $viewOnly ? 'readonly' : ''; ?>><?php echo h($prefillPlan); ?></textarea>
                             </div>
 
                             <div class="flex items-center justify-between pt-4">
@@ -884,20 +1059,28 @@ require('../../partials/header.php');
                         var bubblesEmpty = document.getElementById('development_plan_bubbles_empty');
                         var deliveryModeHidden = document.getElementById('idp_delivery_mode');
                         var trainingModeSelect = document.querySelector('select[name="training_mode"]');
-                        var targetDateInput = document.querySelector('input[name="target_date"]');
                         var readinessSelect = document.querySelector('select[name="succ_readiness_level"]');
                         var targetRoleSelect = document.querySelector('select[name="succ_target_role"]');
-                        var mentorInput = document.querySelector('input[name="succ_mentor_coach"]');
                         var leadershipTextarea = document.querySelector('textarea[name="succ_leadership_focus"]');
                         var stretchTextarea = document.querySelector('textarea[name="succ_stretch_assignments"]');
                         var coachingTextarea = document.querySelector('textarea[name="succ_coaching_plan"]');
                         var assessmentTextarea = document.querySelector('textarea[name="succ_assessment_plan"]');
                         var finalOutcomeTextarea = document.querySelector('textarea[name="succ_final_outcome"]');
-                        if (!container || !planInput || !bubblesInner || !bubblesEmpty) return;
+                        if (!planInput || !bubblesInner || !bubblesEmpty) return;
 
                         var isViewOnly = planInput.hasAttribute('readonly');
 
+                        function escapeHtml(s) {
+                            return String(s || '')
+                                .replaceAll('&', '&amp;')
+                                .replaceAll('<', '&lt;')
+                                .replaceAll('>', '&gt;')
+                                .replaceAll('"', '&quot;')
+                                .replaceAll("'", '&#039;');
+                        }
+
                         function setItemsVisible(skillId, visible) {
+                            if (!container) return;
                             var itemsEl = container.querySelector('[data-skill-items="' + skillId + '"]');
                             if (!itemsEl) return;
                             if (visible) {
@@ -908,6 +1091,7 @@ require('../../partials/header.php');
                         }
 
                         function getTrainingCheckboxes(skillId) {
+                            if (!container) return [];
                             return Array.from(container.querySelectorAll('.training-checkbox[data-skill-id="' + skillId + '"]'));
                         }
 
@@ -941,11 +1125,108 @@ require('../../partials/header.php');
                             renderBubbles(items);
                         }
 
+                        if (!container) {
+                            renderBubblesFromPlanText();
+                            return;
+                        }
+
+                        async function fetchCriteriaPlans() {
+                            if (isViewOnly) return;
+                            var employeeId = <?php echo json_encode($employeeId, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
+                            var period = <?php echo json_encode($period, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
+                            var employeeStatus = <?php echo json_encode($employeeStatus, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
+                            container.innerHTML = '<div class="text-sm text-gray-600">Loading criteria development plans...</div>';
+                            try {
+                                var allowedStatuses = ['Retrain', 'Reskilling', 'Refresher Training', 'Upskilling', 'Succession Ready'];
+                                employeeStatus = String(employeeStatus || '').trim();
+                                if (allowedStatuses.indexOf(employeeStatus) === -1) {
+                                    employeeStatus = 'Retrain';
+                                }
+
+                                var url = 'individual_dev_plan.php?api=1&action=employee_criteria_plans&employee_id=' + encodeURIComponent(String(employeeId || '')) + '&period=' + encodeURIComponent(String(period || '')) + '&employee_status=' + encodeURIComponent(employeeStatus);
+                                var res = await fetch(url);
+                                var json = await res.json().catch(function() {
+                                    return null;
+                                });
+                                if (!json || json.success !== true) {
+                                    throw new Error((json && json.message) ? json.message : 'Failed to load plans.');
+                                }
+                                var data = Array.isArray(json.data) ? json.data : [];
+                                if (employeeStatus === 'Succession Ready') {
+                                    data = data.filter(function(c) {
+                                        return Number(c.gap_pct || 0) > 0;
+                                    });
+                                }
+                                if (data.length === 0) {
+                                    container.innerHTML = employeeStatus === 'Succession Ready' ?
+                                        '<div class="text-sm text-gray-600">No KPI gaps found. Only criteria with gaps can be selected.</div>' :
+                                        '<div class="text-sm text-gray-600">No criteria plans available for this employee.</div>';
+                                    return;
+                                }
+
+                                container.innerHTML = data.map(function(c, idx) {
+                                    var cid = parseInt(String(c.criteria_id || '0'), 10);
+                                    var skillId = 'c' + (cid > 0 ? String(cid) : String(idx + 1));
+                                    var name = String(c.criteria_name || '');
+                                    var kpiPct = Number(c.kpi_pct);
+                                    var reqPct = Number(c.required_pct);
+                                    var gapPct = Number(c.gap_pct);
+                                    var meta = (Number.isFinite(kpiPct) && Number.isFinite(reqPct) && Number.isFinite(gapPct)) ?
+                                        (' (' + kpiPct.toFixed(1) + '% / ' + reqPct.toFixed(1) + '% • gap ' + gapPct.toFixed(1) + '%)') :
+                                        '';
+
+                                    var byStatus = c.plans_by_status || {};
+                                    var list = byStatus[employeeStatus];
+                                    if (!Array.isArray(list)) list = [];
+                                    var plansHtml = list.map(function(p) {
+                                        var txt = String(p.plan_text || '').trim();
+                                        if (!txt) return '';
+                                        var dm = String(p.delivery_mode || 'Onsite');
+                                        if (dm !== 'Online' && dm !== 'Onsite') dm = 'Onsite';
+                                        return (
+                                            '<label class="flex items-center gap-2 text-sm text-gray-800">' +
+                                            '<input type="checkbox" class="training-checkbox" data-skill-id="' + escapeHtml(skillId) + '" data-skill-name="' + escapeHtml(name) + '" data-item-text="' + escapeHtml(txt) + '" data-delivery-mode="' + escapeHtml(dm) + '" />' +
+                                            '<span>' + escapeHtml(txt) + '</span>' +
+                                            '</label>'
+                                        );
+                                    }).filter(function(x) {
+                                        return x !== '';
+                                    }).join('');
+
+                                    if (!plansHtml) {
+                                        plansHtml = '<div class="text-sm text-gray-600">No ' + escapeHtml(employeeStatus) + ' development plans yet.</div>';
+                                    }
+
+                                    return (
+                                        '<div class="border border-gray-200 rounded-md p-3">' +
+                                        '<label class="flex items-center gap-2 text-sm font-semibold text-gray-900">' +
+                                        '<input type="checkbox" class="skill-checkbox" data-skill-id="' + escapeHtml(skillId) + '" data-skill-name="' + escapeHtml(name) + '" />' +
+                                        '<span>' + escapeHtml(name) + '</span>' +
+                                        '<span class="text-xs text-gray-500">' + escapeHtml(meta) + '</span>' +
+                                        '<span class="badge badge-ghost badge-sm ml-auto">' + escapeHtml(employeeStatus) + '</span>' +
+                                        '</label>' +
+                                        '<div class="mt-2 pl-6 space-y-1 hidden" data-skill-items="' + escapeHtml(skillId) + '">' +
+                                        plansHtml +
+                                        '</div>' +
+                                        '</div>'
+                                    );
+                                }).join('');
+                            } catch (err) {
+                                container.innerHTML = '<div class="text-sm text-gray-600">Failed to load development plans.</div>';
+                                if (window.Swal && typeof window.Swal.fire === 'function') {
+                                    window.Swal.fire({
+                                        icon: 'error',
+                                        title: 'Error',
+                                        text: String(err && err.message ? err.message : err)
+                                    });
+                                }
+                            }
+                        }
+
                         function buildSuccMetaBlock() {
                             var lines = [];
                             var roleVal = targetRoleSelect ? String(targetRoleSelect.value || '') : '';
                             var readinessVal = readinessSelect ? String(readinessSelect.value || '') : '';
-                            var mentorVal = mentorInput ? String(mentorInput.value || '') : '';
                             var leadershipVal = leadershipTextarea ? String(leadershipTextarea.value || '') : '';
                             var stretchVal = stretchTextarea ? String(stretchTextarea.value || '') : '';
                             var coachingVal = coachingTextarea ? String(coachingTextarea.value || '') : '';
@@ -957,9 +1238,6 @@ require('../../partials/header.php');
                             }
                             if (readinessVal !== '') {
                                 lines.push('Readiness Level: ' + readinessVal);
-                            }
-                            if (mentorVal !== '') {
-                                lines.push('Assigned Mentor/Coach: ' + mentorVal);
                             }
                             if (finalOutcomeVal !== '') {
                                 lines.push('Final Succession Validation Outcome: ' + finalOutcomeVal);
@@ -1019,23 +1297,6 @@ require('../../partials/header.php');
                             planInput.value = v;
                             renderBubbles(bubbles);
 
-                            if (targetDateInput && !isViewOnly) {
-                                if (bubbles.length > 0 && !targetDateInput.value) {
-                                    var now = new Date();
-                                    var future = new Date(now.getFullYear(), now.getMonth() + 3, now.getDate());
-                                    var y = future.getFullYear();
-                                    var m = String(future.getMonth() + 1).padStart(2, '0');
-                                    var d = String(future.getDate()).padStart(2, '0');
-                                    targetDateInput.value = y + '-' + m + '-' + d;
-                                    updateReadinessFromTargetDate();
-                                } else if (bubbles.length === 0 && targetDateInput.value) {
-                                    targetDateInput.value = '';
-                                    if (readinessSelect) {
-                                        readinessSelect.value = 'Ready Now';
-                                    }
-                                }
-                            }
-
                             var keys = Object.keys(modes);
                             var selectedMode = '';
                             if (keys.length === 1) {
@@ -1079,41 +1340,7 @@ require('../../partials/header.php');
                             }
                         });
 
-                        function updateReadinessFromTargetDate() {
-                            if (!targetDateInput || !readinessSelect) return;
-                            var v = String(targetDateInput.value || '');
-                            if (v === '') return;
-                            var parts = v.split('-');
-                            if (parts.length !== 3) return;
-                            var year = parseInt(parts[0], 10);
-                            var month = parseInt(parts[1], 10) - 1;
-                            var day = parseInt(parts[2], 10);
-                            if (!year || !day || isNaN(month)) return;
-                            var now = new Date();
-                            var today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-                            var target = new Date(year, month, day);
-                            if (target <= today) {
-                                readinessSelect.value = 'Ready Now';
-                                return;
-                            }
-                            var months = (target.getFullYear() - today.getFullYear()) * 12 + (target.getMonth() - today.getMonth());
-                            if (months <= 3) {
-                                readinessSelect.value = '3 Months';
-                            } else if (months <= 6) {
-                                readinessSelect.value = '6 Months';
-                            } else {
-                                readinessSelect.value = '12+ Months';
-                            }
-                        }
-
-                        if (targetDateInput && readinessSelect && !isViewOnly) {
-                            targetDateInput.addEventListener('change', function() {
-                                updateReadinessFromTargetDate();
-                                rebuildTextarea();
-                            });
-                        }
-
-                        [targetRoleSelect, mentorInput, leadershipTextarea, stretchTextarea, coachingTextarea, assessmentTextarea, finalOutcomeTextarea, readinessSelect].forEach(function(el) {
+                        [targetRoleSelect, leadershipTextarea, stretchTextarea, coachingTextarea, assessmentTextarea, finalOutcomeTextarea, readinessSelect].forEach(function(el) {
                             if (!el || isViewOnly) return;
                             var ev = el.tagName === 'SELECT' ? 'change' : 'input';
                             el.addEventListener(ev, function() {
@@ -1121,6 +1348,7 @@ require('../../partials/header.php');
                             });
                         });
 
+                        fetchCriteriaPlans();
                         renderBubblesFromPlanText();
                     })();
                 </script>

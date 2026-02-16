@@ -290,6 +290,10 @@ function seedCompetencyCriteria(): void
     $defaultCriteria = [
         'Work Quality' => 80,
         'Productivity' => 75,
+        'Communication' => 80,
+        'Customer Service' => 80,
+        'Technical Skills' => 80,
+        'Leadership' => 75,
         'Teamwork' => 75,
         'Professional Development' => 70,
         'Compliance' => 85,

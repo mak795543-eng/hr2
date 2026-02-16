@@ -2,9 +2,6 @@
 
 require_once __DIR__ . '/../../COMPETENCY/criticalgaps/config.php';
 
-if (session_status() === PHP_SESSION_NONE) {
-}
-
 $DEVELOPMENT_PLANS = [
     'Front Office / Reception' => [
         'Customer Service Excellence' => [
@@ -777,6 +774,52 @@ if (!function_exists('ensureDevelopmentPlansSchema')) {
     }
 }
 
+if (!function_exists('ensureCompetencyDevelopmentPlansSchema')) {
+    function ensureCompetencyDevelopmentPlansSchema(): void
+    {
+        global $pdo;
+        static $done = false;
+        if ($done) {
+            return;
+        }
+        $done = true;
+
+        if (!$pdo) {
+            return;
+        }
+
+        try {
+            $pdo->exec(
+                "CREATE TABLE IF NOT EXISTS competency_development_plans (
+                    id INT PRIMARY KEY AUTO_INCREMENT,
+                    criteria_id INT NOT NULL,
+                    status ENUM('Retrain','Reskilling','Refresher Training','Upskilling','Succession Ready') NOT NULL DEFAULT 'Retrain',
+                    plan_text TEXT NOT NULL,
+                    plan_hash CHAR(64) NOT NULL,
+                    delivery_mode ENUM('Onsite','Online') NOT NULL DEFAULT 'Onsite',
+                    target_percentage DECIMAL(5,2) NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    UNIQUE KEY uniq_criteria_plan (criteria_id, plan_hash),
+                    INDEX idx_criteria (criteria_id),
+                    CONSTRAINT fk_cdp_criteria FOREIGN KEY (criteria_id) REFERENCES competency_criteria(id) ON DELETE CASCADE
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
+            );
+        } catch (Throwable $e) {
+        }
+
+        try {
+            $pdo->exec("ALTER TABLE competency_development_plans ADD COLUMN plan_hash CHAR(64) NOT NULL");
+        } catch (Throwable $e) {
+        }
+
+        try {
+            $pdo->exec("ALTER TABLE competency_development_plans ADD UNIQUE KEY uniq_criteria_plan (criteria_id, plan_hash)");
+        } catch (Throwable $e) {
+        }
+    }
+}
+
 if (!function_exists('seedDevelopmentPlansIfEmpty')) {
     function seedDevelopmentPlansIfEmpty($seedRepo)
     {
@@ -867,39 +910,73 @@ if (!$isDirect) {
 }
 
 $flash = null;
-if (isset($_SESSION['dp_flash']) && is_array($_SESSION['dp_flash'])) {
-    $flash = $_SESSION['dp_flash'];
-    unset($_SESSION['dp_flash']);
-}
 
-ensureDevelopmentPlansSchema();
-seedDevelopmentPlansIfEmpty($DEVELOPMENT_PLANS);
+ensureCompetencyCriteriaSchema();
+ensureCompetencyDevelopmentPlansSchema();
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $action = trim((string)($_POST['action'] ?? ''));
+if (($_GET['api'] ?? '') === '1') {
+    header('Content-Type: application/json; charset=utf-8');
+
+    $action = (string)($_GET['action'] ?? '');
+    $raw = file_get_contents('php://input');
+    $payload = json_decode($raw, true);
+    if (!is_array($payload)) {
+        $payload = $_POST;
+    }
+
     $allowedStatuses = ['Retrain', 'Reskilling', 'Refresher Training', 'Upskilling', 'Succession Ready'];
     $allowedModes = ['Onsite', 'Online'];
 
-    $redirectDept = trim((string)($_POST['department'] ?? ''));
+    $normalizePlanText = function (string $text): string {
+        $text = trim($text);
+        $text = preg_replace('/\s+/u', ' ', $text) ?? $text;
+        return mb_strtolower($text);
+    };
 
     try {
-        if ($action === 'save_plan') {
-            $department = trim((string)($_POST['department'] ?? ''));
-            $role = '';
-            $status = trim((string)($_POST['status'] ?? ''));
-            $planText = trim((string)($_POST['plan_text'] ?? ''));
-            $deliveryMode = trim((string)($_POST['delivery_mode'] ?? 'Onsite'));
-            $skillIdRaw = trim((string)($_POST['skill_id'] ?? ''));
-            $targetPctRaw = trim((string)($_POST['target_percentage'] ?? ''));
-
-            if ($department === '' || $status === '' || !in_array($status, $allowedStatuses, true)) {
-                throw new RuntimeException('Invalid request.');
+        if ($action === 'list_plans') {
+            $criteriaId = isset($_GET['criteria_id']) ? (int)$_GET['criteria_id'] : (int)($payload['criteria_id'] ?? 0);
+            if ($criteriaId <= 0) {
+                throw new RuntimeException('Invalid criteria.');
             }
-            if ($skillIdRaw === '' || !ctype_digit($skillIdRaw)) {
-                throw new RuntimeException('Invalid skill.');
-            }
-            $skillId = (int)$skillIdRaw;
 
+            $status = isset($_GET['status']) ? trim((string)$_GET['status']) : trim((string)($payload['status'] ?? ''));
+            $where = "criteria_id = ?";
+            $params = [$criteriaId];
+            if ($status !== '') {
+                if (!in_array($status, $allowedStatuses, true)) {
+                    throw new RuntimeException('Invalid status.');
+                }
+                $where .= " AND status = ?";
+                $params[] = $status;
+            }
+
+            $stmt = $pdo->prepare(
+                "SELECT id, criteria_id, status, plan_text, delivery_mode, target_percentage, updated_at
+                 FROM competency_development_plans
+                 WHERE {$where}
+                 ORDER BY updated_at DESC, id DESC"
+            );
+            $stmt->execute($params);
+            $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+            echo json_encode(['success' => true, 'data' => $rows], JSON_UNESCAPED_SLASHES);
+            exit;
+        }
+
+        if ($action === 'create_plan') {
+            $criteriaId = (int)($payload['criteria_id'] ?? 0);
+            $status = trim((string)($payload['status'] ?? 'Retrain'));
+            $deliveryMode = trim((string)($payload['delivery_mode'] ?? 'Onsite'));
+            $targetPctRaw = trim((string)($payload['target_percentage'] ?? ''));
+            $planText = trim((string)($payload['plan_text'] ?? ''));
+
+            if ($criteriaId <= 0 || $planText === '') {
+                throw new RuntimeException('Missing required fields.');
+            }
+            if (!in_array($status, $allowedStatuses, true)) {
+                $status = 'Retrain';
+            }
             if (!in_array($deliveryMode, $allowedModes, true)) {
                 $deliveryMode = 'Onsite';
             }
@@ -911,309 +988,138 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if ($targetPct > 100) $targetPct = 100;
             }
 
-            $stmt = $pdo->prepare(
-                "INSERT INTO development_plan_items (department, role, skill_id, status, plan_text, delivery_mode, target_percentage)
-                 VALUES (?, ?, ?, ?, ?, ?, ?)
-                 ON DUPLICATE KEY UPDATE plan_text = VALUES(plan_text), delivery_mode = VALUES(delivery_mode), target_percentage = VALUES(target_percentage)"
-            );
-            $stmt->execute([$department, $role, $skillId, $status, $planText, $deliveryMode, $targetPct]);
-            $_SESSION['dp_flash'] = ['type' => 'success', 'message' => 'Plan updated.'];
-        } elseif ($action === 'add_general_skill') {
-            $department = trim((string)($_POST['department'] ?? ''));
-            $role = '';
-            $skillName = trim((string)($_POST['skill_name'] ?? ''));
+            $planHash = hash('sha256', $normalizePlanText($planText));
 
-            if ($department === '' || $skillName === '') {
+            $stmtCheck = $pdo->prepare("SELECT id FROM competency_criteria WHERE id = ? LIMIT 1");
+            $stmtCheck->execute([$criteriaId]);
+            if (!$stmtCheck->fetchColumn()) {
+                throw new RuntimeException('Criteria not found.');
+            }
+
+            $stmtIns = $pdo->prepare(
+                "INSERT INTO competency_development_plans (criteria_id, status, plan_text, plan_hash, delivery_mode, target_percentage)
+                 VALUES (?, ?, ?, ?, ?, ?)"
+            );
+            $stmtIns->execute([$criteriaId, $status, $planText, $planHash, $deliveryMode, $targetPct]);
+
+            echo json_encode(['success' => true, 'id' => (int)$pdo->lastInsertId()], JSON_UNESCAPED_SLASHES);
+            exit;
+        }
+
+        if ($action === 'update_plan') {
+            $planId = (int)($payload['id'] ?? 0);
+            $status = trim((string)($payload['status'] ?? 'Retrain'));
+            $deliveryMode = trim((string)($payload['delivery_mode'] ?? 'Onsite'));
+            $targetPctRaw = trim((string)($payload['target_percentage'] ?? ''));
+            $planText = trim((string)($payload['plan_text'] ?? ''));
+
+            if ($planId <= 0 || $planText === '') {
                 throw new RuntimeException('Missing required fields.');
             }
-
-            $stmtSkill = $pdo->prepare(
-                "INSERT INTO skills (skill_name, category, department)
-                 VALUES (?, 'General Skills', ?)
-                 ON DUPLICATE KEY UPDATE id = LAST_INSERT_ID(id)"
-            );
-            $stmtSkill->execute([$skillName, $department]);
-            $skillId = (int)$pdo->lastInsertId();
-
-            $defaultTarget = 80.0;
-            try {
-                $stmtStd = $pdo->prepare("SELECT standard_percentage FROM general_skill_standards WHERE skill_id = ? LIMIT 1");
-                $stmtStd->execute([$skillId]);
-                $v = $stmtStd->fetchColumn();
-                if ($v !== false && is_numeric($v)) {
-                    $defaultTarget = (float)$v;
-                }
-            } catch (Throwable $e) {
+            if (!in_array($status, $allowedStatuses, true)) {
+                $status = 'Retrain';
             }
-
-            $stmtPlan = $pdo->prepare(
-                "INSERT INTO development_plan_items (department, role, skill_id, status, plan_text, delivery_mode, target_percentage)
-                 VALUES (?, ?, ?, ?, '', 'Onsite', ?)
-                 ON DUPLICATE KEY UPDATE plan_text = plan_text"
-            );
-            foreach ($allowedStatuses as $st) {
-                $stmtPlan->execute([$department, $role, $skillId, $st, $defaultTarget]);
-            }
-
-            $_SESSION['dp_flash'] = ['type' => 'success', 'message' => 'General skill added.'];
-        } elseif ($action === 'add_skill_plan') {
-            $department = trim((string)($_POST['department'] ?? ''));
-            $role = '';
-            $status = trim((string)($_POST['status'] ?? ''));
-            $skillIdRaw = trim((string)($_POST['skill_id'] ?? ''));
-            $skillName = trim((string)($_POST['skill_name'] ?? ''));
-            $planText = trim((string)($_POST['plan_text'] ?? ''));
-            $deliveryMode = trim((string)($_POST['delivery_mode'] ?? 'Onsite'));
-            $targetPctRaw = trim((string)($_POST['target_percentage'] ?? ''));
-
-            if ($department === '' || $status === '' || !in_array($status, $allowedStatuses, true)) {
-                throw new RuntimeException('Missing required fields.');
-            }
-
-            if ($planText === '') {
-                throw new RuntimeException('Missing required fields.');
-            }
-
             if (!in_array($deliveryMode, $allowedModes, true)) {
                 $deliveryMode = 'Onsite';
             }
 
-            $skillId = 0;
-            if ($skillIdRaw !== '' && ctype_digit($skillIdRaw)) {
-                $skillId = (int)$skillIdRaw;
+            $targetPct = null;
+            if ($targetPctRaw !== '' && is_numeric($targetPctRaw)) {
+                $targetPct = (float)$targetPctRaw;
+                if ($targetPct < 0) $targetPct = 0;
+                if ($targetPct > 100) $targetPct = 100;
             }
 
-            if ($skillId <= 0) {
-                if ($skillName === '') {
-                    throw new RuntimeException('Missing required fields.');
-                }
-                $stmtSkill = $pdo->prepare(
-                    "INSERT INTO skills (skill_name, category, department)
-                     VALUES (?, 'General Skills', ?)
-                     ON DUPLICATE KEY UPDATE id = LAST_INSERT_ID(id)"
-                );
-                $stmtSkill->execute([$skillName, $department]);
-                $skillId = (int)$pdo->lastInsertId();
+            $planHash = hash('sha256', $normalizePlanText($planText));
+
+            $stmtCur = $pdo->prepare("SELECT criteria_id FROM competency_development_plans WHERE id = ? LIMIT 1");
+            $stmtCur->execute([$planId]);
+            $criteriaId = (int)($stmtCur->fetchColumn() ?? 0);
+            if ($criteriaId <= 0) {
+                throw new RuntimeException('Plan not found.');
             }
 
-            $existing = '';
-            try {
-                $stmtCur = $pdo->prepare(
-                    "SELECT plan_text
-                     FROM development_plan_items
-                     WHERE department = ?
-                       AND role = ''
-                       AND skill_id = ?
-                       AND status = ?
-                     LIMIT 1"
-                );
-                $stmtCur->execute([$department, $skillId, $status]);
-                $existing = (string)($stmtCur->fetchColumn() ?: '');
-            } catch (Throwable $e) {
-                $existing = '';
-            }
-
-            $items = splitPlanItems($existing);
-            $newItem = trim((string)$planText);
-            if ($newItem !== '' && !in_array($newItem, $items, true)) {
-                $items[] = $newItem;
-            }
-            $mergedText = implode("\n", $items);
-
-            $stmtPlan = $pdo->prepare(
-                "INSERT INTO development_plan_items (department, role, skill_id, status, plan_text, delivery_mode, target_percentage)
-                 VALUES (?, ?, ?, ?, ?, ?, ?)
-                 ON DUPLICATE KEY UPDATE plan_text = VALUES(plan_text), delivery_mode = VALUES(delivery_mode), target_percentage = VALUES(target_percentage)"
+            $stmtUpd = $pdo->prepare(
+                "UPDATE competency_development_plans
+                 SET status = ?, plan_text = ?, plan_hash = ?, delivery_mode = ?, target_percentage = ?
+                 WHERE id = ?"
             );
-            $stmtPlan->execute([$department, $role, $skillId, $status, $mergedText, $deliveryMode, $targetPct]);
-            $_SESSION['dp_flash'] = ['type' => 'success', 'message' => 'Skill plan saved.'];
+            $stmtUpd->execute([$status, $planText, $planHash, $deliveryMode, $targetPct, $planId]);
+
+            echo json_encode(['success' => true], JSON_UNESCAPED_SLASHES);
+            exit;
         }
+
+        if ($action === 'delete_plan') {
+            $planId = (int)($payload['id'] ?? 0);
+            if ($planId <= 0) {
+                throw new RuntimeException('Invalid plan.');
+            }
+
+            $stmtDel = $pdo->prepare("DELETE FROM competency_development_plans WHERE id = ?");
+            $stmtDel->execute([$planId]);
+
+            echo json_encode(['success' => true], JSON_UNESCAPED_SLASHES);
+            exit;
+        }
+
+        throw new RuntimeException('Unknown action.');
+    } catch (PDOException $e) {
+        $code = (string)($e->errorInfo[1] ?? '');
+        if ($code === '1062') {
+            http_response_code(409);
+            echo json_encode(['success' => false, 'message' => 'Duplicate plan already exists for this criteria.']);
+            exit;
+        }
+        http_response_code(500);
+        echo json_encode(['success' => false, 'message' => 'Request failed.']);
+        exit;
     } catch (Throwable $e) {
-        $_SESSION['dp_flash'] = [
-            'type' => 'error',
-            'message' => ($e->getMessage() !== '' ? $e->getMessage() : 'Request failed.'),
-        ];
+        http_response_code(400);
+        echo json_encode(['success' => false, 'message' => ($e->getMessage() !== '' ? $e->getMessage() : 'Invalid request.')]);
+        exit;
     }
-
-    $target = $_SERVER['PHP_SELF'] ?? '';
-    if ($redirectDept !== '') {
-        $target .= '?open_dept=' . rawurlencode($redirectDept);
-    }
-    header('Location: ' . $target);
-    exit;
 }
 
-$repo = getDevelopmentPlansRepo();
-ksort($repo);
+$criteria = [];
+$criteriaById = [];
+$planCountByCriteriaId = [];
 
-$departments = array_keys($repo);
-sort($departments);
-
-$deptRoles = [];
 try {
-    $stmt = $pdo->query(
-        "SELECT DISTINCT department, position AS role
-         FROM employees
-         WHERE position IS NOT NULL AND position <> ''
-         UNION
-         SELECT DISTINCT department, position AS role
-         FROM succession_submissions
-         WHERE position IS NOT NULL AND position <> ''"
-    );
-    $rows = $stmt->fetchAll();
-    foreach ($rows as $r) {
-        $d = trim((string)($r['department'] ?? ''));
-        $p = trim((string)($r['role'] ?? ''));
-        if ($d === '' || $p === '') {
-            continue;
+    $stmtCounts = $pdo->query("SELECT criteria_id, COUNT(*) AS cnt FROM competency_development_plans GROUP BY criteria_id");
+    $rowsCounts = $stmtCounts ? $stmtCounts->fetchAll(PDO::FETCH_ASSOC) : [];
+    foreach (($rowsCounts ?? []) as $r) {
+        $cid = (int)($r['criteria_id'] ?? 0);
+        $cnt = (int)($r['cnt'] ?? 0);
+        if ($cid > 0) {
+            $planCountByCriteriaId[$cid] = $cnt;
         }
-        if (!isset($deptRoles[$d])) {
-            $deptRoles[$d] = [];
-        }
-        $deptRoles[$d][$p] = true;
     }
 } catch (Throwable $e) {
 }
 
-$defaultDeptRoles = [
-    'Front Office / Reception' => [
-        'Front Desk Manager',
-        'Receptionist / Front Desk Officer',
-        'Guest Service Agent / Concierge',
-        'Reservation Agent',
-        'Bellhop / Porter',
-    ],
-    'Housekeeping' => [
-        'Executive Housekeeper / Housekeeping Manager',
-        'Floor Supervisor',
-        'Room Attendant / Housekeeper',
-        'Laundry Attendant',
-        'Public Area Attendant',
-    ],
-    'Food & Beverage (F&B)' => [
-        'F&B Manager / Director',
-        'Restaurant Manager / Captain',
-        'Waiter / Waitress / Server',
-    ],
-    'Kitchen / Culinary' => [
-        'Executive Chef / Head Chef',
-        'Sous Chef (assistant to head chef)',
-        'Line Cook / Station Chef',
-        'Pastry Chef / Baker',
-        'Kitchen Steward / Dishwasher',
-    ],
-    'Sales & Marketing' => [
-        'Sales & Marketing Manager',
-        'Revenue Manager',
-        'Event / Banquet Sales Coordinator',
-        'Social Media / Marketing Executive',
-    ],
-    'Human Resources (HR)' => [
-        'HR Manager / Director',
-        'Recruitment Officer',
-        'Training & Development Specialist',
-        'Payroll / HR Assistant',
-    ],
-    'Finance / Accounting' => [
-        'Finance Manager / Controller',
-        'Accountant',
-        'Payroll Officer',
-        'Cost Controller',
-    ],
-    'Engineering / Maintenance' => [
-        'Chief Engineer / Engineering Manager',
-        'Maintenance Technician',
-        'Electrician / Plumber',
-        'HVAC Technician',
-    ],
-    'Security' => [
-        'Security Manager / Supervisor',
-        'Security Guard',
-        'CCTV / Surveillance Officer',
-    ],
-];
-
-foreach ($defaultDeptRoles as $dept => $roles) {
-    $dept = trim((string)$dept);
-    if ($dept === '' || !is_array($roles)) {
-        continue;
-    }
-    if (!isset($deptRoles[$dept])) {
-        $deptRoles[$dept] = [];
-    }
-    foreach ($roles as $roleName) {
-        $roleName = trim((string)$roleName);
-        if ($roleName === '') {
-            continue;
-        }
-        $deptRoles[$dept][$roleName] = true;
-    }
-}
-
 try {
-    $stmt = $pdo->query(
-        "SELECT DISTINCT department, role
-         FROM development_plan_items
-         WHERE role IS NOT NULL AND role <> ''"
-    );
-    $rows = $stmt->fetchAll();
-    foreach ($rows as $r) {
-        $d = trim((string)($r['department'] ?? ''));
-        $p = trim((string)($r['role'] ?? ''));
-        if ($d === '' || $p === '') {
-            continue;
-        }
-        if (!isset($deptRoles[$d])) {
-            $deptRoles[$d] = [];
-        }
-        $deptRoles[$d][$p] = true;
-    }
-} catch (Throwable $e) {
-}
-
-$skillsByDept = [];
-try {
-    $stmt = $pdo->query(
-        "SELECT id, skill_name, department
-         FROM skills
-         WHERE category = 'General Skills'
-         ORDER BY department ASC, skill_name ASC"
-    );
-    $rows = $stmt->fetchAll();
-    foreach ($rows as $r) {
-        $d = trim((string)($r['department'] ?? ''));
+    $stmt = $pdo->query("SELECT id, name, description, required_level FROM competency_criteria ORDER BY name ASC");
+    $rows = $stmt ? $stmt->fetchAll(PDO::FETCH_ASSOC) : [];
+    foreach (($rows ?? []) as $r) {
         $id = (int)($r['id'] ?? 0);
-        $n = trim((string)($r['skill_name'] ?? ''));
-        if ($d === '' || $id <= 0 || $n === '') {
+        $name = trim((string)($r['name'] ?? ''));
+        if ($id <= 0 || $name === '') {
             continue;
         }
-        if (!isset($skillsByDept[$d])) {
-            $skillsByDept[$d] = [];
-        }
-        $skillsByDept[$d][] = ['id' => $id, 'name' => $n];
+        $row = [
+            'id' => $id,
+            'name' => $name,
+            'description' => (string)($r['description'] ?? ''),
+            'required_level' => is_numeric($r['required_level'] ?? null) ? (float)$r['required_level'] : 80.0,
+            'plan_count' => (int)($planCountByCriteriaId[$id] ?? 0),
+        ];
+        $criteria[] = $row;
+        $criteriaById[(string)$id] = $row;
     }
 } catch (Throwable $e) {
 }
 
-$standardsBySkillId = [];
-try {
-    $stmt = $pdo->query(
-        "SELECT gss.skill_id, gss.standard_percentage
-         FROM general_skill_standards gss
-         JOIN skills s ON s.id = gss.skill_id
-         WHERE s.category = 'General Skills'"
-    );
-    $rows = $stmt->fetchAll();
-    foreach ($rows as $r) {
-        $sid = (int)($r['skill_id'] ?? 0);
-        $pct = $r['standard_percentage'] ?? null;
-        if ($sid <= 0 || $pct === null || !is_numeric($pct)) {
-            continue;
-        }
-        $standardsBySkillId[$sid] = (float)$pct;
-    }
-} catch (Throwable $e) {
-}
 require('../../partials/header.php');
 ?>
 
@@ -1236,419 +1142,426 @@ require('../../partials/header.php');
                 <div class="max-w-7xl mx-auto p-6">
                     <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
                         <div>
-                            <h1 class="text-2xl font-bold text-base-content">Development Plans Repository</h1>
-                            <div class="text-sm text-base-content/70">Editable repository per Department / General Skill / Status.</div>
+                            <h1 class="text-2xl font-bold text-base-content">Competency &amp; Development Planning</h1>
+                            <div class="text-sm text-base-content/70">Each competency criterion is its own container of plans.</div>
                         </div>
                         <div class="w-full md:w-auto flex flex-col gap-2">
-                            <input id="search" type="text" placeholder="Search department, skill, or plan..." class="input input-bordered w-full md:w-96" />
+                            <input id="criteriaSearch" type="text" placeholder="Search criteria..." class="input input-bordered w-full md:w-96" />
                         </div>
                     </div>
 
-                    <div id="dept-grid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
-                        <?php foreach ($repo as $deptName => $skillsById): ?>
+                    <div id="criteria-grid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+                        <?php foreach ($criteria as $c): ?>
                             <?php
-                            $deptNameStr = (string)$deptName;
-                            $skillCount = is_array($skillsById) ? count($skillsById) : 0;
-                            $deptModalId = 'modal_dept_' . substr(md5($deptNameStr), 0, 10);
-                            $deptSearchParts = [$deptNameStr];
-                            if (is_array($skillsById)) {
-                                foreach ($skillsById as $sid => $sd) {
-                                    $deptSearchParts[] = (string)($sd['skill_name'] ?? '');
-                                    $rp = (array)($sd['roles'] ?? []);
-                                    foreach ($rp as $rk => $rd) {
-                                        $rk = (string)$rk;
-                                        if ($rk !== '') {
-                                            $deptSearchParts[] = $rk;
-                                        }
-                                        $pmap = (array)(($rd['plans'] ?? []));
-                                        foreach ($pmap as $pv) {
-                                            $deptSearchParts[] = (string)$pv;
-                                        }
-                                    }
-                                }
-                            }
-                            $deptSearchText = implode(' ', $deptSearchParts);
+                            $cId = (int)($c['id'] ?? 0);
+                            $cName = (string)($c['name'] ?? '');
+                            $cDesc = (string)($c['description'] ?? '');
+                            $cReq = is_numeric($c['required_level'] ?? null) ? (float)$c['required_level'] : 80.0;
+                            $cCnt = (int)($c['plan_count'] ?? 0);
+                            $searchText = trim($cName . ' ' . $cDesc);
                             ?>
-                            <div class="dept-card card bg-base-100 shadow overflow-hidden" data-search="<?php echo h($deptSearchText); ?>" data-department="<?php echo h($deptNameStr); ?>">
+                            <div class="criteria-card card bg-base-100 shadow overflow-hidden" data-search="<?php echo h($searchText); ?>" data-criteria-id="<?php echo h((string)$cId); ?>">
                                 <div class="card-body p-5">
                                     <div class="flex items-start justify-between gap-3">
                                         <div>
-                                            <div class="text-lg font-semibold text-base-content"><?php echo h($deptNameStr); ?></div>
-                                            <div class="text-xs text-base-content/70 mt-1"><?php echo (int)$skillCount; ?> skills</div>
+                                            <div class="text-lg font-semibold text-base-content"><?php echo h($cName); ?></div>
+                                            <div class="text-xs text-base-content/70 mt-1">Required: <?php echo h(number_format($cReq, 1)); ?>%</div>
+                                            <div class="text-xs text-base-content/70 mt-1"><?php echo (int)$cCnt; ?> plans</div>
                                         </div>
                                         <div class="flex items-center gap-2">
-                                            <button type="button" class="btn btn-sm btn-primary" onclick="openDepartmentModal(<?php echo h(json_encode($deptModalId)); ?>, <?php echo h(json_encode($deptNameStr)); ?>);">View</button>
+                                            <button type="button" class="btn btn-sm btn-primary" onclick="openCriteriaModal(<?php echo h((string)$cId); ?>)">Manage</button>
                                         </div>
                                     </div>
                                 </div>
                             </div>
-
-                            <dialog id="<?php echo h($deptModalId); ?>" class="modal" data-department="<?php echo h($deptNameStr); ?>">
-                                <div class="modal-box max-w-5xl">
-                                    <div class="flex items-start justify-between gap-3">
-                                        <div>
-                                            <h3 class="font-bold text-lg"><?php echo h($deptNameStr); ?></h3>
-                                            <div class="text-xs text-base-content/70 mt-1"><?php echo (int)$skillCount; ?> skills</div>
-                                        </div>
-                                        <div class="flex items-center gap-2">
-                                            <button type="button" class="btn btn-sm btn-outline" onclick="openAddGeneralSkillModal(<?php echo h(json_encode($deptNameStr)); ?>);">Add General Skill</button>
-                                            <form method="dialog"><button class="btn btn-sm">Close</button></form>
-                                        </div>
-                                    </div>
-
-                                    <div class="mt-4 max-h-[70vh] overflow-y-auto">
-                                        <div class="space-y-3">
-                                            <?php foreach ($skillsById as $skillId => $skillData): ?>
-                                                <?php
-                                                $skillName = (string)($skillData['skill_name'] ?? '');
-                                                $plans = [];
-                                                if (isset($skillData['roles']) && is_array($skillData['roles']) && isset($skillData['roles']['']) && is_array($skillData['roles']['']) && isset($skillData['roles']['']['plans']) && is_array($skillData['roles']['']['plans'])) {
-                                                    $plans = (array)$skillData['roles']['']['plans'];
-                                                }
-                                                $modes = [];
-                                                if (isset($skillData['roles']) && is_array($skillData['roles']) && isset($skillData['roles']['']) && is_array($skillData['roles']['']) && isset($skillData['roles']['']['modes']) && is_array($skillData['roles']['']['modes'])) {
-                                                    $modes = (array)$skillData['roles']['']['modes'];
-                                                }
-
-                                                $targetPercentages = [];
-                                                if (isset($skillData['roles']) && is_array($skillData['roles']) && isset($skillData['roles']['']) && is_array($skillData['roles']['']) && isset($skillData['roles']['']['targets']) && is_array($skillData['roles']['']['targets'])) {
-                                                    $targetPercentages = (array)$skillData['roles']['']['targets'];
-                                                }
-                                                ?>
-                                                <details class="skill-block border border-base-300 rounded-md">
-                                                    <summary class="cursor-pointer px-3 py-2 text-sm font-semibold text-base-content bg-base-200">
-                                                        <?php echo h($skillName); ?>
-                                                    </summary>
-                                                    <div class="p-3 space-y-3 text-sm">
-                                                        <div class="flex items-center justify-between gap-2">
-                                                            <div class="flex items-center gap-2">
-                                                                <button type="button" class="btn btn-xs btn-outline skill-edit-btn">Edit</button>
-                                                                <button type="button" class="btn btn-xs hidden skill-cancel-btn">Cancel</button>
-                                                            </div>
-                                                            <button type="button" class="btn btn-xs btn-outline" onclick="openAddSkillPlanModal(<?php echo h(json_encode($deptNameStr)); ?>, <?php echo h(json_encode((string)$skillId)); ?>, <?php echo h(json_encode($skillName)); ?>);">Add Skill Plan</button>
-                                                        </div>
-
-                                                        <div class="skill-view space-y-3">
-                                                            <?php foreach (['Retrain' => 'Retraining', 'Reskilling' => 'Reskilling', 'Refresher Training' => 'Refresher', 'Upskilling' => 'Upskilling', 'Succession Ready' => 'Succession Ready'] as $stKey => $stLabel): ?>
-                                                                <?php
-                                                                $planText = (string)($plans[$stKey] ?? '');
-                                                                $items = splitPlanItems($planText);
-                                                                $mode = (string)($modes[$stKey] ?? 'Onsite');
-                                                                $targetPercentage = (string)($targetPercentages[$stKey] ?? '');
-                                                                $targetDisplay = '';
-                                                                if ($targetPercentage !== '' && is_numeric($targetPercentage)) {
-                                                                    $targetDisplay = number_format((float)$targetPercentage, 1) . '%';
-                                                                } else {
-                                                                    $targetDisplay = 'â€”';
-                                                                }
-                                                                ?>
-                                                                <div class="border border-base-300 rounded-md p-3 bg-base-100">
-                                                                    <div class="text-xs font-semibold text-base-content/70 mb-2"><?php echo h($stLabel); ?></div>
-                                                                    <div class="text-xs text-base-content/60 mb-2">Mode: <?php echo h($mode); ?></div>
-                                                                    <div class="text-xs text-base-content/60 mb-2">Target Percentage: <?php echo h($targetDisplay); ?></div>
-                                                                    <div class="flex flex-wrap gap-2">
-                                                                        <?php if (count($items) === 0): ?>
-                                                                            <span class="text-xs text-base-content/60">No plans yet.</span>
-                                                                        <?php else: ?>
-                                                                            <?php foreach ($items as $it): ?>
-                                                                                <span class="badge badge-outline"><?php echo h($it); ?></span>
-                                                                            <?php endforeach; ?>
-                                                                        <?php endif; ?>
-                                                                    </div>
-                                                                </div>
-                                                            <?php endforeach; ?>
-                                                        </div>
-
-                                                        <div class="skill-edit hidden space-y-2">
-                                                            <?php foreach (['Retrain' => 'Retraining', 'Reskilling' => 'Reskilling', 'Refresher Training' => 'Refresher', 'Upskilling' => 'Upskilling', 'Succession Ready' => 'Succession Ready'] as $stKey => $stLabel): ?>
-                                                                <?php $planText = (string)($plans[$stKey] ?? ''); ?>
-                                                                <?php $mode = (string)($modes[$stKey] ?? 'Onsite'); ?>
-                                                                <?php $targetPercentage = (string)($targetPercentages[$stKey] ?? ''); ?>
-                                                                <form method="post" class="border border-base-300 rounded-md p-3 bg-base-100">
-                                                                    <input type="hidden" name="action" value="save_plan" />
-                                                                    <input type="hidden" name="department" value="<?php echo h($deptNameStr); ?>" />
-                                                                    <input type="hidden" name="skill_id" value="<?php echo h((string)$skillId); ?>" />
-                                                                    <input type="hidden" name="status" value="<?php echo h($stKey); ?>" />
-
-                                                                    <div class="flex items-center justify-between gap-2 mb-2">
-                                                                        <div class="text-xs font-semibold text-base-content/70"><?php echo h($stLabel); ?></div>
-                                                                        <button type="submit" class="btn btn-xs btn-primary">Save</button>
-                                                                    </div>
-
-                                                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-2 mb-2">
-                                                                        <div>
-                                                                            <label class="label"><span class="label-text">Delivery Mode</span></label>
-                                                                            <select name="delivery_mode" class="select select-bordered w-full text-sm">
-                                                                                <option value="Onsite" <?php echo $mode === 'Onsite' ? 'selected' : ''; ?>>Onsite</option>
-                                                                                <option value="Online" <?php echo $mode === 'Online' ? 'selected' : ''; ?>>Online</option>
-                                                                            </select>
-                                                                        </div>
-                                                                        <div>
-                                                                            <label class="label"><span class="label-text">Target Percentage (%)</span></label>
-                                                                            <input type="number" step="0.1" min="0" max="100" name="target_percentage" value="<?php echo h($targetPercentage); ?>" class="input input-bordered w-full text-sm" />
-                                                                        </div>
-                                                                    </div>
-
-                                                                    <textarea name="plan_text" class="textarea textarea-bordered w-full text-sm" rows="2" data-initial="<?php echo h($planText); ?>"><?php echo h($planText); ?></textarea>
-                                                                </form>
-                                                            <?php endforeach; ?>
-                                                        </div>
-                                                    </div>
-                                                </details>
-                                            <?php endforeach; ?>
-                                        </div>
-                                    </div>
-                                </div>
-                                <form method="dialog" class="modal-backdrop"><button>close</button></form>
-                            </dialog>
                         <?php endforeach; ?>
                     </div>
                 </div>
 
-                <dialog id="modal_add_general_skill" class="modal">
-                    <div class="modal-box">
-                        <h3 class="font-bold text-lg">Add General Skill</h3>
-                        <form method="post" class="mt-4 space-y-3">
-                            <input type="hidden" name="action" value="add_general_skill" />
-                            <input type="hidden" name="department" id="add_gs_department" value="" />
-
+                <dialog id="criteriaModal" class="modal">
+                    <div class="modal-box max-w-4xl">
+                        <div class="flex items-start justify-between gap-3">
                             <div>
-                                <label class="label"><span class="label-text">Department</span></label>
-                                <input id="add_gs_department_display" class="input input-bordered w-full" value="" readonly />
+                                <h3 id="criteriaModalTitle" class="font-bold text-lg"></h3>
+                                <div id="criteriaModalMeta" class="text-xs text-base-content/70 mt-1"></div>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <button id="addPlanBtn" type="button" class="btn btn-sm btn-primary" disabled>Add Plan</button>
+                                <form method="dialog"><button class="btn btn-sm">Close</button></form>
+                            </div>
+                        </div>
+
+                        <div class="mt-3">
+                            <div class="text-xs text-base-content/70 mb-2">Select status:</div>
+                            <div id="statusTabs" class="flex flex-wrap gap-2"></div>
+                        </div>
+
+                        <div id="planFormWrap" class="mt-4 hidden border border-base-300 rounded-md p-3 bg-base-100">
+                            <input type="hidden" id="planId" value="" />
+
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-2">
+                                <div>
+                                    <label class="label"><span class="label-text">Competency Status</span></label>
+                                    <select id="planStatus" class="select select-bordered w-full text-sm">
+                                        <option value="Retrain">Retrain</option>
+                                        <option value="Reskilling">Reskilling</option>
+                                        <option value="Refresher Training">Refresher Training</option>
+                                        <option value="Upskilling">Upskilling</option>
+                                        <option value="Succession Ready">Succession Ready</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="label"><span class="label-text">Delivery Mode</span></label>
+                                    <select id="planDeliveryMode" class="select select-bordered w-full text-sm">
+                                        <option value="Onsite">Onsite</option>
+                                        <option value="Online">Online</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="label"><span class="label-text">Target Percentage (%)</span></label>
+                                    <input id="planTargetPct" type="number" step="0.1" min="0" max="100" class="input input-bordered w-full text-sm" />
+                                </div>
                             </div>
 
-                            <div>
-                                <label class="label"><span class="label-text">General Skill</span></label>
-                                <input id="add_gs_skill" name="skill_name" class="input input-bordered w-full" required />
-                            </div>
-
-                            <div class="modal-action">
-                                <button type="button" class="btn" onclick="document.getElementById('modal_add_general_skill').close();">Cancel</button>
-                                <button type="submit" class="btn btn-primary">Add</button>
-                            </div>
-                        </form>
-                    </div>
-                    <form method="dialog" class="modal-backdrop"><button>close</button></form>
-                </dialog>
-
-                <dialog id="modal_add_skill_plan" class="modal">
-                    <div class="modal-box">
-                        <h3 class="font-bold text-lg">Add Skill Plan</h3>
-                        <form method="post" class="mt-4 space-y-3">
-                            <input type="hidden" name="action" value="add_skill_plan" />
-                            <input type="hidden" name="department" id="add_sp_department" value="" />
-                            <input type="hidden" name="skill_id" id="add_sp_skill_id" value="" />
-
-                            <div>
-                                <label class="label"><span class="label-text">Department</span></label>
-                                <input id="add_sp_department_display" class="input input-bordered w-full" value="" readonly />
-                            </div>
-
-                            <div>
-                                <label class="label"><span class="label-text">Competency Status</span></label>
-                                <select id="add_sp_status" name="status" class="select select-bordered w-full" required>
-                                    <option value="" disabled selected>Select status</option>
-                                    <option value="Retrain">Retrain</option>
-                                    <option value="Reskilling">Reskilling</option>
-                                    <option value="Refresher Training">Refresher Training</option>
-                                    <option value="Upskilling">Upskilling</option>
-                                    <option value="Succession Ready">Succession Ready</option>
-                                </select>
-                            </div>
-
-                            <div>
-                                <label class="label"><span class="label-text">Delivery Mode</span></label>
-                                <select id="add_sp_delivery_mode" name="delivery_mode" class="select select-bordered w-full" required>
-                                    <option value="Onsite">Onsite</option>
-                                    <option value="Online">Online</option>
-                                </select>
-                            </div>
-
-                            <div>
-                                <label class="label"><span class="label-text">Skill</span></label>
-                                <input id="add_sp_skill_display" class="input input-bordered w-full" value="" readonly />
-                            </div>
-
-                            <div>
+                            <div class="mt-2">
                                 <label class="label"><span class="label-text">Plan Text</span></label>
-                                <textarea id="add_sp_plan_text" name="plan_text" class="textarea textarea-bordered w-full" rows="3" required></textarea>
+                                <textarea id="planText" class="textarea textarea-bordered w-full text-sm" rows="3" placeholder="Enter development plan..."></textarea>
                             </div>
 
-                            <div>
-                                <label class="label"><span class="label-text">Target Percentage (%)</span></label>
-                                <input id="add_sp_target_percentage" type="number" step="0.1" min="0" max="100" name="target_percentage" class="input input-bordered w-full" />
+                            <div class="mt-3 flex justify-end gap-2">
+                                <button id="cancelPlanBtn" type="button" class="btn btn-sm">Cancel</button>
+                                <button id="savePlanBtn" type="button" class="btn btn-sm btn-primary">Save</button>
                             </div>
+                        </div>
 
-                            <div class="modal-action">
-                                <button type="button" class="btn" onclick="document.getElementById('modal_add_skill_plan').close();">Cancel</button>
-                                <button type="submit" class="btn btn-primary">Save</button>
-                            </div>
-                        </form>
+                        <div class="mt-4 max-h-[65vh] overflow-y-auto">
+                            <div id="plansContainer" class="space-y-2"></div>
+                        </div>
                     </div>
                     <form method="dialog" class="modal-backdrop"><button>close</button></form>
                 </dialog>
 
                 <script>
-                    const DP_FLASH = <?php echo json_encode($flash, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
-                    const STANDARD_BY_SKILL_ID = <?php echo json_encode($standardsBySkillId, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
-                    const searchEl = document.getElementById('search');
-                    const deptCards = Array.from(document.querySelectorAll('.dept-card'));
+                    const CRITERIA_BY_ID = <?php echo json_encode($criteriaById, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
+                    const criteriaSearchEl = document.getElementById('criteriaSearch');
+                    const criteriaCards = Array.from(document.querySelectorAll('.criteria-card'));
+                    const criteriaModal = document.getElementById('criteriaModal');
+                    const criteriaModalTitle = document.getElementById('criteriaModalTitle');
+                    const criteriaModalMeta = document.getElementById('criteriaModalMeta');
+                    const plansContainer = document.getElementById('plansContainer');
+                    const addPlanBtn = document.getElementById('addPlanBtn');
+                    const statusTabsEl = document.getElementById('statusTabs');
+                    const planFormWrap = document.getElementById('planFormWrap');
+                    const planIdEl = document.getElementById('planId');
+                    const planStatusEl = document.getElementById('planStatus');
+                    const planDeliveryModeEl = document.getElementById('planDeliveryMode');
+                    const planTargetPctEl = document.getElementById('planTargetPct');
+                    const planTextEl = document.getElementById('planText');
+                    const cancelPlanBtn = document.getElementById('cancelPlanBtn');
+                    const savePlanBtn = document.getElementById('savePlanBtn');
+
+                    let activeCriteriaId = null;
+                    let activeStatus = null;
+
                     const normalize = (s) => String(s || '').toLowerCase();
+                    const escapeHtml = (s) => String(s || '')
+                        .replaceAll('&', '&amp;')
+                        .replaceAll('<', '&lt;')
+                        .replaceAll('>', '&gt;')
+                        .replaceAll('"', '&quot;')
+                        .replaceAll("'", '&#039;');
 
-                    if (DP_FLASH && DP_FLASH.message) {
-                        const isError = String(DP_FLASH.type || '').toLowerCase() === 'error';
-                        Swal.fire({
-                            toast: true,
-                            position: 'top-end',
-                            icon: isError ? 'error' : 'success',
-                            title: String(DP_FLASH.message),
-                            showConfirmButton: false,
-                            timer: 2000,
-                            timerProgressBar: true,
-                        });
-                    }
-
-                    function setOpenDeptParam(dept) {
-                        const url = new URL(window.location.href);
-                        const d = String(dept || '').trim();
-                        if (d !== '') {
-                            url.searchParams.set('open_dept', d);
+                    function toast(type, message) {
+                        const msg = String(message || '');
+                        if (!msg) return;
+                        if (window.Swal && typeof window.Swal.fire === 'function') {
+                            const isError = String(type || '').toLowerCase() === 'error';
+                            window.Swal.fire({
+                                toast: true,
+                                position: 'top-end',
+                                icon: isError ? 'error' : 'success',
+                                title: msg,
+                                showConfirmButton: false,
+                                timer: 2000,
+                                timerProgressBar: true,
+                            });
                         } else {
-                            url.searchParams.delete('open_dept');
+                            alert(msg);
                         }
-                        window.history.replaceState({}, '', url.toString());
                     }
 
-                    function findDeptModalByName(dept) {
-                        const d = String(dept || '').trim();
-                        if (d === '') return null;
-                        let found = null;
-                        Array.from(document.querySelectorAll('dialog.modal[data-department]')).some(function(dlg) {
-                            if (String(dlg.getAttribute('data-department') || '') === d) {
-                                found = dlg;
-                                return true;
-                            }
-                            return false;
+                    async function api(action, payload) {
+                        const res = await fetch('development_plans.php?api=1&action=' + encodeURIComponent(action), {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify(payload || {})
                         });
-                        return found;
+                        const json = await res.json().catch(() => null);
+                        if (!res.ok || !json || json.success !== true) {
+                            const msg = (json && json.message) ? json.message : 'Request failed.';
+                            throw new Error(msg);
+                        }
+                        return json;
                     }
 
-                    window.openDepartmentModal = function(modalId, deptName) {
-                        const id = String(modalId || '');
-                        const dept = String(deptName || '').trim();
-                        const dlg = id ? document.getElementById(id) : findDeptModalByName(dept);
-                        if (dlg && typeof dlg.showModal === 'function') {
-                            setOpenDeptParam(dept);
-                            dlg.showModal();
+                    async function loadPlans(criteriaId, status) {
+                        const cid = encodeURIComponent(String(criteriaId));
+                        const st = encodeURIComponent(String(status || ''));
+                        const url = 'development_plans.php?api=1&action=list_plans&criteria_id=' + cid + (st ? ('&status=' + st) : '');
+                        const res = await fetch(url);
+                        const json = await res.json().catch(() => null);
+                        if (!json || json.success !== true) {
+                            throw new Error((json && json.message) ? json.message : 'Failed to load plans.');
                         }
-                    };
+                        return Array.isArray(json.data) ? json.data : [];
+                    }
 
-                    window.openAddGeneralSkillModal = function(dept) {
-                        const modal = document.getElementById('modal_add_general_skill');
-                        const deptHidden = document.getElementById('add_gs_department');
-                        const deptDisplay = document.getElementById('add_gs_department_display');
-                        const skillInput = document.getElementById('add_gs_skill');
+                    function resetPlanForm() {
+                        planIdEl.value = '';
+                        planStatusEl.value = activeStatus || 'Retrain';
+                        planDeliveryModeEl.value = 'Onsite';
+                        planTargetPctEl.value = '';
+                        planTextEl.value = '';
+                    }
 
-                        const d = String(dept || '').trim();
-                        if (deptHidden) deptHidden.value = d;
-                        if (deptDisplay) deptDisplay.value = d;
-                        if (skillInput) skillInput.value = '';
-                        if (modal && typeof modal.showModal === 'function') {
-                            modal.showModal();
+                    function showPlanForm(show) {
+                        if (show) {
+                            planFormWrap.classList.remove('hidden');
+                        } else {
+                            planFormWrap.classList.add('hidden');
+                            resetPlanForm();
                         }
-                    };
+                    }
 
-                    window.openAddSkillPlanModal = function(dept, skillId, skillName) {
-                        const modal = document.getElementById('modal_add_skill_plan');
-                        const deptHidden = document.getElementById('add_sp_department');
-                        const deptDisplay = document.getElementById('add_sp_department_display');
-                        const skillIdHidden = document.getElementById('add_sp_skill_id');
-                        const skillDisplay = document.getElementById('add_sp_skill_display');
-                        const statusSel = document.getElementById('add_sp_status');
-                        const deliveryModeSel = document.getElementById('add_sp_delivery_mode');
-                        const planText = document.getElementById('add_sp_plan_text');
-                        const targetPctEl = document.getElementById('add_sp_target_percentage');
+                    const STATUSES = ['Retrain', 'Reskilling', 'Refresher Training', 'Upskilling', 'Succession Ready'];
 
-                        const d = String(dept || '').trim();
-                        if (deptHidden) deptHidden.value = d;
-                        if (deptDisplay) deptDisplay.value = d;
-                        if (skillIdHidden) skillIdHidden.value = String(skillId || '').trim();
-                        if (skillDisplay) skillDisplay.value = String(skillName || '').trim();
-                        if (statusSel) statusSel.value = '';
-                        if (deliveryModeSel) deliveryModeSel.value = 'Onsite';
-                        if (planText) planText.value = '';
+                    function renderStatusTabs() {
+                        if (!statusTabsEl) return;
+                        statusTabsEl.innerHTML = STATUSES.map(st => {
+                            const active = activeStatus === st;
+                            const cls = active ? 'btn-primary' : 'btn-outline';
+                            return `<button type="button" class="btn btn-sm ${cls}" data-status="${escapeHtml(st)}">${escapeHtml(st)}</button>`;
+                        }).join('');
+                    }
 
-                        if (targetPctEl) {
-                            const sid = parseInt(String(skillId || '0'), 10);
-                            const v = (STANDARD_BY_SKILL_ID && sid && Object.prototype.hasOwnProperty.call(STANDARD_BY_SKILL_ID, sid)) ? STANDARD_BY_SKILL_ID[sid] : '';
-                            targetPctEl.value = (v !== '' && v !== null && typeof v !== 'undefined') ? v : '';
+                    async function refreshPlans() {
+                        if (!activeCriteriaId || !activeStatus) return;
+                        plansContainer.innerHTML = '<div class="text-sm text-base-content/70">Loading...</div>';
+                        try {
+                            const plans = await loadPlans(activeCriteriaId, activeStatus);
+                            renderPlans(plans);
+                        } catch (e) {
+                            plansContainer.innerHTML = '<div class="text-sm text-base-content/70">No development plans yet.</div>';
+                            toast('error', e.message);
                         }
-                        if (modal && typeof modal.showModal === 'function') {
-                            modal.showModal();
+                    }
+
+                    function setActiveStatus(st) {
+                        const next = String(st || '').trim();
+                        if (!STATUSES.includes(next)) return;
+                        activeStatus = next;
+                        addPlanBtn.disabled = false;
+                        planStatusEl.value = activeStatus;
+                        planStatusEl.disabled = true;
+                        renderStatusTabs();
+                        showPlanForm(false);
+                        refreshPlans();
+                    }
+
+                    function formatPct(v) {
+                        if (v === null || typeof v === 'undefined' || v === '') return '—';
+                        const n = Number(v);
+                        if (Number.isNaN(n)) return '—';
+                        return n.toFixed(1) + '%';
+                    }
+
+                    function renderPlans(plans) {
+                        if (!Array.isArray(plans) || plans.length === 0) {
+                            plansContainer.innerHTML = '<div class="text-sm text-base-content/70">No development plans yet.</div>';
+                            return;
                         }
-                    };
 
-                    Array.from(document.querySelectorAll('details.skill-block')).forEach(function(details) {
-                        const viewEl = details.querySelector('.skill-view');
-                        const editEl = details.querySelector('.skill-edit');
-                        const editBtn = details.querySelector('.skill-edit-btn');
-                        const cancelBtn = details.querySelector('.skill-cancel-btn');
+                        plansContainer.innerHTML = plans.map(p => {
+                            const id = String(p.id || '');
+                            const status = String(p.status || '');
+                            const mode = String(p.delivery_mode || '');
+                            const target = formatPct(p.target_percentage);
+                            const text = String(p.plan_text || '');
+                            return `
+                                <div class="border border-base-300 rounded-md p-3 bg-base-100">
+                                    <div class="flex items-start justify-between gap-3">
+                                        <div class="min-w-0">
+                                            <div class="flex flex-wrap gap-2 mb-2">
+                                                <span class="badge badge-outline">${escapeHtml(status)}</span>
+                                                <span class="badge badge-ghost">${escapeHtml(mode)}</span>
+                                                <span class="badge badge-ghost">Target: ${escapeHtml(target)}</span>
+                                            </div>
+                                            <div class="text-sm whitespace-pre-wrap break-words">${escapeHtml(text)}</div>
+                                        </div>
+                                        <div class="flex items-center gap-2 shrink-0">
+                                            <button type="button" class="btn btn-xs btn-outline" data-action="edit" data-id="${escapeHtml(id)}">Edit</button>
+                                            <button type="button" class="btn btn-xs btn-outline btn-error" data-action="delete" data-id="${escapeHtml(id)}">Delete</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            `;
+                        }).join('');
+                    }
 
-                        if (editBtn) {
-                            editBtn.addEventListener('click', function() {
-                                if (viewEl) viewEl.classList.add('hidden');
-                                if (editEl) editEl.classList.remove('hidden');
-                                editBtn.classList.add('hidden');
-                                if (cancelBtn) cancelBtn.classList.remove('hidden');
-                            });
+                    async function openCriteriaModal(criteriaId) {
+                        const cid = parseInt(String(criteriaId || '0'), 10);
+                        if (!cid) return;
+                        activeCriteriaId = cid;
+                        activeStatus = null;
+
+                        const meta = (CRITERIA_BY_ID && Object.prototype.hasOwnProperty.call(CRITERIA_BY_ID, String(cid))) ? CRITERIA_BY_ID[String(cid)] : null;
+                        const name = meta ? String(meta.name || '') : 'Criteria';
+                        const req = meta && typeof meta.required_level !== 'undefined' ? Number(meta.required_level) : null;
+
+                        criteriaModalTitle.textContent = name;
+                        criteriaModalMeta.textContent = (req !== null && !Number.isNaN(req)) ? ('Required: ' + req.toFixed(1) + '%') : '';
+                        plansContainer.innerHTML = '<div class="text-sm text-base-content/70">Select a status to view plans.</div>';
+                        showPlanForm(false);
+                        addPlanBtn.disabled = true;
+                        planStatusEl.disabled = true;
+                        renderStatusTabs();
+
+                        if (criteriaModal && typeof criteriaModal.showModal === 'function') {
+                            criteriaModal.showModal();
                         }
+                    }
+                    window.openCriteriaModal = openCriteriaModal;
 
-                        if (cancelBtn) {
-                            cancelBtn.addEventListener('click', function() {
-                                if (editEl) {
-                                    Array.from(editEl.querySelectorAll('textarea[data-initial]')).forEach(function(ta) {
-                                        ta.value = ta.getAttribute('data-initial') || '';
-                                    });
+                    if (statusTabsEl) {
+                        statusTabsEl.addEventListener('click', function(e) {
+                            const btn = e.target && e.target.closest ? e.target.closest('button[data-status]') : null;
+                            if (!btn) return;
+                            const st = btn.getAttribute('data-status') || '';
+                            setActiveStatus(st);
+                        });
+                    }
+
+                    plansContainer.addEventListener('click', async function(e) {
+                        const btn = e.target && e.target.closest ? e.target.closest('button[data-action]') : null;
+                        if (!btn) return;
+                        const action = btn.getAttribute('data-action') || '';
+                        const id = parseInt(btn.getAttribute('data-id') || '0', 10);
+                        if (!id || !activeCriteriaId) return;
+
+                        if (action === 'edit') {
+                            try {
+                                if (!activeStatus) {
+                                    throw new Error('Select a status first.');
                                 }
-                                if (editEl) editEl.classList.add('hidden');
-                                if (viewEl) viewEl.classList.remove('hidden');
-                                cancelBtn.classList.add('hidden');
-                                if (editBtn) editBtn.classList.remove('hidden');
-                            });
-                        }
-                    });
-
-                    Array.from(document.querySelectorAll('dialog.modal[data-department]')).forEach(function(dlg) {
-                        dlg.addEventListener('close', function() {
-                            const openDept = new URLSearchParams(window.location.search).get('open_dept') || '';
-                            const dept = String(dlg.getAttribute('data-department') || '');
-                            if (openDept !== '' && dept !== '' && openDept === dept) {
-                                setOpenDeptParam('');
+                                const plans = await loadPlans(activeCriteriaId, activeStatus);
+                                const plan = plans.find(p => Number(p.id) === id);
+                                if (!plan) throw new Error('Plan not found.');
+                                if (String(plan.status || '') && String(plan.status) !== activeStatus) {
+                                    setActiveStatus(String(plan.status));
+                                }
+                                planIdEl.value = String(plan.id);
+                                planStatusEl.value = String(plan.status || activeStatus || 'Retrain');
+                                planDeliveryModeEl.value = String(plan.delivery_mode || 'Onsite');
+                                planTargetPctEl.value = (plan.target_percentage === null || typeof plan.target_percentage === 'undefined') ? '' : String(plan.target_percentage);
+                                planTextEl.value = String(plan.plan_text || '');
+                                showPlanForm(true);
+                            } catch (err) {
+                                toast('error', err.message);
                             }
-                        });
+                            return;
+                        }
+
+                        if (action === 'delete') {
+                            try {
+                                if (!activeStatus) {
+                                    throw new Error('Select a status first.');
+                                }
+                                if (window.Swal && typeof window.Swal.fire === 'function') {
+                                    const res = await window.Swal.fire({
+                                        title: 'Delete plan?',
+                                        text: 'This cannot be undone.',
+                                        icon: 'warning',
+                                        showCancelButton: true,
+                                        confirmButtonText: 'Delete',
+                                    });
+                                    if (!res.isConfirmed) return;
+                                } else {
+                                    if (!confirm('Delete plan?')) return;
+                                }
+
+                                await api('delete_plan', {
+                                    id
+                                });
+                                toast('success', 'Plan deleted.');
+                                const plans = await loadPlans(activeCriteriaId, activeStatus);
+                                renderPlans(plans);
+                                showPlanForm(false);
+                            } catch (err) {
+                                toast('error', err.message);
+                            }
+                        }
                     });
 
-                    (function autoOpenDeptModal() {
-                        const openDept = new URLSearchParams(window.location.search).get('open_dept') || '';
-                        const dlg = findDeptModalByName(openDept);
-                        if (dlg && typeof dlg.showModal === 'function') {
-                            dlg.showModal();
+                    addPlanBtn.addEventListener('click', function() {
+                        if (!activeStatus) {
+                            toast('error', 'Select a status first.');
+                            return;
                         }
-                    })();
+                        resetPlanForm();
+                        showPlanForm(true);
+                    });
 
-                    function applySearch() {
-                        const q = normalize(searchEl.value);
+                    cancelPlanBtn.addEventListener('click', function() {
+                        showPlanForm(false);
+                    });
 
-                        deptCards.forEach(card => {
-                            const deptText = normalize(card.getAttribute('data-search'));
-                            const deptVisible = q === '' ? true : deptText.includes(q);
-                            card.style.display = deptVisible ? '' : 'none';
+                    savePlanBtn.addEventListener('click', async function() {
+                        if (!activeCriteriaId || !activeStatus) {
+                            toast('error', 'Select a status first.');
+                            return;
+                        }
+                        const payload = {
+                            criteria_id: activeCriteriaId,
+                            status: activeStatus,
+                            delivery_mode: planDeliveryModeEl.value,
+                            target_percentage: planTargetPctEl.value,
+                            plan_text: planTextEl.value
+                        };
+
+                        try {
+                            const id = parseInt(planIdEl.value || '0', 10);
+                            if (id) {
+                                await api('update_plan', {
+                                    ...payload,
+                                    id
+                                });
+                                toast('success', 'Plan updated.');
+                            } else {
+                                await api('create_plan', payload);
+                                toast('success', 'Plan created.');
+                            }
+                            const plans = await loadPlans(activeCriteriaId, activeStatus);
+                            renderPlans(plans);
+                            showPlanForm(false);
+                        } catch (err) {
+                            toast('error', err.message);
+                        }
+                    });
+
+                    function applyCriteriaSearch() {
+                        const q = normalize(criteriaSearchEl.value);
+                        criteriaCards.forEach(card => {
+                            const t = normalize(card.getAttribute('data-search'));
+                            card.style.display = (q === '' || t.includes(q)) ? '' : 'none';
                         });
                     }
 
-                    searchEl.addEventListener('input', applySearch);
-                    applySearch();
+                    criteriaSearchEl.addEventListener('input', applyCriteriaSearch);
+                    applyCriteriaSearch();
                 </script>
+            </main>
         </div>
     </div>
     <?php require('../../partials/footer.php') ?>
