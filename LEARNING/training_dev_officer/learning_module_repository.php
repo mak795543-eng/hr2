@@ -3089,10 +3089,13 @@ $conn->close();
         const openUpload = params.get('open_upload');
         const preDept = params.get('department');
         const preRole = params.get('role');
+        const preTitle = params.get('title');
+        const lock = params.get('lock');
 
         const deptEl = document.getElementById('departmentSelect');
         const roleEl = document.getElementById('roleSelect');
         const uploadModal = document.getElementById('upload_modal');
+        const titleEl = document.querySelector('#uploadForm input[name="title"]');
 
         if (deptEl && preDept) {
           deptEl.value = preDept;
@@ -3119,6 +3122,16 @@ $conn->close();
 
             roleEl.value = roleStr;
           }
+        }
+
+        if (titleEl && preTitle) {
+          titleEl.value = String(preTitle || '');
+          titleEl.dispatchEvent(new Event('input'));
+        }
+
+        if (lock === '1') {
+          if (deptEl) deptEl.disabled = true;
+          if (roleEl) roleEl.disabled = true;
         }
 
         if (openUpload === '1' && uploadModal && typeof uploadModal.showModal === 'function') {
