@@ -65,7 +65,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                  SET development_plan = ?,
                      target_score = ?,
                      target_date = ?,
-                     idp_status = CASE WHEN idp_status IN ('requested','approved') THEN idp_status ELSE 'under_review' END
+                     idp_status = CASE WHEN idp_status = 'requested' THEN 'requested' ELSE 'under_review' END
                  WHERE id = ?"
             );
             $stmt->execute([$developmentPlan, $targetScore, $targetDate, $idpId]);
@@ -134,7 +134,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                          requested_training_type, requested_training_mode, requested_start_datetime, requested_end_datetime,
                          idp_status, training_requested_at, learning_requested_at, created_at, updated_at)
                      VALUES
-                        (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'requested', ?, ?, ?, ?)"
+                        (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'requested', ?, ?, ?, ?)
+                     ON DUPLICATE KEY UPDATE
+                        employee_name = VALUES(employee_name),
+                        position = VALUES(position),
+                        department = VALUES(department),
+                        competency = VALUES(competency),
+                        succession_status = VALUES(succession_status),
+                        development_plan = VALUES(development_plan),
+                        target_score = VALUES(target_score),
+                        target_date = VALUES(target_date),
+                        delivery_mode = VALUES(delivery_mode),
+                        requested_training_type = VALUES(requested_training_type),
+                        requested_training_mode = VALUES(requested_training_mode),
+                        requested_start_datetime = VALUES(requested_start_datetime),
+                        requested_end_datetime = VALUES(requested_end_datetime),
+                        idp_status = 'requested',
+                        training_requested_at = VALUES(training_requested_at),
+                        learning_requested_at = VALUES(learning_requested_at),
+                        updated_at = VALUES(updated_at)"
                 );
                 $stmtInsert->execute([
                     (int)$row['id'],
@@ -158,8 +176,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $now,
                 ]);
 
-                $stmtDel = $pdo->prepare("DELETE FROM individual_development_plans WHERE id = ?");
-                $stmtDel->execute([$idpId]);
+                $stmtUpd = $pdo->prepare(
+                    "UPDATE individual_development_plans
+                     SET idp_status = 'requested',
+                         training_requested_at = ?,
+                         learning_requested_at = ?
+                     WHERE id = ?"
+                );
+                $stmtUpd->execute([$trainingRequestedAt, $learningRequestedAt, $idpId]);
 
                 $pdo->commit();
                 header('Location: individual_development_plans.php?ok=requested');
@@ -271,7 +295,7 @@ require('../../partials/header.php');
                 </div>
 
                 <?php if (count($rows) === 0): ?>
-                    <div class="card bg-base-100 shadow">
+                    <div class="card bg-base-100 shadow-md">
                         <div class="card-body">
                             <div class="opacity-70">No IDPs created yet.</div>
                         </div>
@@ -282,36 +306,24 @@ require('../../partials/header.php');
                             <?php
                             $status = (string)($r['idp_status'] ?? 'under_review');
                             ?>
-                            <div class="card bg-base-100 shadow card-bordered">
+                            <div class="card bg-base-100 shadow-md">
                                 <div class="card-body">
-                                    <div class="flex items-start justify-between gap-3">
-                                        <div>
-                                            <div class="font-bold text-lg"><?php echo h($r['employee_name']); ?></div>
-                                            <div class="text-xs opacity-70"><?php echo h($r['employee_id']); ?></div>
-                                        </div>
-                                        <span class="badge badge-sm <?php echo h(idpBadgeClass($status)); ?>"><?php echo h(idpStatusLabel($status)); ?></span>
+                                    <div class="flex justify-between items-start">
+                                        <h3 class="card-title"><?php echo h($r['employee_name']); ?></h3>
+                                        <div class="badge badge-sm <?php echo h(idpBadgeClass($status)); ?>"><?php echo h(idpStatusLabel($status)); ?></div>
                                     </div>
 
-                                    <div class="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
-                                        <div class="rounded-lg bg-base-200 p-3">
-                                            <div class="text-xs opacity-70">Position</div>
-                                            <div class="font-semibold"><?php echo h($r['position']); ?></div>
-                                        </div>
-                                        <div class="rounded-lg bg-base-200 p-3">
-                                            <div class="text-xs opacity-70">Department</div>
-                                            <div class="font-semibold"><?php echo h($r['department']); ?></div>
-                                        </div>
-                                        <div class="rounded-lg bg-base-200 p-3">
-                                            <div class="text-xs opacity-70">General Skills %</div>
-                                            <div class="font-semibold"><?php echo number_format((float)($r['competency'] ?? 0), 1); ?>%</div>
-                                        </div>
-                                        <div class="rounded-lg bg-base-200 p-3">
-                                            <div class="text-xs opacity-70">Succession Status</div>
-                                            <div class="font-semibold"><?php echo h($r['succession_status']); ?></div>
-                                        </div>
+                                    <div class="flex flex-wrap gap-2 my-2">
+                                        <div class="badge badge-outline"><?php echo h($r['department']); ?></div>
+                                        <div class="badge badge-outline"><?php echo h($r['position']); ?></div>
+                                        <div class="badge badge-outline"><?php echo number_format((float)($r['competency'] ?? 0), 1); ?>% Skills</div>
+                                        <div class="badge badge-outline"><?php echo h($r['succession_status']); ?></div>
                                     </div>
 
-                                    <div class="mt-4 flex justify-end">
+                                    <p class="text-sm text-gray-500">Employee ID: <?php echo h($r['employee_id']); ?></p>
+                                    <p class="text-sm text-gray-500">Date Added: <?php echo h(date('Y-m-d', strtotime((string)($r['created_at'] ?? 'now')))); ?></p>
+
+                                    <div class="card-actions justify-end mt-4">
                                         <button type="button" class="btn btn-outline btn-sm" data-view-idp="1" data-idp='<?php echo h(json_encode($r)); ?>'>View</button>
                                     </div>
                                 </div>
@@ -323,13 +335,13 @@ require('../../partials/header.php');
 
             <input type="checkbox" id="idp_view_modal" class="modal-toggle" />
             <div class="modal" role="dialog">
-                <div class="modal-box max-w-3xl">
+                <div class="modal-box w-11/12 max-w-6xl max-h-[85vh] overflow-y-auto">
                     <div class="flex items-start justify-between gap-3">
                         <h3 class="font-bold text-lg">IDP Details</h3>
                         <span id="idp_view_status_badge" class="badge badge-sm"></span>
                     </div>
 
-                    <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3" id="idp_view_body"></div>
+                    <div class="mt-4" id="idp_view_body"></div>
 
                     <div class="mt-4">
                         <div class="text-sm font-semibold">Development Plan</div>
@@ -638,16 +650,18 @@ require('../../partials/header.php');
                             var raw = btn.getAttribute('data-idp') || '';
                             try {
                                 var r = JSON.parse(raw);
+                                var idpId = String(r.id || '');
                                 var empId = String(r.employee_id || '');
-                                if (empId) {
-                                    window.location.href = 'individual_dev_plan.php?employee_id=' + encodeURIComponent(empId);
+                                if (!idpId || !empId) {
+                                    Swal.fire({
+                                        icon: 'error',
+                                        title: 'Error',
+                                        text: 'Missing IDP info.'
+                                    });
                                     return;
                                 }
-                                Swal.fire({
-                                    icon: 'error',
-                                    title: 'Error',
-                                    text: 'Missing employee ID.'
-                                });
+
+                                window.location.href = 'individual_dev_plan.php?employee_id=' + encodeURIComponent(empId) + '&idp_id=' + encodeURIComponent(idpId);
                             } catch (e) {
                                 Swal.fire({
                                     icon: 'error',
@@ -669,21 +683,83 @@ require('../../partials/header.php');
                                 var score = r.target_score === null || typeof r.target_score === 'undefined' ? 'â€”' : String(r.target_score);
 
                                 if (viewBody) {
-                                    viewBody.innerHTML = '';
-                                    viewBody.appendChild(box('Employee', String(r.employee_name || 'â€”')));
-                                    viewBody.appendChild(box('Employee ID', String(r.employee_id || 'â€”')));
-                                    viewBody.appendChild(box('Position', String(r.position || 'â€”')));
-                                    viewBody.appendChild(box('Department', String(r.department || 'â€”')));
+                                    var empName = String(r.employee_name || 'â€”');
+                                    var empId = String(r.employee_id || 'â€”');
+                                    var dept = String(r.department || 'â€”');
+                                    var position = String(r.position || 'â€”');
+                                    var successionStatus = String(r.succession_status || 'â€”');
+                                    var targetDate = String(r.target_date || 'â€”');
+                                    var trainingRequestedAt = String(r.training_requested_at || 'â€”');
+                                    var createdAt = String(r.created_at || 'â€”');
+                                    var updatedAt = String(r.updated_at || 'â€”');
+
                                     var compPct = Number(r.competency || 0);
                                     var compFmt = Number.isFinite(compPct) ? compPct.toFixed(1) : '0.0';
-                                    viewBody.appendChild(box('Competency %', compFmt + '%'));
-                                    viewBody.appendChild(box('Succession Status', String(r.succession_status || 'â€”')));
-                                    viewBody.appendChild(box('IDP Status', statusLabel(status)));
-                                    viewBody.appendChild(box('Target Score', score));
-                                    viewBody.appendChild(box('Target Date', String(r.target_date || 'â€”')));
-                                    viewBody.appendChild(box('Training Requested At', String(r.training_requested_at || 'â€”')));
-                                    viewBody.appendChild(box('Created At', String(r.created_at || 'â€”')));
-                                    viewBody.appendChild(box('Updated At', String(r.updated_at || 'â€”')));
+
+                                    var initials = empName
+                                        .split(/\s+/)
+                                        .filter(function(p) {
+                                            return p;
+                                        })
+                                        .slice(0, 2)
+                                        .map(function(p) {
+                                            return p.charAt(0).toUpperCase();
+                                        })
+                                        .join('');
+                                    if (!initials) initials = 'IDP';
+
+                                    viewBody.innerHTML =
+                                        '<div class="rounded-xl bg-base-200 border border-base-300 p-4">' +
+                                        '<div class="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">' +
+                                        '<div class="flex items-center gap-4">' +
+                                        '<div class="avatar placeholder">' +
+                                        '<div class="bg-base-300 text-base-content rounded-full w-14">' +
+                                        '<span class="font-bold">' + esc(initials) + '</span>' +
+                                        '</div>' +
+                                        '</div>' +
+                                        '<div>' +
+                                        '<div class="text-xl font-bold leading-tight">' + esc(empName) + '</div>' +
+                                        '<div class="text-sm text-base-content/70">' + esc(empId) + '</div>' +
+                                        '</div>' +
+                                        '</div>' +
+                                        '<div class="flex flex-wrap items-center justify-start lg:justify-end gap-2">' +
+                                        '<span class="badge badge-outline">' + esc(dept) + '</span>' +
+                                        '<span class="badge badge-outline">' + esc(position) + '</span>' +
+                                        '<span class="badge badge-outline">' + esc(successionStatus) + '</span>' +
+                                        '<span class="badge badge-outline">' + esc(compFmt) + '% Skills</span>' +
+                                        '</div>' +
+                                        '</div>' +
+
+                                        '<div class="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">' +
+                                        '<div class="rounded-lg bg-base-100 border border-base-300 p-3">' +
+                                        '<div class="text-[11px] font-semibold text-base-content/60 tracking-wide">IDP STATUS</div>' +
+                                        '<div class="font-semibold mt-1">' + esc(statusLabel(status)) + '</div>' +
+                                        '</div>' +
+                                        '<div class="rounded-lg bg-base-100 border border-base-300 p-3">' +
+                                        '<div class="text-[11px] font-semibold text-base-content/60 tracking-wide">TARGET SCORE</div>' +
+                                        '<div class="font-semibold mt-1">' + esc(score) + '</div>' +
+                                        '</div>' +
+                                        '<div class="rounded-lg bg-base-100 border border-base-300 p-3">' +
+                                        '<div class="text-[11px] font-semibold text-base-content/60 tracking-wide">TARGET DATE</div>' +
+                                        '<div class="font-semibold mt-1">' + esc(targetDate) + '</div>' +
+                                        '</div>' +
+                                        '<div class="rounded-lg bg-base-100 border border-base-300 p-3">' +
+                                        '<div class="text-[11px] font-semibold text-base-content/60 tracking-wide">TRAINING REQUESTED</div>' +
+                                        '<div class="font-semibold mt-1">' + esc(trainingRequestedAt) + '</div>' +
+                                        '</div>' +
+                                        '</div>' +
+
+                                        '<div class="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">' +
+                                        '<div class="rounded-lg bg-base-100 border border-base-300 p-3">' +
+                                        '<div class="text-[11px] font-semibold text-base-content/60 tracking-wide">CREATED</div>' +
+                                        '<div class="font-semibold mt-1">' + esc(createdAt) + '</div>' +
+                                        '</div>' +
+                                        '<div class="rounded-lg bg-base-100 border border-base-300 p-3">' +
+                                        '<div class="text-[11px] font-semibold text-base-content/60 tracking-wide">UPDATED</div>' +
+                                        '<div class="font-semibold mt-1">' + esc(updatedAt) + '</div>' +
+                                        '</div>' +
+                                        '</div>' +
+                                        '</div>';
                                 }
 
                                 if (viewPlan) {
@@ -708,15 +784,9 @@ require('../../partials/header.php');
 
                                 if (viewEditBtn) {
                                     viewEditBtn.setAttribute('data-idp', raw);
-                                    show(viewEditBtn, status === 'on_hold' || status === 'for_compliance' || status === 'cancelled');
-                                    viewEditBtn.classList.remove('btn-warning', 'btn-info', 'btn-neutral');
-                                    if (status === 'for_compliance') {
-                                        viewEditBtn.classList.add('btn-info');
-                                    } else if (status === 'cancelled') {
-                                        viewEditBtn.classList.add('btn-neutral');
-                                    } else {
-                                        viewEditBtn.classList.add('btn-warning');
-                                    }
+                                    show(viewEditBtn, status === 'under_review' || status === 'approved');
+                                    viewEditBtn.classList.remove('btn-info', 'btn-neutral');
+                                    viewEditBtn.classList.add('btn-warning');
                                 }
 
                                 if (viewToggle) {

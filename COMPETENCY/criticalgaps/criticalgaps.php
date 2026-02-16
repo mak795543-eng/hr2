@@ -596,19 +596,11 @@ require('../../partials/header.php');
                             </div>
                             <div class="text-right">
                                 <div class="text-sm text-gray-600">Evaluation</div>
-                                <div class="text-xs text-gray-500">Analyze to compute competency and gaps</div>
                             </div>
                         </div>
                     </div>
 
-                    <div class="flex flex-col md:flex-row gap-2">
-                        <button id="analyze-btn" class="btn bg-gray-900 text-white hover:bg-gray-800 border-0 flex-1">
-                            <i data-lucide="search" class="w-4 h-4 mr-2"></i>
-                            Analyze
-                        </button>
-                    </div>
-
-                    <div id="analysis-block" class="hidden space-y-4">
+                    <div id="analysis-block" class="space-y-4">
                         <div class="bg-gray-50 p-5 rounded-lg border border-gray-300">
                             <div class="flex flex-col md:flex-row md:items-center justify-between gap-3">
                                 <div>
@@ -679,15 +671,6 @@ require('../../partials/header.php');
                     </div>
                 </div>
             `;
-
-                    const analyzeBtn = document.getElementById('analyze-btn');
-                    const analysisBlock = document.getElementById('analysis-block');
-                    if (analyzeBtn && analysisBlock) {
-                        analyzeBtn.addEventListener('click', () => {
-                            analysisBlock.classList.remove('hidden');
-                            analyzeBtn.disabled = true;
-                        });
-                    }
 
                     const forwardBtn = document.getElementById('forward-critical-btn');
                     if (forwardBtn) {

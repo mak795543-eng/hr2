@@ -752,7 +752,7 @@ if (isset($_GET['analytics'])) {
               Welcome, <?php echo htmlspecialchars($displayName !== '' ? $displayName : $employeeId); ?>!
             </h1>
             <p class="text-gray-600">
-              Welcome &quot;<?php echo htmlspecialchars($roleDisplay !== '' ? $roleDisplay : ''); ?>&quot; to the HR Training and Development System
+              Welcome &quot;<?php echo htmlspecialchars($roleDisplay !== '' ? $roleDisplay : ''); ?>&quot; to the Human Resource Management System
             </p>
           </div>
           <?php
