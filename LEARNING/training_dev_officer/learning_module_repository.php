@@ -918,7 +918,7 @@ $conn->close();
             <div class="top-nav-buttons">
 
               <button class="btn btn-border" onclick="openUploadModal()">
-                <i class="fas fa-plus mr-2"></i>Upload Module
+                <i class="fas fa-plus mr-2"></i>Create Module
               </button>
 
             </div>
@@ -1176,7 +1176,7 @@ $conn->close();
           <i class="fas fa-file-alt mr-2"></i>Drafts
         </button>
         <button class="btn btn-primary" onclick="startModuleCreation()">
-          <i class="fas fa-play mr-2"></i>Upload Module
+          <i class="fas fa-play mr-2"></i>Create Module
         </button>
       </div>
     </div>

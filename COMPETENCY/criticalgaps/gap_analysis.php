@@ -23,8 +23,24 @@ require('../../partials/header.php');
                         COALESCE(kgf.overall_competency, 0) AS overall_competency,
                         COALESCE(kgf.status, 'Not Evaluated') AS status
                     FROM employees e
-                    LEFT JOIN kpi_gap_formulations kgf
+                    LEFT JOIN (
+                        SELECT g1.employee_id, g1.overall_competency, g1.status
+                        FROM kpi_gap_formulations g1
+                        INNER JOIN (
+                            SELECT employee_id, MAX(updated_at) AS max_updated_at
+                            FROM kpi_gap_formulations
+                            GROUP BY employee_id
+                        ) g2
+                          ON g2.employee_id = g1.employee_id
+                         AND g2.max_updated_at = g1.updated_at
+                    ) kgf
                       ON kgf.employee_id = e.employee_id
+                    WHERE NOT EXISTS (
+                        SELECT 1
+                        FROM kpi_gap_formulations gx
+                        WHERE gx.employee_id = e.employee_id
+                          AND COALESCE(gx.forwarded_to_critical, 0) = 1
+                    )
                     ORDER BY e.department ASC, e.full_name ASC
                 ");
                 $stmt->execute([]);
@@ -231,7 +247,7 @@ require('../../partials/header.php');
                 <div class="flex justify-between items-center">
                     <h3 class="font-bold text-lg text-gray-900 flex items-center gap-2">
                         <i data-lucide="list" class="w-5 h-5 text-gray-600"></i>
-                        Forwarded to Critical Roles
+                        Forwarded to Competency Profile
                     </h3>
                     <button onclick="document.getElementById('action-log-modal').close()"
                         class="btn btn-sm btn-circle bg-transparent border-0 hover:bg-gray-200 text-gray-600">
@@ -239,7 +255,7 @@ require('../../partials/header.php');
                     </button>
                 </div>
             </div>
-            <div class="p-6">
+            <div class="p-6 max-h-96 overflow-y-auto">
                 <ul id="action-log-modal-list" class="space-y-2">
                     <?php
                     try {
@@ -247,8 +263,7 @@ require('../../partials/header.php');
                                             FROM kpi_gap_formulations kgf
                                             JOIN employees e ON e.employee_id = kgf.employee_id
                                             WHERE COALESCE(kgf.forwarded_to_critical,0)=1
-                                            ORDER BY kgf.forwarded_at DESC
-                                            LIMIT 50");
+                                            ORDER BY kgf.forwarded_at DESC");
                         $rowsLog = $stmtLog ? $stmtLog->fetchAll() : [];
                         if (count($rowsLog) === 0) {
                             echo '<li class="text-gray-500">No forwarded employees yet</li>';
@@ -353,7 +368,9 @@ require('../../partials/header.php');
                     const employeeId = btn.getAttribute('data-employee-id');
                     if (employeeId) {
                         actionLogModal.close();
-                        openViewModal(employeeId);
+                        openViewModal(employeeId, {
+                            showAnalyze: false
+                        });
                     }
                 }
 
@@ -377,11 +394,12 @@ require('../../partials/header.php');
             });
 
             // Open View Modal function
-            window.openViewModal = async function(employeeId) {
+            window.openViewModal = async function(employeeId, options = {}) {
                 if (!viewModal) return;
 
                 const content = document.getElementById('employee-details-content');
                 const subtitle = document.getElementById('employee-subtitle');
+                const showAnalyze = options && options.showAnalyze !== false;
 
                 // Show loading
                 content.innerHTML = `
@@ -467,6 +485,15 @@ require('../../partials/header.php');
                         `;
                     }
 
+                    const analyzeButtonHtml = showAnalyze ? `
+                        <div class="flex flex-col md:flex-row gap-2">
+                            <button id="analyze-btn" data-employee-id="${escapeHtml(employeeId)}" class="btn bg-gray-900 text-white hover:bg-gray-800 border-0 flex-1">
+                                <i data-lucide="search" class="w-4 h-4 mr-2"></i>
+                                Analyze
+                            </button>
+                        </div>
+                    ` : '';
+
                     // Update content
                     content.innerHTML = `
                         <div class="space-y-6">
@@ -491,17 +518,12 @@ require('../../partials/header.php');
                                     </div>
                                     <div class="text-right">
                                         <div class="text-sm text-gray-600">Evaluation</div>
-                                        <div class="text-xs text-gray-500">Analyze to compute competency and gaps</div>
+                                        ${showAnalyze ? '<div class="text-xs text-gray-500">Analyze to compute competency and gaps</div>' : ''}
                                     </div>
                                 </div>
                             </div>
-                            
-                            <div class="flex flex-col md:flex-row gap-2">
-                                <button id="analyze-btn" data-employee-id="${escapeHtml(employeeId)}" class="btn bg-gray-900 text-white hover:bg-gray-800 border-0 flex-1">
-                                    <i data-lucide="search" class="w-4 h-4 mr-2"></i>
-                                    Analyze
-                                </button>
-                            </div>
+
+                            ${analyzeButtonHtml}
                             
                             ${kpisHtml}
                         </div>
