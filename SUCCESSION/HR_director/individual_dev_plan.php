@@ -915,7 +915,6 @@ require('../../partials/header.php');
                         <?php endif; ?>
 
                         <form method="post" class="bg-white border border-gray-200 rounded-lg p-6 shadow-sm space-y-6">
-                            <input type="hidden" name="idp_delivery_mode" id="idp_delivery_mode" value="<?php echo h($idpDeliveryModeValue); ?>" />
                             <input type="hidden" name="employee_status" value="<?php echo h($employeeStatus); ?>" />
 
                             <?php
@@ -985,6 +984,15 @@ require('../../partials/header.php');
                                         </table>
                                     </div>
                                 <?php endif; ?>
+                            </div>
+
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-800 mb-2">IDP Mode</label>
+                                <select name="idp_delivery_mode" id="idp_delivery_mode" class="w-full border border-gray-300 rounded-md p-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-gray-900" <?php echo $viewOnly ? 'disabled' : 'required'; ?>>
+                                    <option value="Online" <?php echo $idpDeliveryModeValue === 'Online' ? 'selected' : ''; ?>>Online</option>
+                                    <option value="Onsite" <?php echo $idpDeliveryModeValue === 'Onsite' ? 'selected' : ''; ?>>Onsite</option>
+                                    <option value="Hybrid" <?php echo $idpDeliveryModeValue === 'Hybrid' ? 'selected' : ''; ?>>Hybrid</option>
+                                </select>
                             </div>
 
                             <?php if ($isSuccessionReady): ?>
@@ -1066,9 +1074,15 @@ require('../../partials/header.php');
                         var coachingTextarea = document.querySelector('textarea[name="succ_coaching_plan"]');
                         var assessmentTextarea = document.querySelector('textarea[name="succ_assessment_plan"]');
                         var finalOutcomeTextarea = document.querySelector('textarea[name="succ_final_outcome"]');
+                        var planMetaByText = {};
                         if (!planInput || !bubblesInner || !bubblesEmpty) return;
 
                         var isViewOnly = planInput.hasAttribute('readonly');
+                        if (deliveryModeHidden && trainingModeSelect) {
+                            deliveryModeHidden.addEventListener('change', function() {
+                                trainingModeSelect.value = String(deliveryModeHidden.value || '');
+                            });
+                        }
 
                         function escapeHtml(s) {
                             return String(s || '')
@@ -1098,9 +1112,39 @@ require('../../partials/header.php');
                         function renderBubbles(items) {
                             bubblesInner.innerHTML = '';
                             items.forEach(function(t) {
+                                var meta = planMetaByText[t] || null;
                                 var el = document.createElement('span');
-                                el.className = 'inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold border border-gray-200 bg-gray-100 text-gray-800';
-                                el.textContent = t;
+                                el.className = 'inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold border border-gray-200 bg-gray-100 text-gray-800';
+
+                                var txt = document.createElement('span');
+                                txt.textContent = t;
+                                el.appendChild(txt);
+
+                                if (meta && (meta.delivery_mode || meta.target_percentage !== null)) {
+                                    var badges = document.createElement('span');
+                                    badges.className = 'flex items-center gap-1';
+
+                                    var dm = String(meta.delivery_mode || '').trim();
+                                    if (dm === 'Online' || dm === 'Onsite') {
+                                        var dmBadge = document.createElement('span');
+                                        dmBadge.className = 'badge badge-ghost badge-sm';
+                                        dmBadge.textContent = dm;
+                                        badges.appendChild(dmBadge);
+                                    }
+
+                                    var tp = meta.target_percentage;
+                                    var tpNum = (tp === null || typeof tp === 'undefined' || tp === '') ? null : Number(tp);
+                                    if (Number.isFinite(tpNum)) {
+                                        var tpBadge = document.createElement('span');
+                                        tpBadge.className = 'badge badge-ghost badge-sm';
+                                        tpBadge.textContent = 'Target ' + tpNum + '%';
+                                        badges.appendChild(tpBadge);
+                                    }
+
+                                    if (badges.childNodes.length > 0) {
+                                        el.appendChild(badges);
+                                    }
+                                }
                                 bubblesInner.appendChild(el);
                             });
                             bubblesEmpty.style.display = items.length > 0 ? 'none' : '';
@@ -1152,11 +1196,6 @@ require('../../partials/header.php');
                                     throw new Error((json && json.message) ? json.message : 'Failed to load plans.');
                                 }
                                 var data = Array.isArray(json.data) ? json.data : [];
-                                if (employeeStatus === 'Succession Ready') {
-                                    data = data.filter(function(c) {
-                                        return Number(c.gap_pct || 0) > 0;
-                                    });
-                                }
                                 if (data.length === 0) {
                                     container.innerHTML = employeeStatus === 'Succession Ready' ?
                                         '<div class="text-sm text-gray-600">No KPI gaps found. Only criteria with gaps can be selected.</div>' :
@@ -1171,6 +1210,7 @@ require('../../partials/header.php');
                                     var kpiPct = Number(c.kpi_pct);
                                     var reqPct = Number(c.required_pct);
                                     var gapPct = Number(c.gap_pct);
+                                    var hasGap = Number.isFinite(gapPct) ? gapPct > 0 : true;
                                     var meta = (Number.isFinite(kpiPct) && Number.isFinite(reqPct) && Number.isFinite(gapPct)) ?
                                         (' (' + kpiPct.toFixed(1) + '% / ' + reqPct.toFixed(1) + '% • gap ' + gapPct.toFixed(1) + '%)') :
                                         '';
@@ -1183,10 +1223,23 @@ require('../../partials/header.php');
                                         if (!txt) return '';
                                         var dm = String(p.delivery_mode || 'Onsite');
                                         if (dm !== 'Online' && dm !== 'Onsite') dm = 'Onsite';
+                                        var tp = (p && typeof p.target_percentage !== 'undefined') ? p.target_percentage : null;
+                                        var tpNum = (tp === null || typeof tp === 'undefined' || tp === '') ? null : Number(tp);
+                                        if (!Number.isFinite(tpNum)) tpNum = null;
+                                        planMetaByText[txt] = {
+                                            delivery_mode: dm,
+                                            target_percentage: tpNum
+                                        };
+                                        var badgesHtml = '';
+                                        badgesHtml += '<span class="badge badge-ghost badge-sm">' + escapeHtml(dm) + '</span>';
+                                        if (tpNum !== null) {
+                                            badgesHtml += '<span class="badge badge-ghost badge-sm">Target ' + escapeHtml(String(tpNum)) + '%</span>';
+                                        }
                                         return (
-                                            '<label class="flex items-center gap-2 text-sm text-gray-800">' +
-                                            '<input type="checkbox" class="training-checkbox" data-skill-id="' + escapeHtml(skillId) + '" data-skill-name="' + escapeHtml(name) + '" data-item-text="' + escapeHtml(txt) + '" data-delivery-mode="' + escapeHtml(dm) + '" />' +
-                                            '<span>' + escapeHtml(txt) + '</span>' +
+                                            '<label class="flex items-start gap-2 text-sm text-gray-800' + (hasGap ? '' : ' opacity-50 cursor-not-allowed') + '">' +
+                                            '<input type="checkbox" class="training-checkbox mt-0.5" data-skill-id="' + escapeHtml(skillId) + '" data-skill-name="' + escapeHtml(name) + '" data-item-text="' + escapeHtml(txt) + '" data-delivery-mode="' + escapeHtml(dm) + '"' + (hasGap ? '' : ' disabled') + ' />' +
+                                            '<span class="flex-1">' + escapeHtml(txt) + '</span>' +
+                                            '<span class="flex items-center gap-1">' + badgesHtml + '</span>' +
                                             '</label>'
                                         );
                                     }).filter(function(x) {
@@ -1198,12 +1251,13 @@ require('../../partials/header.php');
                                     }
 
                                     return (
-                                        '<div class="border border-gray-200 rounded-md p-3">' +
-                                        '<label class="flex items-center gap-2 text-sm font-semibold text-gray-900">' +
-                                        '<input type="checkbox" class="skill-checkbox" data-skill-id="' + escapeHtml(skillId) + '" data-skill-name="' + escapeHtml(name) + '" />' +
+                                        '<div class="border border-gray-200 rounded-md p-3' + (hasGap ? '' : ' opacity-60') + '">' +
+                                        '<label class="flex items-center gap-2 text-sm font-semibold text-gray-900' + (hasGap ? '' : ' cursor-not-allowed') + '">' +
+                                        '<input type="checkbox" class="skill-checkbox" data-skill-id="' + escapeHtml(skillId) + '" data-skill-name="' + escapeHtml(name) + '"' + (hasGap ? '' : ' disabled') + ' />' +
                                         '<span>' + escapeHtml(name) + '</span>' +
                                         '<span class="text-xs text-gray-500">' + escapeHtml(meta) + '</span>' +
-                                        '<span class="badge badge-ghost badge-sm ml-auto">' + escapeHtml(employeeStatus) + '</span>' +
+                                        (hasGap ? '' : '<span class="badge badge-outline badge-sm ml-auto">No gap</span>') +
+                                        '<span class="badge badge-ghost badge-sm' + (hasGap ? ' ml-auto' : '') + '">' + escapeHtml(employeeStatus) + '</span>' +
                                         '</label>' +
                                         '<div class="mt-2 pl-6 space-y-1 hidden" data-skill-items="' + escapeHtml(skillId) + '">' +
                                         plansHtml +
@@ -1211,6 +1265,7 @@ require('../../partials/header.php');
                                         '</div>'
                                     );
                                 }).join('');
+                                renderBubblesFromPlanText();
                             } catch (err) {
                                 container.innerHTML = '<div class="text-sm text-gray-600">Failed to load development plans.</div>';
                                 if (window.Swal && typeof window.Swal.fire === 'function') {
