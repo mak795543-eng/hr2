@@ -748,9 +748,9 @@ if (isset($_GET['analytics'])) {
         <div class="max-w-7xl mx-auto">
           <!-- Welcome Section -->
           <div class="bg-white rounded-xl shadow-sm p-6 mb-6">
-            <h1 class="text-2xl font-bold text-gray-800 mb-2">
+            <h2 class="text-xl font-bold text-gray-800 mb-2">
               Welcome, <?php echo htmlspecialchars($displayName !== '' ? $displayName : $employeeId); ?>!
-            </h1>
+            </h2>
             <p class="text-gray-600">
               Welcome &quot;<?php echo htmlspecialchars($roleDisplay !== '' ? $roleDisplay : ''); ?>&quot; to the Human Resource Management System
             </p>
@@ -796,39 +796,39 @@ if (isset($_GET['analytics'])) {
           }
           ?>
           <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
-            <div class="rounded-xl shadow-md p-6 bg-white">
+            <div class="hr2-summary-card rounded-xl shadow-md p-6">
               <div class="flex items-start justify-between">
                 <div>
                   <div class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Training Programs</div>
                   <div class="mt-1 text-3xl font-bold text-gray-900"><?php echo (int)$trainingSummary['programs']; ?></div>
                   <div class="text-xs text-gray-500 mt-1">Completed: <?php echo (int)$trainingSummary['completed']; ?> • Upcoming: <?php echo (int)$trainingSummary['upcoming']; ?></div>
                 </div>
-                <div class="p-2 rounded-xl bg-blue-100">
-                  <i data-lucide="book-open" class="w-5 h-5 text-blue-600"></i>
+                <div class="p-3 bg-blue-100 rounded-full">
+                  <i data-lucide="book-open" class="h-6 w-6 text-blue-600"></i>
                 </div>
               </div>
             </div>
-            <div class="rounded-xl shadow-md p-6 bg-white">
+            <div class="hr2-summary-card rounded-xl shadow-md p-6">
               <div class="flex items-start justify-between">
                 <div>
                   <div class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Learning Exams</div>
                   <div class="mt-1 text-3xl font-bold text-gray-900"><?php echo (int)$learningSummary['taken']; ?></div>
                   <div class="text-xs text-gray-500 mt-1">Pass: <?php echo (int)$learningSummary['pass']; ?> • Fail: <?php echo (int)$learningSummary['fail']; ?></div>
                 </div>
-                <div class="p-2 rounded-xl bg-emerald-100">
-                  <i data-lucide="check-circle" class="w-5 h-5 text-emerald-600"></i>
+                <div class="p-3 bg-green-100 rounded-full">
+                  <i data-lucide="check-circle" class="h-6 w-6 text-green-600"></i>
                 </div>
               </div>
             </div>
-            <div class="rounded-xl shadow-md p-6 bg-white">
+            <div class="hr2-summary-card rounded-xl shadow-md p-6">
               <div class="flex items-start justify-between">
                 <div>
                   <div class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Succession Candidates</div>
                   <div class="mt-1 text-3xl font-bold text-gray-900"><?php echo (int)$successionSummary['candidates']; ?></div>
                   <div class="text-xs text-gray-500 mt-1">Avg Competency: <?php echo number_format((float)$successionSummary['avg'], 1); ?>%</div>
                 </div>
-                <div class="p-2 rounded-xl bg-violet-100">
-                  <i data-lucide="pie-chart" class="w-5 h-5 text-violet-600"></i>
+                <div class="p-3 bg-purple-100 rounded-full">
+                  <i data-lucide="clock-3" class="h-6 w-6 text-purple-600"></i>
                 </div>
               </div>
             </div>
@@ -1197,11 +1197,11 @@ if (isset($_GET['analytics'])) {
             const label = statusLabels[key] || key;
             const card = document.createElement('button');
             card.type = 'button';
-            card.className = 'text-left rounded-xl border border-gray-200 p-3 bg-white hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-slate-50';
+            card.className = 'hr2-summary-card rounded-xl shadow-md p-4 text-left hover:brightness-105 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900';
             card.dataset.status = key;
-            card.innerHTML = '<div class="text-[0.65rem] font-semibold text-gray-500 uppercase tracking-wider mb-1">' +
+            card.innerHTML = '<div class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">' +
               label +
-              '</div><div class="text-xl font-bold text-gray-900">' +
+              '</div><div class="text-2xl font-bold text-gray-900">' +
               count +
               '</div>';
             card.addEventListener('click', () => {

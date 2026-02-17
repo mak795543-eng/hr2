@@ -317,6 +317,7 @@ if ($tableExists) {
 $ptTotalTrainings = 0;
 $ptCompletedTrainings = 0;
 $ptIdpTrainings = 0;
+$ptTraineeTrainings = 0;
 
 if ($tableExists) {
   $ptTotalTrainings = count($rows);
@@ -337,6 +338,16 @@ if ($tableExists) {
     }
   } catch (Throwable $e) {
     $ptIdpTrainings = 0;
+  }
+
+  try {
+    if ($tableHasColumn($conn, 'training_programs', 'requested_by')) {
+      $res = $conn->query("SELECT COUNT(*) AS c FROM training_posts tp JOIN training_programs p ON p.id = tp.program_id WHERE p.requested_by = 'New Hire Onboarding'");
+      $row = $res ? $res->fetch_assoc() : null;
+      $ptTraineeTrainings = $row ? (int)($row['c'] ?? 0) : 0;
+    }
+  } catch (Throwable $e) {
+    $ptTraineeTrainings = 0;
   }
 }
 
@@ -506,7 +517,7 @@ require('../../partials/header.php');
           </div>
         </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8 fade-in">
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8 fade-in">
           <div class="hr2-summary-card rounded-xl shadow-md p-6">
             <div class="flex items-center justify-between">
               <div>
@@ -539,6 +550,18 @@ require('../../partials/header.php');
               </div>
               <div class="p-3 bg-yellow-100 rounded-full">
                 <i data-lucide="target" class="h-6 w-6 text-yellow-600"></i>
+              </div>
+            </div>
+          </div>
+
+          <div class="hr2-summary-card rounded-xl shadow-md p-6">
+            <div class="flex items-center justify-between">
+              <div>
+                <div class="text-sm text-gray-500">Trainee Programs</div>
+                <div class="text-2xl font-bold text-gray-900"><?php echo (int)$ptTraineeTrainings; ?></div>
+              </div>
+              <div class="p-3 bg-green-100 rounded-full">
+                <i data-lucide="users" class="h-6 w-6 text-green-600"></i>
               </div>
             </div>
           </div>

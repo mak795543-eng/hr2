@@ -54,11 +54,15 @@ if ($result && $result->num_rows > 0) {
 
 $under_review_count = 0;
 $approved_count = 0;
+$rejected_count = 0;
+$compliance_count = 0;
 $cancelled_count = 0;
 foreach ($examinations as $exam) {
   $status = (string)($exam['status'] ?? '');
   if ($status === 'pending') $under_review_count++;
   if ($status === 'approved') $approved_count++;
+  if ($status === 'rejected') $rejected_count++;
+  if ($status === 'compliance' || $status === 'for-compliance') $compliance_count++;
   if ($status === 'cancelled') $cancelled_count++;
 }
 
@@ -735,32 +739,53 @@ $conn->close();
             </div>
           </div>
 
-          <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-            <div class="stat hr2-summary-card rounded-lg p-6">
-              <div class="stat-figure text-yellow-600">
-                <i class="fas fa-hourglass-half text-3xl"></i>
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+            <div class="hr2-summary-card rounded-xl shadow-md p-6">
+              <div class="flex items-center justify-between">
+                <div>
+                  <div class="text-sm text-gray-500">Under Review</div>
+                  <div class="text-2xl font-bold text-gray-900"><?php echo (int)$under_review_count; ?></div>
+                </div>
+                <div class="p-3 bg-blue-100 rounded-full">
+                  <i data-lucide="search" class="h-6 w-6 text-blue-600"></i>
+                </div>
               </div>
-              <div class="stat-title text-gray-600">Under Review</div>
-              <div class="stat-value text-gray-800"><?php echo (int)$under_review_count; ?></div>
-              <div class="stat-desc text-gray-500">Pending examinations</div>
             </div>
 
-            <div class="stat hr2-summary-card rounded-lg p-6">
-              <div class="stat-figure text-yellow-600">
-                <i class="fas fa-check-circle text-3xl"></i>
+            <div class="hr2-summary-card rounded-xl shadow-md p-6">
+              <div class="flex items-center justify-between">
+                <div>
+                  <div class="text-sm text-gray-500">Approved</div>
+                  <div class="text-2xl font-bold text-gray-900"><?php echo (int)$approved_count; ?></div>
+                </div>
+                <div class="p-3 bg-green-100 rounded-full">
+                  <i data-lucide="check-circle" class="h-6 w-6 text-green-600"></i>
+                </div>
               </div>
-              <div class="stat-title text-gray-600">Approved</div>
-              <div class="stat-value text-gray-800"><?php echo (int)$approved_count; ?></div>
-              <div class="stat-desc text-gray-500">Ready for posting</div>
             </div>
 
-            <div class="stat hr2-summary-card rounded-lg p-6">
-              <div class="stat-figure text-yellow-600">
-                <i class="fas fa-ban text-3xl"></i>
+            <div class="hr2-summary-card rounded-xl shadow-md p-6">
+              <div class="flex items-center justify-between">
+                <div>
+                  <div class="text-sm text-gray-500">Rejected</div>
+                  <div class="text-2xl font-bold text-gray-900"><?php echo (int)$rejected_count; ?></div>
+                </div>
+                <div class="p-3 bg-purple-100 rounded-full">
+                  <i data-lucide="x-circle" class="h-6 w-6 text-purple-600"></i>
+                </div>
               </div>
-              <div class="stat-title text-gray-600">Cancelled</div>
-              <div class="stat-value text-gray-800"><?php echo (int)$cancelled_count; ?></div>
-              <div class="stat-desc text-gray-500">Canceled examinations</div>
+            </div>
+
+            <div class="hr2-summary-card rounded-xl shadow-md p-6">
+              <div class="flex items-center justify-between">
+                <div>
+                  <div class="text-sm text-gray-500">For Compliance</div>
+                  <div class="text-2xl font-bold text-gray-900"><?php echo (int)$compliance_count; ?></div>
+                </div>
+                <div class="p-3 bg-yellow-100 rounded-full">
+                  <i data-lucide="shield-check" class="h-6 w-6 text-yellow-600"></i>
+                </div>
+              </div>
             </div>
           </div>
 
