@@ -46,6 +46,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_leave'])) {
   $endDate = trim((string)($_POST['end_date'] ?? ''));
   $reason = trim((string)($_POST['reason'] ?? ''));
   $termsAccepted = (string)($_POST['terms_accepted'] ?? '') === '1';
+  $declarationConfirmed = (string)($_POST['declaration_confirmed'] ?? '') === '1';
 
   $allowedLeaveTypes = [
     'Vacation',
@@ -74,6 +75,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_leave'])) {
 
   if (!$termsAccepted) {
     $error_message = 'You must accept the Terms and Conditions before submitting.';
+  } elseif (!$declarationConfirmed) {
+    $error_message = 'You must confirm that the information provided is true and correct.';
   } elseif ($leaveType === '' || $startDate === '') {
     $error_message = 'Please fill in the required fields.';
   } elseif ($startDate < date('Y-m-d')) {
@@ -304,7 +307,7 @@ function leaveStatusBadge($status)
                 <div class="card-body">
                   <h2 class="card-title">New Leave Request</h2>
 
-                  <form method="POST" class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4" id="leaveRequestForm">
+                  <form method="POST" enctype="multipart/form-data" class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4" id="leaveRequestForm">
                     <input type="hidden" name="submit_leave" value="1" />
                     <input type="hidden" name="terms_accepted" value="0" id="termsAcceptedInput" />
 
@@ -347,6 +350,21 @@ function leaveStatusBadge($status)
                     <div class="form-control md:col-span-2">
                       <label class="label"><span class="label-text text-xs font-semibold text-gray-500">REASON / NOTE (OPTIONAL)</span></label>
                       <textarea name="reason" class="textarea textarea-bordered" rows="4" placeholder="Briefly explain your request..."></textarea>
+                    </div>
+
+                    <div class="form-control md:col-span-2">
+                      <label class="label"><span class="label-text text-xs font-semibold text-gray-500">SUPPORTING FILE / PHOTO (OPTIONAL)</span></label>
+                      <input type="file" name="supporting_file" class="file-input file-input-bordered w-full" accept="image/*,.pdf,.doc,.docx" />
+                      <label class="label">
+                        <span class="label-text-alt text-[11px] text-gray-400">You may upload a medical certificate, document, or photo if needed.</span>
+                      </label>
+                    </div>
+
+                    <div class="form-control md:col-span-2">
+                      <label class="cursor-pointer flex items-start gap-3">
+                        <input type="checkbox" name="declaration_confirmed" id="declarationConfirmed" value="1" class="checkbox checkbox-primary mt-1" />
+                        <span class="text-xs text-gray-600 leading-snug">I confirm that the information provided is true and correct.</span>
+                      </label>
                     </div>
 
                     <div class="md:col-span-2 mt-2">
@@ -511,6 +529,8 @@ function leaveStatusBadge($status)
       const termsAcceptCheckbox = document.getElementById('termsAcceptCheckbox');
       const termsAcceptedInput = document.getElementById('termsAcceptedInput');
       const formEl = document.getElementById('leaveRequestForm');
+      const declarationCheckbox = document.getElementById('declarationConfirmed');
+      let lastLeaveType = null;
 
       const policy = {
         'Vacation': {
@@ -602,12 +622,30 @@ function leaveStatusBadge($status)
         if (!leaveTypeEl || !daysEl || !endEl) return;
         const t = String(leaveTypeEl.value || 'Vacation');
         const p = policy[t] || policy['Vacation'];
+        const wasSick = lastLeaveType === 'Sick Leave';
+        const isSick = t === 'Sick Leave';
+        if (startEl) {
+          if (isSick) {
+            const today = todayStr();
+            startEl.value = today;
+            startEl.readOnly = true;
+          } else {
+            startEl.readOnly = false;
+            if (wasSick) {
+              startEl.value = '';
+            }
+          }
+        }
         daysEl.readOnly = false;
         daysEl.max = String(p.max);
         if (getDayInt() < 1) daysEl.value = '1';
         endEl.readOnly = true;
         syncEndFromStartAndDays();
         updateDaysWarning();
+        if (endEl && wasSick && !isSick) {
+          endEl.value = '';
+        }
+        lastLeaveType = t;
       }
 
       function openTerms(mode) {
@@ -727,6 +765,20 @@ function leaveStatusBadge($status)
           });
           return;
         }
+        if (!declarationCheckbox || !declarationCheckbox.checked) {
+          if (window.Swal) {
+            Swal.fire({
+              icon: 'warning',
+              title: 'Declaration Required',
+              text: 'Please confirm that the information provided is true and correct.',
+              buttonsStyling: false,
+              customClass: {
+                confirmButton: 'btn hr2-primary-btn'
+              }
+            });
+          }
+          return;
+        }
         openTerms('submit');
       }
       if (openTermsSubmitBtn) openTermsSubmitBtn.addEventListener('click', validateAndOpenTerms);
@@ -737,6 +789,20 @@ function leaveStatusBadge($status)
         let isSubmitting = false;
         termsSubmitBtn.addEventListener('click', () => {
           if (!formEl) return;
+          if (!declarationCheckbox || !declarationCheckbox.checked) {
+            if (window.Swal) {
+              Swal.fire({
+                icon: 'warning',
+                title: 'Declaration Required',
+                text: 'Please confirm that the information provided is true and correct.',
+                buttonsStyling: false,
+                customClass: {
+                  confirmButton: 'btn hr2-primary-btn'
+                }
+              });
+            }
+            return;
+          }
           if (!termsAcceptCheckbox || !termsAcceptCheckbox.checked) {
             if (window.Swal) {
               Swal.fire({

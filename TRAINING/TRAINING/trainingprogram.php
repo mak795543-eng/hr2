@@ -1537,7 +1537,7 @@ require('../../partials/header.php');
 
                                 <button id="add-training-btn" type="button" class="btn btn-sm hr2-primary-btn">
                                     <i data-lucide="plus" class="h-5 w-5 mr-2"></i>
-                                    Add Training
+                                    Create Training Program
                                 </button>
                             </div>
                         </div>

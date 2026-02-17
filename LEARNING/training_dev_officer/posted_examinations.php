@@ -368,42 +368,54 @@ sort($all_roles);
             
             <!-- Statistics Cards -->
             <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-              <div class="stat hr2-summary-card rounded-lg p-6">
-                <div class="stat-figure text-gray-600">
-                  <i class="fas fa-file-alt text-3xl"></i>
+              <div class="hr2-summary-card rounded-xl shadow-md p-6">
+                <div class="flex items-start justify-between">
+                  <div>
+                    <div class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Total Posted</div>
+                    <div class="mt-1 text-3xl font-bold text-gray-900"><?php echo count($posted_examinations); ?></div>
+                    <div class="text-xs text-gray-400 mt-1">Active examinations</div>
+                  </div>
+                  <div class="p-3 bg-blue-100 rounded-full">
+                    <i class="fas fa-file-alt text-xl text-blue-600"></i>
+                  </div>
                 </div>
-                <div class="stat-title text-gray-600">Total Posted</div>
-                <div class="stat-value text-gray-800"><?php echo count($posted_examinations); ?></div>
-                <div class="stat-desc text-gray-500">Active examinations</div>
               </div>
               
-              <div class="stat hr2-summary-card rounded-lg p-6">
-                <div class="stat-figure text-gray-600">
-                  <i class="fas fa-users text-3xl"></i>
+              <div class="hr2-summary-card rounded-xl shadow-md p-6">
+                <div class="flex items-start justify-between">
+                  <div>
+                    <div class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Available Employees</div>
+                    <div class="mt-1 text-3xl font-bold text-gray-900"><?php echo count($employees); ?></div>
+                    <div class="text-xs text-gray-400 mt-1">For assignment</div>
+                  </div>
+                  <div class="p-3 bg-green-100 rounded-full">
+                    <i class="fas fa-users text-xl text-green-600"></i>
+                  </div>
                 </div>
-                <div class="stat-title text-gray-600">Available Employees</div>
-                <div class="stat-value text-gray-800"><?php echo count($employees); ?></div>
-                <div class="stat-desc text-gray-500">For assignment</div>
               </div>
               
-              <div class="stat hr2-summary-card rounded-lg p-6">
-                <div class="stat-figure text-gray-600">
-                  <i class="fas fa-calendar-check text-3xl"></i>
+              <div class="hr2-summary-card rounded-xl shadow-md p-6">
+                <div class="flex items-start justify-between">
+                  <div>
+                    <div class="text-xs font-semibold text-gray-500 uppercase tracking-wider">This Month</div>
+                    <div class="mt-1 text-3xl font-bold text-gray-900">
+                      <?php 
+                        $current_month = date('Y-m');
+                        $month_count = 0;
+                        foreach($posted_examinations as $exam) {
+                          if (date('Y-m', strtotime($exam['created_at'])) === $current_month) {
+                            $month_count++;
+                          }
+                        }
+                        echo $month_count;
+                      ?>
+                    </div>
+                    <div class="text-xs text-gray-400 mt-1">New postings</div>
+                  </div>
+                  <div class="p-3 bg-purple-100 rounded-full">
+                    <i class="fas fa-calendar-check text-xl text-purple-600"></i>
+                  </div>
                 </div>
-                <div class="stat-title text-gray-600">This Month</div>
-                <div class="stat-value text-gray-800">
-                  <?php 
-                    $current_month = date('Y-m');
-                    $month_count = 0;
-                    foreach($posted_examinations as $exam) {
-                      if (date('Y-m', strtotime($exam['created_at'])) === $current_month) {
-                        $month_count++;
-                      }
-                    }
-                    echo $month_count;
-                  ?>
-                </div>
-                <div class="stat-desc text-gray-500">New postings</div>
               </div>
             </div>
 
