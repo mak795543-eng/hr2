@@ -10,7 +10,9 @@ $employeeId = $_SESSION['employee_id'] ?? null;
 $displayName = trim((string)($_SESSION['employee_name'] ?? ($_SESSION['username'] ?? '')));
 $roleDisplay = trim((string)($_SESSION['role'] ?? ''));
 
+define('SUPPRESS_DB_ERRORS', true);
 require_once __DIR__ . '/db.php';
+define('HR_SKIP_CRITICALGAPS_BOOTSTRAP', true);
 require_once __DIR__ . '/COMPETENCY/criticalgaps/config.php';
 
 $preferredDbNames = ['hr2usm', 'rest_core_2_usm', 'hr2_usmhr2', 'hr2_soliera_usm'];
@@ -91,6 +93,14 @@ function hr_dashboard_build_analytics(string $departmentFilter, string $rangeKey
 {
   $now = new DateTimeImmutable('now');
   $rangeDays = 3650;
+  $rangeKey = strtolower(trim($rangeKey));
+  if ($rangeKey === '7d') $rangeDays = 7;
+  if ($rangeKey === '30d') $rangeDays = 30;
+  if ($rangeKey === '90d') $rangeDays = 90;
+  if ($rangeKey === '180d') $rangeDays = 180;
+  if ($rangeKey === '365d') $rangeDays = 365;
+  if ($rangeKey === '1y') $rangeDays = 365;
+  if ($rangeKey === 'all') $rangeDays = 3650;
   $rangeStart = $now->sub(new DateInterval('P' . $rangeDays . 'D'))->format('Y-m-d 00:00:00');
 
   $departmentFilter = trim($departmentFilter);
@@ -103,6 +113,32 @@ function hr_dashboard_build_analytics(string $departmentFilter, string $rangeKey
       'learning' => ['labels' => [], 'pass' => [], 'fail' => []],
       'succession' => ['labels' => [], 'values' => []],
       'competency' => ['labels' => [], 'values' => []],
+    ],
+    'succession' => [
+      'summary' => [
+        'pushed' => 0,
+        'idpCreated' => 0,
+        'idpPending' => 0,
+        'avgCompetency' => null,
+      ],
+      'byStatus' => ['labels' => [], 'values' => []],
+      'byDepartment' => ['labels' => [], 'values' => []],
+    ],
+    'competencyManagement' => [
+      'summary' => [
+        'totalStandards' => 0,
+        'activeStandards' => 0,
+        'inactiveStandards' => 0,
+        'pendingStandards' => 0,
+        'postedStandards' => 0,
+        'rejectedStandards' => 0,
+        'complianceStandards' => 0,
+        'criteriaRows' => 0,
+        'activeMappings' => 0,
+      ],
+      'standardsByApproval' => ['labels' => [], 'values' => []],
+      'standardsByCategory' => ['labels' => [], 'values' => []],
+      'standardsByRole' => ['labels' => [], 'values' => []],
     ],
     'trainingRequests' => [
       'total' => 0,
@@ -657,13 +693,214 @@ function hr_dashboard_build_analytics(string $departmentFilter, string $rangeKey
         'values' => $deptValues,
       ];
 
-      if (function_exists('getEmployees')) {
-        $deptParam = ($departmentFilter !== '' && $departmentFilter !== 'all') ? $departmentFilter : 'all';
-        getEmployees('all', '', $deptParam);
+      $succSumSql = "SELECT
+                       COUNT(*) AS total,
+                       SUM(CASE WHEN idp_status = 'Created' THEN 1 ELSE 0 END) AS idp_created,
+                       SUM(CASE WHEN idp_status = 'Pending' THEN 1 ELSE 0 END) AS idp_pending,
+                       AVG(competency) AS avg_comp
+                     FROM succession_submissions
+                     WHERE is_pushed = 1";
+      $succSumWhere = [];
+      if ($departmentFilter !== '' && $departmentFilter !== 'all') {
+        $succSumWhere[] = "department = :sdept";
       }
+      if (!empty($succSumWhere)) {
+        $succSumSql .= " AND " . implode(' AND ', $succSumWhere);
+      }
+      $succSumStmt = $pdo->prepare($succSumSql);
+      if ($departmentFilter !== '' && $departmentFilter !== 'all') {
+        $succSumStmt->bindValue(':sdept', $departmentFilter, PDO::PARAM_STR);
+      }
+      $succSumStmt->execute();
+      $succSum = $succSumStmt->fetch(PDO::FETCH_ASSOC) ?: [];
+      $data['succession']['summary']['pushed'] = (int)($succSum['total'] ?? 0);
+      $data['succession']['summary']['idpCreated'] = (int)($succSum['idp_created'] ?? 0);
+      $data['succession']['summary']['idpPending'] = (int)($succSum['idp_pending'] ?? 0);
+      $data['succession']['summary']['avgCompetency'] = ($succSum['avg_comp'] !== null) ? (float)$succSum['avg_comp'] : null;
+
+      $succStatusSql = "SELECT status, COUNT(*) AS c
+                        FROM succession_submissions
+                        WHERE is_pushed = 1";
+      $succStatusWhere = [];
+      if ($departmentFilter !== '' && $departmentFilter !== 'all') {
+        $succStatusWhere[] = "department = :sdept2";
+      }
+      if (!empty($succStatusWhere)) {
+        $succStatusSql .= " AND " . implode(' AND ', $succStatusWhere);
+      }
+      $succStatusSql .= " GROUP BY status
+                          ORDER BY FIELD(status, 'Retrain','Reskilling','Refresher Training','Upskilling','Succession Ready')";
+      $succStatusStmt = $pdo->prepare($succStatusSql);
+      if ($departmentFilter !== '' && $departmentFilter !== 'all') {
+        $succStatusStmt->bindValue(':sdept2', $departmentFilter, PDO::PARAM_STR);
+      }
+      $succStatusStmt->execute();
+      $succStatusLabels = [];
+      $succStatusValues = [];
+      while ($row = $succStatusStmt->fetch(PDO::FETCH_ASSOC)) {
+        $succStatusLabels[] = (string)$row['status'];
+        $succStatusValues[] = (int)$row['c'];
+      }
+      $data['succession']['byStatus'] = [
+        'labels' => $succStatusLabels,
+        'values' => $succStatusValues,
+      ];
+
+      $succDeptSql = "SELECT department, COUNT(*) AS c
+                      FROM succession_submissions
+                      WHERE is_pushed = 1";
+      $succDeptWhere = [];
+      if ($departmentFilter !== '' && $departmentFilter !== 'all') {
+        $succDeptWhere[] = "department = :sdept3";
+      }
+      if (!empty($succDeptWhere)) {
+        $succDeptSql .= " AND " . implode(' AND ', $succDeptWhere);
+      }
+      $succDeptSql .= " GROUP BY department ORDER BY department ASC";
+      $succDeptStmt = $pdo->prepare($succDeptSql);
+      if ($departmentFilter !== '' && $departmentFilter !== 'all') {
+        $succDeptStmt->bindValue(':sdept3', $departmentFilter, PDO::PARAM_STR);
+      }
+      $succDeptStmt->execute();
+      $succDeptLabels = [];
+      $succDeptValues = [];
+      while ($row = $succDeptStmt->fetch(PDO::FETCH_ASSOC)) {
+        $succDeptLabels[] = (string)$row['department'];
+        $succDeptValues[] = (int)$row['c'];
+      }
+      $data['succession']['byDepartment'] = [
+        'labels' => $succDeptLabels,
+        'values' => $succDeptValues,
+      ];
+
     }
   } catch (Throwable $e) {
     error_log('dashboard_competency_analytics_error: ' . $e->getMessage());
+  }
+
+  try {
+    require_once __DIR__ . '/COMPETENCY/job_desc/db_job_desc.php';
+    $jconn = job_desc_mysqli();
+
+    $tableRes = $jconn->query("SHOW TABLES LIKE 'competency_standards'");
+    $hasStandards = $tableRes && $tableRes->num_rows > 0;
+    if ($tableRes) $tableRes->free();
+
+    if ($hasStandards) {
+      $cols = [];
+      $colRes = $jconn->query("SHOW COLUMNS FROM competency_standards");
+      if ($colRes) {
+        while ($row = $colRes->fetch_assoc()) {
+          $field = (string)($row['Field'] ?? '');
+          if ($field !== '') $cols[$field] = true;
+        }
+        $colRes->free();
+      }
+      $hasApproval = isset($cols['approval_status']);
+
+      $sumSql = "SELECT
+                   COUNT(*) AS total,
+                   SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END) AS active_count,
+                   SUM(CASE WHEN status = 'inactive' THEN 1 ELSE 0 END) AS inactive_count" .
+                   ($hasApproval ? ",
+                   SUM(CASE WHEN approval_status = 'pending' THEN 1 ELSE 0 END) AS pending_count,
+                   SUM(CASE WHEN approval_status = 'posted' THEN 1 ELSE 0 END) AS posted_count,
+                   SUM(CASE WHEN approval_status = 'rejected' THEN 1 ELSE 0 END) AS rejected_count,
+                   SUM(CASE WHEN approval_status = 'compliance' THEN 1 ELSE 0 END) AS compliance_count" : "") . "
+                 FROM competency_standards";
+      $sumRes = $jconn->query($sumSql);
+      if ($sumRes) {
+        $row = $sumRes->fetch_assoc() ?: [];
+        $sumRes->free();
+        $data['competencyManagement']['summary']['totalStandards'] = (int)($row['total'] ?? 0);
+        $data['competencyManagement']['summary']['activeStandards'] = (int)($row['active_count'] ?? 0);
+        $data['competencyManagement']['summary']['inactiveStandards'] = (int)($row['inactive_count'] ?? 0);
+        if ($hasApproval) {
+          $data['competencyManagement']['summary']['pendingStandards'] = (int)($row['pending_count'] ?? 0);
+          $data['competencyManagement']['summary']['postedStandards'] = (int)($row['posted_count'] ?? 0);
+          $data['competencyManagement']['summary']['rejectedStandards'] = (int)($row['rejected_count'] ?? 0);
+          $data['competencyManagement']['summary']['complianceStandards'] = (int)($row['compliance_count'] ?? 0);
+        } else {
+          $data['competencyManagement']['summary']['postedStandards'] = (int)($row['active_count'] ?? 0);
+        }
+      }
+
+      $byApprovalLabels = [];
+      $byApprovalValues = [];
+      if ($hasApproval) {
+        $apRes = $jconn->query("SELECT approval_status, COUNT(*) AS c FROM competency_standards GROUP BY approval_status ORDER BY approval_status ASC");
+        if ($apRes) {
+          while ($row = $apRes->fetch_assoc()) {
+            $byApprovalLabels[] = ucwords(str_replace('_', ' ', (string)($row['approval_status'] ?? '')));
+            $byApprovalValues[] = (int)($row['c'] ?? 0);
+          }
+          $apRes->free();
+        }
+      } else {
+        $byApprovalLabels = ['Posted'];
+        $byApprovalValues = [(int)($data['competencyManagement']['summary']['totalStandards'] ?? 0)];
+      }
+      $data['competencyManagement']['standardsByApproval'] = [
+        'labels' => $byApprovalLabels,
+        'values' => $byApprovalValues,
+      ];
+
+      $catRes = $jconn->query("SELECT category, COUNT(*) AS c FROM competency_standards GROUP BY category ORDER BY category ASC");
+      $catLabels = [];
+      $catValues = [];
+      if ($catRes) {
+        while ($row = $catRes->fetch_assoc()) {
+          $catLabels[] = ucwords((string)($row['category'] ?? ''));
+          $catValues[] = (int)($row['c'] ?? 0);
+        }
+        $catRes->free();
+      }
+      $data['competencyManagement']['standardsByCategory'] = [
+        'labels' => $catLabels,
+        'values' => $catValues,
+      ];
+
+      $roleRes = $jconn->query("SELECT role, COUNT(*) AS c FROM competency_standards GROUP BY role ORDER BY role ASC");
+      $roleLabels = [];
+      $roleValues = [];
+      if ($roleRes) {
+        while ($row = $roleRes->fetch_assoc()) {
+          $roleLabels[] = ucwords((string)($row['role'] ?? ''));
+          $roleValues[] = (int)($row['c'] ?? 0);
+        }
+        $roleRes->free();
+      }
+      $data['competencyManagement']['standardsByRole'] = [
+        'labels' => $roleLabels,
+        'values' => $roleValues,
+      ];
+    }
+
+    $criteriaTableRes = $jconn->query("SHOW TABLES LIKE 'competency_level_criteria'");
+    $hasCriteria = $criteriaTableRes && $criteriaTableRes->num_rows > 0;
+    if ($criteriaTableRes) $criteriaTableRes->free();
+    if ($hasCriteria) {
+      $crRes = $jconn->query("SELECT COUNT(*) AS c FROM competency_level_criteria");
+      if ($crRes) {
+        $data['competencyManagement']['summary']['criteriaRows'] = (int)(($crRes->fetch_assoc()['c'] ?? 0));
+        $crRes->free();
+      }
+    }
+
+    $mapTableRes = $jconn->query("SHOW TABLES LIKE 'job_criteria_mappings'");
+    $hasMappings = $mapTableRes && $mapTableRes->num_rows > 0;
+    if ($mapTableRes) $mapTableRes->free();
+    if ($hasMappings) {
+      $mapRes = $jconn->query("SELECT COUNT(*) AS c FROM job_criteria_mappings WHERE is_active = 1");
+      if ($mapRes) {
+        $data['competencyManagement']['summary']['activeMappings'] = (int)(($mapRes->fetch_assoc()['c'] ?? 0));
+        $mapRes->free();
+      }
+    }
+
+    $jconn->close();
+  } catch (Throwable $e) {
+    error_log('dashboard_job_desc_analytics_error: ' . $e->getMessage());
   }
 
   return $data;
@@ -973,6 +1210,94 @@ if (isset($_GET['analytics'])) {
                 </div>
               </section>
 
+              <section aria-label="Succession analytics" class="space-y-4">
+                <div class="flex items-center justify-between">
+                  <h3 class="text-sm font-semibold text-gray-700 uppercase tracking-wider">Succession</h3>
+                  <div class="text-xs text-gray-500" id="successionAnalyticsSummary"></div>
+                </div>
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4" id="successionAnalyticsCards"></div>
+                <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                  <div class="card border border-gray-200">
+                    <div class="card-body">
+                      <div class="flex items-center justify-between mb-2">
+                        <h4 class="card-title text-sm font-semibold">Pushed Candidates by Status</h4>
+                        <div class="flex gap-2 text-xs">
+                          <button type="button" class="btn btn-ghost btn-xs" data-export="successionStatus" data-format="png">PNG</button>
+                          <button type="button" class="btn btn-ghost btn-xs" data-export="successionStatus" data-format="csv">CSV</button>
+                          <button type="button" class="btn btn-ghost btn-xs" data-export="successionStatus" data-format="pdf">PDF</button>
+                        </div>
+                      </div>
+                      <div class="mt-2">
+                        <div class="analytics-skeleton h-56 rounded-lg bg-gray-100 animate-pulse" data-skeleton="successionStatus"></div>
+                        <canvas id="successionStatusChart" class="w-full h-56 hidden" aria-label="Succession by status chart" role="img"></canvas>
+                        <div class="text-sm text-gray-500 mt-2 hidden" id="successionStatusEmptyMessage">No succession candidates data available.</div>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="card border border-gray-200">
+                    <div class="card-body">
+                      <div class="flex items-center justify-between mb-2">
+                        <h4 class="card-title text-sm font-semibold">Pushed Candidates by Department</h4>
+                        <div class="flex gap-2 text-xs">
+                          <button type="button" class="btn btn-ghost btn-xs" data-export="successionDepartment" data-format="png">PNG</button>
+                          <button type="button" class="btn btn-ghost btn-xs" data-export="successionDepartment" data-format="csv">CSV</button>
+                          <button type="button" class="btn btn-ghost btn-xs" data-export="successionDepartment" data-format="pdf">PDF</button>
+                        </div>
+                      </div>
+                      <div class="mt-2">
+                        <div class="analytics-skeleton h-56 rounded-lg bg-gray-100 animate-pulse" data-skeleton="successionDepartment"></div>
+                        <canvas id="successionDepartmentChart" class="w-full h-56 hidden" aria-label="Succession by department chart" role="img"></canvas>
+                        <div class="text-sm text-gray-500 mt-2 hidden" id="successionDepartmentEmptyMessage">No succession department data available.</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              <section aria-label="Competency management analytics" class="space-y-4">
+                <div class="flex items-center justify-between">
+                  <h3 class="text-sm font-semibold text-gray-700 uppercase tracking-wider">Competency Management</h3>
+                  <div class="text-xs text-gray-500" id="competencyManagementSummary"></div>
+                </div>
+                <div class="grid grid-cols-2 md:grid-cols-5 gap-4" id="competencyManagementCards"></div>
+                <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                  <div class="card border border-gray-200">
+                    <div class="card-body">
+                      <div class="flex items-center justify-between mb-2">
+                        <h4 class="card-title text-sm font-semibold">Standards by Approval Status</h4>
+                        <div class="flex gap-2 text-xs">
+                          <button type="button" class="btn btn-ghost btn-xs" data-export="competencyApproval" data-format="png">PNG</button>
+                          <button type="button" class="btn btn-ghost btn-xs" data-export="competencyApproval" data-format="csv">CSV</button>
+                          <button type="button" class="btn btn-ghost btn-xs" data-export="competencyApproval" data-format="pdf">PDF</button>
+                        </div>
+                      </div>
+                      <div class="mt-2">
+                        <div class="analytics-skeleton h-56 rounded-lg bg-gray-100 animate-pulse" data-skeleton="competencyApproval"></div>
+                        <canvas id="competencyApprovalChart" class="w-full h-56 hidden" aria-label="Competency standards approval status chart" role="img"></canvas>
+                        <div class="text-sm text-gray-500 mt-2 hidden" id="competencyApprovalEmptyMessage">No competency standards data available.</div>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="card border border-gray-200">
+                    <div class="card-body">
+                      <div class="flex items-center justify-between mb-2">
+                        <h4 class="card-title text-sm font-semibold">Standards by Category</h4>
+                        <div class="flex gap-2 text-xs">
+                          <button type="button" class="btn btn-ghost btn-xs" data-export="competencyCategory" data-format="png">PNG</button>
+                          <button type="button" class="btn btn-ghost btn-xs" data-export="competencyCategory" data-format="csv">CSV</button>
+                          <button type="button" class="btn btn-ghost btn-xs" data-export="competencyCategory" data-format="pdf">PDF</button>
+                        </div>
+                      </div>
+                      <div class="mt-2">
+                        <div class="analytics-skeleton h-56 rounded-lg bg-gray-100 animate-pulse" data-skeleton="competencyCategory"></div>
+                        <canvas id="competencyCategoryChart" class="w-full h-56 hidden" aria-label="Competency standards category chart" role="img"></canvas>
+                        <div class="text-sm text-gray-500 mt-2 hidden" id="competencyCategoryEmptyMessage">No competency category data available.</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </section>
+
             </div>
           </div>
 
@@ -1146,6 +1471,10 @@ if (isset($_GET['analytics'])) {
             targetUrl = 'COMPETENCY/criticalgaps/index.php?source=dashboard&readiness=' + encodeURIComponent(label);
           } else if (type === 'competency') {
             targetUrl = 'COMPETENCY/criticalgaps/index.php?source=dashboard&department=' + encodeURIComponent(label);
+          } else if (type === 'successionStatus') {
+            targetUrl = 'SUCCESSION/HR_director/succession_dashboard.php?source=dashboard&status=' + encodeURIComponent(label);
+          } else if (type === 'successionDepartment') {
+            targetUrl = 'SUCCESSION/HR_director/succession_dashboard.php?source=dashboard&department=' + encodeURIComponent(label);
           } else if (type === 'learningModulesStatus') {
             targetUrl = 'LEARNING/training_dev_officer/learning_module_repository.php?source=dashboard&status=' + encodeURIComponent(label);
           } else if (type === 'idpStatus') {
@@ -1158,6 +1487,10 @@ if (isset($_GET['analytics'])) {
             targetUrl = 'TRAINING/TRAINING/trainingrequest.php?source=dashboard&approval_segment=' + encodeURIComponent(label);
           } else if (type === 'competencyStatusTrend') {
             targetUrl = 'COMPETENCY/criticalgaps/index.php?source=dashboard&status_date=' + encodeURIComponent(label);
+          } else if (type === 'competencyApproval') {
+            targetUrl = 'COMPETENCY/job_desc/index.php?source=dashboard';
+          } else if (type === 'competencyCategory') {
+            targetUrl = 'COMPETENCY/job_desc/index.php?source=dashboard';
           }
           if (targetUrl) {
             window.location.href = targetUrl;
@@ -1363,6 +1696,272 @@ if (isset($_GET['analytics'])) {
         }
       }
 
+      function renderStatCards(rootId, items) {
+        const root = document.getElementById(rootId);
+        if (!root) return;
+        root.innerHTML = '';
+        items.forEach(item => {
+          const el = document.createElement('div');
+          el.className = 'card border border-gray-200';
+          const sub = item.sub ? `<div class="text-xs text-gray-500 mt-1">${item.sub}</div>` : '';
+          el.innerHTML = `<div class="card-body p-4">
+              <div class="text-xs font-semibold text-gray-500 uppercase tracking-wider">${item.label}</div>
+              <div class="mt-1 text-2xl font-bold text-gray-900">${item.value}</div>
+              ${sub}
+            </div>`;
+          root.appendChild(el);
+        });
+      }
+
+      function renderSuccessionAnalytics(data) {
+        const analytics = data.succession || {};
+        const summary = analytics.summary || {};
+        const summaryEl = document.getElementById('successionAnalyticsSummary');
+        hideSkeleton('successionStatus');
+        hideSkeleton('successionDepartment');
+
+        const pushed = Number(summary.pushed || 0);
+        const avg = summary.avgCompetency !== null && summary.avgCompetency !== undefined ? Number(summary.avgCompetency) : null;
+        if (summaryEl) {
+          summaryEl.textContent = 'Pushed: ' + pushed + (avg !== null ? (' • Avg Competency: ' + avg.toFixed(1) + '%') : '');
+        }
+
+        renderStatCards('successionAnalyticsCards', [{
+          label: 'Pushed',
+          value: pushed,
+          sub: 'Forwarded candidates'
+        }, {
+          label: 'IDP Created',
+          value: Number(summary.idpCreated || 0),
+          sub: 'Pipeline progress'
+        }, {
+          label: 'IDP Pending',
+          value: Number(summary.idpPending || 0),
+          sub: 'Needs IDP'
+        }, {
+          label: 'Avg Competency',
+          value: avg !== null ? avg.toFixed(1) + '%' : 'N/A',
+          sub: 'From succession submissions'
+        }]);
+
+        const byStatus = analytics.byStatus || {};
+        const stLabels = Array.isArray(byStatus.labels) ? byStatus.labels : [];
+        const stValues = Array.isArray(byStatus.values) ? byStatus.values : [];
+        if (stLabels.length > 0 && stValues.some(v => v > 0)) {
+          const ctx = document.getElementById('successionStatusChart');
+          if (ctx && window.Chart) {
+            showCanvas('successionStatusChart');
+            if (charts.successionStatus) {
+              charts.successionStatus.destroy();
+            }
+            const colors = stLabels.map(l => {
+              if (l === 'Succession Ready') return '#22c55e';
+              if (l === 'Upskilling') return '#0ea5e9';
+              if (l === 'Refresher Training') return '#f97316';
+              if (l === 'Reskilling') return '#ef4444';
+              return '#94a3b8';
+            });
+            const chart = new Chart(ctx, {
+              type: 'bar',
+              data: {
+                labels: stLabels,
+                datasets: [{
+                  label: 'Candidates',
+                  data: stValues,
+                  backgroundColor: colors
+                }]
+              },
+              options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                  legend: {
+                    display: false
+                  }
+                },
+                scales: {
+                  y: {
+                    beginAtZero: true,
+                    title: {
+                      display: true,
+                      text: 'Candidates'
+                    }
+                  }
+                }
+              }
+            });
+            attachDrilldown(chart, 'successionStatus');
+            charts.successionStatus = chart;
+          }
+        } else {
+          showEmptyMessage('successionStatusEmptyMessage');
+        }
+
+        const byDept = analytics.byDepartment || {};
+        const dLabels = Array.isArray(byDept.labels) ? byDept.labels : [];
+        const dValues = Array.isArray(byDept.values) ? byDept.values : [];
+        if (dLabels.length > 0 && dValues.some(v => v > 0)) {
+          const ctx = document.getElementById('successionDepartmentChart');
+          if (ctx && window.Chart) {
+            showCanvas('successionDepartmentChart');
+            if (charts.successionDepartment) {
+              charts.successionDepartment.destroy();
+            }
+            const chart = new Chart(ctx, {
+              type: 'bar',
+              data: {
+                labels: dLabels,
+                datasets: [{
+                  label: 'Candidates',
+                  data: dValues,
+                  backgroundColor: '#7c3aed'
+                }]
+              },
+              options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                  legend: {
+                    display: false
+                  }
+                },
+                scales: {
+                  y: {
+                    beginAtZero: true,
+                    title: {
+                      display: true,
+                      text: 'Candidates'
+                    }
+                  }
+                }
+              }
+            });
+            attachDrilldown(chart, 'successionDepartment');
+            charts.successionDepartment = chart;
+          }
+        } else {
+          showEmptyMessage('successionDepartmentEmptyMessage');
+        }
+      }
+
+      function renderCompetencyManagementAnalytics(data) {
+        const analytics = data.competencyManagement || {};
+        const summary = analytics.summary || {};
+        const summaryEl = document.getElementById('competencyManagementSummary');
+        hideSkeleton('competencyApproval');
+        hideSkeleton('competencyCategory');
+
+        const total = Number(summary.totalStandards || 0);
+        const pending = Number(summary.pendingStandards || 0);
+        if (summaryEl) {
+          summaryEl.textContent = total + ' standards • Pending: ' + pending;
+        }
+
+        renderStatCards('competencyManagementCards', [{
+          label: 'Standards',
+          value: total,
+          sub: 'Total defined'
+        }, {
+          label: 'Active',
+          value: Number(summary.activeStandards || 0),
+          sub: 'Currently active'
+        }, {
+          label: 'Pending',
+          value: pending,
+          sub: 'Needs approval'
+        }, {
+          label: 'Posted',
+          value: Number(summary.postedStandards || 0),
+          sub: 'Approved/posted'
+        }, {
+          label: 'Mappings',
+          value: Number(summary.activeMappings || 0),
+          sub: 'Active mappings'
+        }]);
+
+        const byApproval = analytics.standardsByApproval || {};
+        const apLabels = Array.isArray(byApproval.labels) ? byApproval.labels : [];
+        const apValues = Array.isArray(byApproval.values) ? byApproval.values : [];
+        if (apLabels.length > 0 && apValues.some(v => v > 0)) {
+          const ctx = document.getElementById('competencyApprovalChart');
+          if (ctx && window.Chart) {
+            showCanvas('competencyApprovalChart');
+            if (charts.competencyApproval) {
+              charts.competencyApproval.destroy();
+            }
+            const chart = new Chart(ctx, {
+              type: 'doughnut',
+              data: {
+                labels: apLabels,
+                datasets: [{
+                  data: apValues,
+                  backgroundColor: ['#f97316', '#22c55e', '#ef4444', '#0ea5e9', '#94a3b8']
+                }]
+              },
+              options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                  legend: {
+                    position: 'bottom'
+                  }
+                }
+              }
+            });
+            attachDrilldown(chart, 'competencyApproval');
+            charts.competencyApproval = chart;
+          }
+        } else {
+          showEmptyMessage('competencyApprovalEmptyMessage');
+        }
+
+        const byCat = analytics.standardsByCategory || {};
+        const cLabels = Array.isArray(byCat.labels) ? byCat.labels : [];
+        const cValues = Array.isArray(byCat.values) ? byCat.values : [];
+        if (cLabels.length > 0 && cValues.some(v => v > 0)) {
+          const ctx = document.getElementById('competencyCategoryChart');
+          if (ctx && window.Chart) {
+            showCanvas('competencyCategoryChart');
+            if (charts.competencyCategory) {
+              charts.competencyCategory.destroy();
+            }
+            const chart = new Chart(ctx, {
+              type: 'bar',
+              data: {
+                labels: cLabels,
+                datasets: [{
+                  label: 'Standards',
+                  data: cValues,
+                  backgroundColor: '#2563eb'
+                }]
+              },
+              options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                  legend: {
+                    display: false
+                  }
+                },
+                scales: {
+                  y: {
+                    beginAtZero: true,
+                    title: {
+                      display: true,
+                      text: 'Standards'
+                    }
+                  }
+                }
+              }
+            });
+            attachDrilldown(chart, 'competencyCategory');
+            charts.competencyCategory = chart;
+          }
+        } else {
+          showEmptyMessage('competencyCategoryEmptyMessage');
+        }
+      }
+
       function loadAnalytics() {
         fetch(analyticsEndpoint, {
             headers: {
@@ -1377,6 +1976,8 @@ if (isset($_GET['analytics'])) {
             const data = payload.data || {};
             renderLearningModules(data);
             renderExaminations(data);
+            renderSuccessionAnalytics(data);
+            renderCompetencyManagementAnalytics(data);
           })
           .catch(err => {
             console.error('Analytics load error', err);
