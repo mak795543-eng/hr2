@@ -925,40 +925,56 @@ $conn->close();
           </div>
 
           <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-            <div class="stat hr2-summary-card rounded-lg p-6">
-              <div class="stat-figure text-yellow-600">
-                <i class="fas fa-hourglass-half text-3xl"></i>
+            <div class="hr2-summary-card rounded-xl shadow-md p-6">
+              <div class="flex items-start justify-between">
+                <div>
+                  <div class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Under Review</div>
+                  <div class="mt-1 text-3xl font-bold text-gray-900"><?php echo (int)$under_review_count; ?></div>
+                  <div class="text-xs text-gray-400 mt-1">Pending modules</div>
+                </div>
+                <div class="p-3 bg-blue-100 rounded-full">
+                  <i class="fas fa-hourglass-half text-xl text-blue-600"></i>
+                </div>
               </div>
-              <div class="stat-title text-gray-600">Under Review</div>
-              <div class="stat-value text-gray-800"><?php echo (int)$under_review_count; ?></div>
-              <div class="stat-desc text-gray-500">Pending modules</div>
             </div>
 
-            <div class="stat hr2-summary-card rounded-lg p-6">
-              <div class="stat-figure text-yellow-600">
-                <i class="fas fa-check-circle text-3xl"></i>
+            <div class="hr2-summary-card rounded-xl shadow-md p-6">
+              <div class="flex items-start justify-between">
+                <div>
+                  <div class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Approved</div>
+                  <div class="mt-1 text-3xl font-bold text-gray-900"><?php echo (int)$approved_count; ?></div>
+                  <div class="text-xs text-gray-400 mt-1">Ready for posting</div>
+                </div>
+                <div class="p-3 bg-green-100 rounded-full">
+                  <i class="fas fa-check-circle text-xl text-green-600"></i>
+                </div>
               </div>
-              <div class="stat-title text-gray-600">Approved</div>
-              <div class="stat-value text-gray-800"><?php echo (int)$approved_count; ?></div>
-              <div class="stat-desc text-gray-500">Ready for posting</div>
             </div>
 
-            <div class="stat hr2-summary-card rounded-lg p-6">
-              <div class="stat-figure text-yellow-600">
-                <i class="fas fa-clipboard-check text-3xl"></i>
+            <div class="hr2-summary-card rounded-xl shadow-md p-6">
+              <div class="flex items-start justify-between">
+                <div>
+                  <div class="text-xs font-semibold text-gray-500 uppercase tracking-wider">For Compliance</div>
+                  <div class="mt-1 text-3xl font-bold text-gray-900"><?php echo (int)$compliance_count; ?></div>
+                  <div class="text-xs text-gray-400 mt-1">Needs updates</div>
+                </div>
+                <div class="p-3 bg-yellow-100 rounded-full">
+                  <i class="fas fa-clipboard-check text-xl text-yellow-600"></i>
+                </div>
               </div>
-              <div class="stat-title text-gray-600">For Compliance</div>
-              <div class="stat-value text-gray-800"><?php echo (int)$compliance_count; ?></div>
-              <div class="stat-desc text-gray-500">Needs updates</div>
             </div>
 
-            <div class="stat hr2-summary-card rounded-lg p-6">
-              <div class="stat-figure text-yellow-600">
-                <i class="fas fa-times-circle text-3xl"></i>
+            <div class="hr2-summary-card rounded-xl shadow-md p-6">
+              <div class="flex items-start justify-between">
+                <div>
+                  <div class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Rejected</div>
+                  <div class="mt-1 text-3xl font-bold text-gray-900"><?php echo (int)$rejected_count; ?></div>
+                  <div class="text-xs text-gray-400 mt-1">Requires revision</div>
+                </div>
+                <div class="p-3 bg-purple-100 rounded-full">
+                  <i class="fas fa-times-circle text-xl text-purple-600"></i>
+                </div>
               </div>
-              <div class="stat-title text-gray-600">Rejected</div>
-              <div class="stat-value text-gray-800"><?php echo (int)$rejected_count; ?></div>
-              <div class="stat-desc text-gray-500">Requires revision</div>
             </div>
           </div>
 
