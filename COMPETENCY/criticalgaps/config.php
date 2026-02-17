@@ -1367,10 +1367,12 @@ function computeEmployeeDevelopmentStatus(string $employeeId): string
     }
 }
 
-createTablesIfNotExist();
-ensureKpiSchema();
-ensureCompetencyCriteriaSchema();
-ensureGapFormulationSchema();
+if (!defined('HR_SKIP_CRITICALGAPS_BOOTSTRAP') || !HR_SKIP_CRITICALGAPS_BOOTSTRAP) {
+    createTablesIfNotExist();
+    ensureKpiSchema();
+    ensureCompetencyCriteriaSchema();
+    ensureGapFormulationSchema();
+}
 
 function getEmployees($filter = 'all', $search = '', $department = 'all')
 {

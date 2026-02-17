@@ -68,6 +68,11 @@ foreach ($targetDatabases as $dbName) {
         ? $perName
         : ($dbPrefix !== '' && strpos($dbName, $dbPrefix) !== 0 ? ($dbPrefix . $dbName) : $dbName);
 
+    if (!function_exists('mysqli_connect')) {
+        $errors[] = "❌ mysqli extension not available (cannot connect to <strong>$connectDbName</strong>).";
+        continue;
+    }
+
     $conn = @mysqli_connect($connectHost, $connectUser, $connectPass, $connectDbName);
 
     if ($conn) {
