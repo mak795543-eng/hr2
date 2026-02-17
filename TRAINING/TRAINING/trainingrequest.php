@@ -124,38 +124,265 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 require('../../partials/header.php');
+
+function tr_build_url(array $overrides = []): string
+{
+    $params = $_GET;
+    foreach ($overrides as $k => $v) {
+        if ($v === null) {
+            unset($params[$k]);
+            continue;
+        }
+        $params[$k] = $v;
+    }
+    $qs = http_build_query($params);
+    return 'trainingrequest.php' . ($qs ? ('?' . $qs) : '');
+}
+
+$idpDepartments = [];
+$idpStatusCounts = [
+    'requested' => 0,
+    'under_review' => 0,
+    'approved' => 0,
+    'on_hold' => 0,
+    'for_compliance' => 0,
+    'cancelled' => 0,
+    'rejected' => 0
+];
+$idpBaseWhere = "(delivery_mode IN ('Onsite','Hybrid') AND training_requested_at IS NOT NULL)";
+try {
+    $stmt = $pdo->prepare("SELECT DISTINCT department FROM requested_idps_repository WHERE {$idpBaseWhere} ORDER BY department ASC");
+    $stmt->execute();
+    $idpDepartments = $stmt->fetchAll(PDO::FETCH_COLUMN) ?: [];
+
+    $stmt = $pdo->prepare("SELECT idp_status, COUNT(*) c FROM requested_idps_repository WHERE {$idpBaseWhere} GROUP BY idp_status");
+    $stmt->execute();
+    foreach ($stmt->fetchAll() as $row) {
+        $k = (string)($row['idp_status'] ?? '');
+        if ($k !== '' && array_key_exists($k, $idpStatusCounts)) {
+            $idpStatusCounts[$k] = (int)($row['c'] ?? 0);
+        }
+    }
+} catch (Throwable $e) {
+}
+
+$traineeHasEmploymentStatus = false;
+$traineeDepartments = [];
+$traineeStatuses = [];
+$traineeDeptCounts = [];
+$traineeTotal = 0;
+try {
+    require_once __DIR__ . '/db.php';
+    try {
+        $chk = $conn->query("SELECT 1 FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'employees' AND column_name = 'employment_status' LIMIT 1");
+        if ($chk && $chk->num_rows > 0) {
+            $traineeHasEmploymentStatus = true;
+        }
+    } catch (Throwable $e2) {
+    }
+
+    $tBaseWhere = [];
+    if ($traineeHasEmploymentStatus) {
+        $tBaseWhere[] = "employment_status = 'New Hire'";
+    }
+    $tWhereSql = $tBaseWhere ? ('WHERE ' . implode(' AND ', $tBaseWhere)) : '';
+
+    $res = $conn->query("SELECT COUNT(*) c FROM employees {$tWhereSql}");
+    if ($res) {
+        $r = $res->fetch_assoc();
+        $traineeTotal = (int)($r['c'] ?? 0);
+    }
+
+    $res = $conn->query("SELECT department, COUNT(*) c FROM employees {$tWhereSql} GROUP BY department ORDER BY c DESC, department ASC");
+    if ($res) {
+        while ($r = $res->fetch_assoc()) {
+            $dept = (string)($r['department'] ?? '');
+            if ($dept === '') continue;
+            $traineeDeptCounts[$dept] = (int)($r['c'] ?? 0);
+        }
+    }
+    $traineeDepartments = array_keys($traineeDeptCounts);
+
+    if ($traineeHasEmploymentStatus) {
+        $res = $conn->query("SELECT DISTINCT employment_status FROM employees ORDER BY employment_status ASC");
+        if ($res) {
+            while ($r = $res->fetch_assoc()) {
+                $st = (string)($r['employment_status'] ?? '');
+                if ($st !== '') $traineeStatuses[] = $st;
+            }
+        }
+    }
+} catch (Throwable $e) {
+}
 ?>
 
-<body class="bg-base-200 min-h-screen">
+<body class="bg-gray-50 min-h-screen">
+    <style>
+        .btn-border {
+            background-color: transparent;
+            border: 1px solid #d1d5db;
+            color: #374151;
+            transition: all 0.2s ease-in-out;
+        }
+
+        .btn-border:hover {
+            background-color: #f9fafb;
+            border-color: #9ca3af;
+        }
+
+        .btn-border:focus {
+            outline: none;
+            box-shadow: 0 0 0 2px rgba(156, 163, 175, 0.2);
+        }
+
+        .card-table thead {
+            display: none;
+        }
+
+        .card-table tbody {
+            display: grid;
+            grid-template-columns: repeat(1, minmax(0, 1fr));
+            gap: 0.75rem;
+        }
+
+        @media (min-width: 768px) {
+            .card-table tbody {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+        }
+
+        @media (min-width: 1280px) {
+            .card-table tbody {
+                grid-template-columns: repeat(3, minmax(0, 1fr));
+            }
+        }
+
+        .card-table tbody tr {
+            display: block;
+            background: #fff;
+            border: 1px solid #eef2f7;
+            border-radius: 0.75rem;
+            padding: 1rem;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+        }
+
+        .card-table tbody tr.card-empty {
+            grid-column: 1 / -1;
+            text-align: center;
+            color: #6b7280;
+            padding: 2.25rem 1rem;
+        }
+
+        .card-table tbody tr.card-empty td {
+            display: block;
+        }
+
+        .card-table td {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 0.75rem;
+            padding: 0.35rem 0;
+            border: 0;
+            background: transparent;
+            white-space: normal;
+        }
+
+        .card-table td::before {
+            content: attr(data-label);
+            font-weight: 600;
+            color: #374151;
+            flex: 0 0 auto;
+        }
+
+        .card-table td[data-label="Action"] {
+            display: block;
+            padding-top: 0.75rem;
+            margin-top: 0.5rem;
+            border-top: 1px solid #eef2f7;
+        }
+
+        .card-table td[data-label="Action"]::before {
+            display: none;
+        }
+    </style>
     <div class="flex h-screen">
         <?php include '../../USM/sidebarr.php'; ?>
         <div class="flex flex-col flex-1 overflow-auto">
             <?php include '../../USM/navbar.php'; ?>
-            <div class="max-w-7xl mx-auto p-6">
-                <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-6">
+            <main class="container mx-auto px-4 py-6">
+                <div class="flex justify-between items-center mb-6">
                     <div>
-                        <h1 class="text-2xl font-bold">Training Requests</h1>
-                        <div class="text-sm opacity-70">Manage IDP and Trainee training requests.</div>
+                        <h1 class="text-2xl font-bold mb-2 text-gray-800">Training Requests</h1>
+                        <p class="text-gray-600">Manage IDP and trainee training requests.</p>
                     </div>
                 </div>
 
-                <div class="mb-4 bg-base-100 rounded-xl shadow w-full">
+                <div class="mb-6 bg-white rounded-xl shadow-md w-full">
                     <div class="flex items-center gap-2 p-3">
                         <button type="button" id="tab-page-idp" class="btn btn-sm btn-active">IDP Requests</button>
                         <button type="button" id="tab-page-trainee" class="btn btn-sm btn-ghost">Trainee Requests</button>
                     </div>
                 </div>
 
-                <div id="idp-requests-section" class="bg-base-100 rounded-xl shadow w-full">
-                    <div class="card-body" style="min-height: 420px;">
-                        <form method="get" class="flex flex-col md:flex-row gap-3 md:items-end">
-                            <div class="w-full md:w-64">
-                                <label class="label"><span class="label-text">Department</span></label>
-                                <input type="text" name="department" value="<?php echo htmlspecialchars((string)($_GET['department'] ?? '')); ?>" class="input input-bordered w-full" />
+                <div id="idp-requests-section" class="w-full">
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                        <a href="<?php echo htmlspecialchars(tr_build_url(['tab' => 'idp', 'status' => 'under_review'])); ?>" class="hr2-summary-card rounded-xl shadow-md p-6 bg-white block">
+                            <div class="flex items-start justify-between">
+                                <div>
+                                    <div class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Under Review</div>
+                                    <div class="mt-1 text-3xl font-bold text-gray-900"><?php echo (int)$idpStatusCounts['under_review']; ?></div>
+                                    <div class="text-xs text-gray-400 mt-1">Pending requests</div>
+                                </div>
+                                <div class="p-3 bg-blue-100 rounded-full">
+                                    <i data-lucide="hourglass" class="h-6 w-6 text-blue-600"></i>
+                                </div>
                             </div>
-                            <div class="w-full md:w-64">
-                                <label class="label"><span class="label-text">Status</span></label>
-                                <select name="status" class="select select-bordered w-full">
+                        </a>
+                        <a href="<?php echo htmlspecialchars(tr_build_url(['tab' => 'idp', 'status' => 'approved'])); ?>" class="hr2-summary-card rounded-xl shadow-md p-6 bg-white block">
+                            <div class="flex items-start justify-between">
+                                <div>
+                                    <div class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Approved</div>
+                                    <div class="mt-1 text-3xl font-bold text-gray-900"><?php echo (int)$idpStatusCounts['approved']; ?></div>
+                                    <div class="text-xs text-gray-400 mt-1">Ready to create training</div>
+                                </div>
+                                <div class="p-3 bg-green-100 rounded-full">
+                                    <i data-lucide="check-circle" class="h-6 w-6 text-green-600"></i>
+                                </div>
+                            </div>
+                        </a>
+                        <a href="<?php echo htmlspecialchars(tr_build_url(['tab' => 'idp', 'status' => 'for_compliance'])); ?>" class="hr2-summary-card rounded-xl shadow-md p-6 bg-white block">
+                            <div class="flex items-start justify-between">
+                                <div>
+                                    <div class="text-xs font-semibold text-gray-500 uppercase tracking-wider">For Compliance</div>
+                                    <div class="mt-1 text-3xl font-bold text-gray-900"><?php echo (int)$idpStatusCounts['for_compliance']; ?></div>
+                                    <div class="text-xs text-gray-400 mt-1">Needs updates</div>
+                                </div>
+                                <div class="p-3 bg-yellow-100 rounded-full">
+                                    <i data-lucide="clipboard-check" class="h-6 w-6 text-yellow-600"></i>
+                                </div>
+                            </div>
+                        </a>
+                        <a href="<?php echo htmlspecialchars(tr_build_url(['tab' => 'idp', 'status' => 'rejected'])); ?>" class="hr2-summary-card rounded-xl shadow-md p-6 bg-white block">
+                            <div class="flex items-start justify-between">
+                                <div>
+                                    <div class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Rejected</div>
+                                    <div class="mt-1 text-3xl font-bold text-gray-900"><?php echo (int)$idpStatusCounts['rejected']; ?></div>
+                                    <div class="text-xs text-gray-400 mt-1">Requires revision</div>
+                                </div>
+                                <div class="p-3 bg-purple-100 rounded-full">
+                                    <i data-lucide="x-circle" class="h-6 w-6 text-purple-600"></i>
+                                </div>
+                            </div>
+                        </a>
+                    </div>
+
+                    <form method="get" class="bg-white p-4 rounded-lg shadow-sm mb-6">
+                        <input type="hidden" name="tab" value="idp" />
+                        <div class="flex flex-wrap gap-4">
+                            <div class="form-control">
+                                <label class="label"><span class="label-text font-medium">Status</span></label>
+                                <select name="status" class="select select-bordered w-48">
                                     <?php
                                     $allowedStatuses = ['all', 'requested', 'under_review', 'approved', 'on_hold', 'for_compliance', 'cancelled', 'rejected'];
                                     $status = (string)($_GET['status'] ?? 'all');
@@ -167,31 +394,50 @@ require('../../partials/header.php');
                                     ?>
                                 </select>
                             </div>
-                            <div class="flex gap-2">
-                                <button type="submit" class="btn btn-primary">Filter</button>
-                                <a href="trainingrequest.php" class="btn btn-outline">Reset</a>
+                            <div class="form-control">
+                                <label class="label"><span class="label-text font-medium">Department</span></label>
+                                <select name="department" class="select select-bordered w-56">
+                                    <?php
+                                    $deptVal = (string)($_GET['department'] ?? 'all');
+                                    echo '<option value="all"' . ($deptVal === 'all' ? ' selected' : '') . '>All Departments</option>';
+                                    foreach ($idpDepartments as $d) {
+                                        $d = (string)$d;
+                                        $sel = $deptVal === $d ? ' selected' : '';
+                                        echo '<option value="' . htmlspecialchars($d) . '"' . $sel . '>' . htmlspecialchars($d) . '</option>';
+                                    }
+                                    ?>
+                                </select>
                             </div>
-                        </form>
-                        <div class="overflow-x-auto mt-4">
-                            <table class="table table-zebra table-sm">
+                            <div class="form-control">
+                                <label class="label"><span class="label-text font-medium">Search</span></label>
+                                <input type="text" name="search" value="<?php echo htmlspecialchars((string)($_GET['search'] ?? '')); ?>" class="input input-bordered w-64" placeholder="Employee name or ID" />
+                            </div>
+                            <div class="form-control self-end">
+                                <button type="submit" class="btn btn-border"><i data-lucide="filter" class="w-4 h-4 mr-2"></i>Apply Filters</button>
+                            </div>
+                            <div class="form-control self-end">
+                                <a class="btn btn-border" href="<?php echo htmlspecialchars(tr_build_url(['tab' => 'idp', 'status' => null, 'department' => null, 'search' => null])); ?>"><i data-lucide="x" class="w-4 h-4 mr-2"></i>Clear</a>
+                            </div>
+                        </div>
+                    </form>
+
+                    <div class="bg-white rounded-xl shadow-md p-4">
+                        <table class="table w-full card-table">
                                 <thead>
                                     <tr>
-                                        <th>Employee</th>
+                                        <th>Employee (ID)</th>
                                         <th>Department</th>
-                                        <th>Position</th>
-                                        <th class="text-right">Competency</th>
-                                        <th>Succession</th>
-                                        <th>Request Type</th>
-                                        <th>Mode</th>
-                                        <th>Schedule</th>
+                                        <th>Role</th>
                                         <th>Status</th>
+                                        <th>Action</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     <?php
                                     try {
-                                        $deptFilter = trim((string)($_GET['department'] ?? ''));
+                                        $deptFilter = trim((string)($_GET['department'] ?? 'all'));
                                         $statusFilter = trim((string)($_GET['status'] ?? 'all'));
+                                        $searchFilter = trim((string)($_GET['search'] ?? ''));
                                         $sql = "SELECT id, employee_id, employee_name, department, position, competency, succession_status,
                                                        requested_training_type, requested_training_mode,
                                                        requested_start_datetime, requested_end_datetime, idp_status,
@@ -199,13 +445,18 @@ require('../../partials/header.php');
                                                 FROM requested_idps_repository";
                                         $conds = [];
                                         $params = [];
-                                        if ($deptFilter !== '') {
+                                        if ($deptFilter !== '' && $deptFilter !== 'all') {
                                             $conds[] = "department = ?";
                                             $params[] = $deptFilter;
                                         }
                                         if ($statusFilter !== '' && $statusFilter !== 'all') {
                                             $conds[] = "idp_status = ?";
                                             $params[] = $statusFilter;
+                                        }
+                                        if ($searchFilter !== '') {
+                                            $conds[] = "(employee_name LIKE ? OR employee_id LIKE ?)";
+                                            $params[] = '%' . $searchFilter . '%';
+                                            $params[] = '%' . $searchFilter . '%';
                                         }
                                         // Only show Onsite/Hybrid requests that have a training request timestamp
                                         $conds[] = "(delivery_mode IN ('Onsite','Hybrid') AND training_requested_at IS NOT NULL)";
@@ -217,30 +468,18 @@ require('../../partials/header.php');
                                         $stmt->execute($params);
                                         $rows = $stmt->fetchAll();
                                         if (!$rows) {
-                                            echo '<tr><td colspan="9" class="text-center py-10 opacity-70">No requested IDPs found.</td></tr>';
+                                            echo '<tr class="card-empty"><td colspan="5">No requested IDPs found.</td></tr>';
                                         } else {
                                             foreach ($rows as $r) {
-                                                $competency = is_numeric($r['competency']) ? number_format((float)$r['competency'], 1) . '%' : '0%';
-                                                $sched = '';
-                                                if (!empty($r['requested_start_datetime']) && !empty($r['requested_end_datetime'])) {
-                                                    $sched = date('M d, Y H:i', strtotime($r['requested_start_datetime'])) . ' - ' . date('M d, Y H:i', strtotime($r['requested_end_datetime']));
-                                                } elseif (!empty($r['requested_start_datetime'])) {
-                                                    $sched = date('M d, Y H:i', strtotime($r['requested_start_datetime']));
-                                                } else {
-                                                    $sched = 'N/A';
-                                                }
-                                                echo '<tr>';
-                                                echo '<td><div class="font-semibold">' . htmlspecialchars((string)$r['employee_name']) . '</div><div class="text-xs opacity-70">' . htmlspecialchars((string)$r['employee_id']) . '</div></td>';
-                                                echo '<td>' . htmlspecialchars((string)$r['department']) . '</td>';
-                                                echo '<td>' . htmlspecialchars((string)$r['position']) . '</td>';
-                                                echo '<td class="text-right font-semibold">' . $competency . '</td>';
-                                                echo '<td>' . htmlspecialchars((string)$r['succession_status']) . '</td>';
-                                                echo '<td>' . htmlspecialchars((string)$r['requested_training_type']) . '</td>';
-                                                echo '<td>' . htmlspecialchars((string)$r['requested_training_mode']) . '</td>';
-                                                echo '<td>' . htmlspecialchars($sched) . '</td>';
+                                                $idpJson = htmlspecialchars(json_encode($r, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT));
                                                 $prefillUrl = 'add_training.php?idp_id=' . urlencode((string)$r['id']);
-                                                echo '<td><span class="badge">' . htmlspecialchars((string)$r['idp_status']) . '</span></td>';
-                                                echo '</tr><tr><td colspan="9" class="py-2">';
+                                                echo '<tr>';
+                                                echo '<td data-label="Employee (ID)"><div class="font-semibold">' . htmlspecialchars((string)$r['employee_name']) . '</div><div class="text-xs opacity-70">' . htmlspecialchars((string)$r['employee_id']) . '</div></td>';
+                                                echo '<td data-label="Department">' . htmlspecialchars((string)$r['department']) . '</td>';
+                                                echo '<td data-label="Role">' . htmlspecialchars((string)$r['position']) . '</td>';
+                                                echo '<td data-label="Status"><span class="badge">' . htmlspecialchars((string)$r['idp_status']) . '</span></td>';
+                                                echo '<td data-label="Action" class="whitespace-nowrap">';
+                                                echo '<button type="button" class="btn btn-sm btn-outline mr-2" data-view-idp="1" data-idp="' . $idpJson . '">View</button>';
                                                 echo '<a href="' . $prefillUrl . '" class="btn btn-sm bg-gray-900 text-white hover:bg-gray-800 border-0">';
                                                 echo '<i data-lucide="plus" class="w-4 h-4 mr-2"></i>Create Training</a>';
                                                 echo '</td>';
@@ -248,102 +487,221 @@ require('../../partials/header.php');
                                             }
                                         }
                                     } catch (Throwable $e) {
-                                        echo '<tr><td colspan="9" class="text-center py-10 opacity-70">Failed to load requests.</td></tr>';
+                                        echo '<tr class="card-empty"><td colspan="5">Failed to load requests.</td></tr>';
                                     }
                                     ?>
                                 </tbody>
                             </table>
-                        </div>
                     </div>
                 </div>
 
-                <div id="trainee-requests-section" class="bg-base-100 rounded-xl shadow hidden w-full">
-                    <div class="card-body" style="min-height: 420px;">
-                        <div class="flex flex-col md:flex-row md:items-end gap-3 mb-4">
-                            <div class="w-full md:w-64">
-                                <label class="label"><span class="label-text">Department</span></label>
-                                <input type="text" class="input input-bordered w-full" placeholder="All" disabled>
+                <div id="trainee-requests-section" class="hidden w-full">
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                        <a href="<?php echo htmlspecialchars(tr_build_url(['tab' => 'trainee', 't_department' => 'all'])); ?>" class="hr2-summary-card rounded-xl shadow-md p-6 bg-white block">
+                            <div class="flex items-start justify-between">
+                                <div>
+                                    <div class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Total Trainees</div>
+                                    <div class="mt-1 text-3xl font-bold text-gray-900"><?php echo (int)$traineeTotal; ?></div>
+                                    <div class="text-xs text-gray-400 mt-1">Available requests</div>
+                                </div>
+                                <div class="p-3 bg-blue-100 rounded-full">
+                                    <i data-lucide="users" class="h-6 w-6 text-blue-600"></i>
+                                </div>
                             </div>
-                            <div class="w-full md:w-64">
-                                <label class="label"><span class="label-text">Status</span></label>
-                                <select class="select select-bordered w-full" disabled>
-                                    <option>All</option>
+                        </a>
+                        <?php
+                        $topDept = array_slice($traineeDeptCounts, 0, 3, true);
+                        $deptIcons = [
+                            ['bg' => 'bg-green-100', 'icon' => 'building-2', 'color' => 'text-green-600'],
+                            ['bg' => 'bg-yellow-100', 'icon' => 'building', 'color' => 'text-yellow-600'],
+                            ['bg' => 'bg-purple-100', 'icon' => 'briefcase', 'color' => 'text-purple-600'],
+                        ];
+                        $i = 0;
+                        foreach ($topDept as $deptName => $cnt) {
+                            $di = $deptIcons[$i] ?? $deptIcons[0];
+                            echo '<a href="' . htmlspecialchars(tr_build_url(['tab' => 'trainee', 't_department' => $deptName])) . '" class="hr2-summary-card rounded-xl shadow-md p-6 bg-white block">';
+                            echo '<div class="flex items-start justify-between">';
+                            echo '<div>';
+                            echo '<div class="text-xs font-semibold text-gray-500 uppercase tracking-wider">' . htmlspecialchars($deptName) . '</div>';
+                            echo '<div class="mt-1 text-3xl font-bold text-gray-900">' . (int)$cnt . '</div>';
+                            echo '<div class="text-xs text-gray-400 mt-1">Trainees</div>';
+                            echo '</div>';
+                            echo '<div class="p-3 ' . $di['bg'] . ' rounded-full">';
+                            echo '<i data-lucide="' . $di['icon'] . '" class="h-6 w-6 ' . $di['color'] . '"></i>';
+                            echo '</div>';
+                            echo '</div>';
+                            echo '</a>';
+                            $i++;
+                        }
+                        ?>
+                    </div>
+
+                    <form method="get" class="bg-white p-4 rounded-lg shadow-sm mb-6">
+                        <input type="hidden" name="tab" value="trainee" />
+                        <div class="flex flex-wrap gap-4">
+                            <div class="form-control">
+                                <label class="label"><span class="label-text font-medium">Status</span></label>
+                                <select name="t_status" class="select select-bordered w-56" <?php echo $traineeHasEmploymentStatus ? '' : 'disabled'; ?>>
+                                    <?php
+                                    $tStatus = (string)($_GET['t_status'] ?? ($traineeHasEmploymentStatus ? 'New Hire' : 'all'));
+                                    if (!$traineeHasEmploymentStatus) {
+                                        echo '<option value="all" selected>Trainee</option>';
+                                    } else {
+                                        echo '<option value="all"' . ($tStatus === 'all' ? ' selected' : '') . '>All Status</option>';
+                                        foreach ($traineeStatuses as $st) {
+                                            $sel = $tStatus === $st ? ' selected' : '';
+                                            echo '<option value="' . htmlspecialchars($st) . '"' . $sel . '>' . htmlspecialchars($st) . '</option>';
+                                        }
+                                    }
+                                    ?>
                                 </select>
                             </div>
-                            <div class="flex gap-2">
-                                <button type="button" class="btn btn-primary" disabled>Filter</button>
-                                <button type="button" class="btn btn-outline" disabled>Reset</button>
+                            <div class="form-control">
+                                <label class="label"><span class="label-text font-medium">Department</span></label>
+                                <select name="t_department" class="select select-bordered w-56">
+                                    <?php
+                                    $tDeptVal = (string)($_GET['t_department'] ?? 'all');
+                                    echo '<option value="all"' . ($tDeptVal === 'all' ? ' selected' : '') . '>All Departments</option>';
+                                    foreach ($traineeDepartments as $d) {
+                                        $sel = $tDeptVal === $d ? ' selected' : '';
+                                        echo '<option value="' . htmlspecialchars($d) . '"' . $sel . '>' . htmlspecialchars($d) . '</option>';
+                                    }
+                                    ?>
+                                </select>
+                            </div>
+                            <div class="form-control">
+                                <label class="label"><span class="label-text font-medium">Search</span></label>
+                                <input type="text" name="t_search" value="<?php echo htmlspecialchars((string)($_GET['t_search'] ?? '')); ?>" class="input input-bordered w-64" placeholder="Employee name or ID" />
+                            </div>
+                            <div class="form-control self-end">
+                                <button type="submit" class="btn btn-border"><i data-lucide="filter" class="w-4 h-4 mr-2"></i>Apply Filters</button>
+                            </div>
+                            <div class="form-control self-end">
+                                <a class="btn btn-border" href="<?php echo htmlspecialchars(tr_build_url(['tab' => 'trainee', 't_status' => null, 't_department' => null, 't_search' => null])); ?>"><i data-lucide="x" class="w-4 h-4 mr-2"></i>Clear</a>
                             </div>
                         </div>
+                    </form>
 
-                        <table class="table table-zebra table-sm">
-                            <thead>
-                                <tr>
-                                    <th>Employee</th>
-                                    <th>Department</th>
-                                    <th>Role</th>
-                                    <th>Action</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <?php
-                                try {
-                                    require_once __DIR__ . '/db.php';
-                                    $sqlT = "SELECT id, employee_no, first_name, last_name, department, role FROM employees";
+                    <div class="bg-white rounded-xl shadow-md p-4">
+                        <table class="table w-full card-table">
+                                <thead>
+                                    <tr>
+                                        <th>Employee (ID)</th>
+                                        <th>Department</th>
+                                        <th>Role</th>
+                                        <th>Status</th>
+                                        <th>Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php
                                     try {
-                                        $chk = $conn->query("SELECT 1 FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'employees' AND column_name = 'employment_status' LIMIT 1");
-                                        if ($chk && $chk->num_rows > 0) {
-                                            $sqlT .= " WHERE employment_status = 'New Hire'";
+                                        require_once __DIR__ . '/db.php';
+                                        $hasEmploymentStatus = $traineeHasEmploymentStatus;
+                                        $tStatusFilter = (string)($_GET['t_status'] ?? ($hasEmploymentStatus ? 'New Hire' : 'all'));
+                                        $tDeptFilter = trim((string)($_GET['t_department'] ?? 'all'));
+                                        $tSearchFilter = trim((string)($_GET['t_search'] ?? ''));
+
+                                        $condsT = [];
+                                        if ($hasEmploymentStatus && $tStatusFilter !== '' && $tStatusFilter !== 'all') {
+                                            $condsT[] = "employment_status = ?";
                                         }
-                                    } catch (Throwable $e2) {
-                                    }
-                                    $sqlT .= " ORDER BY last_name, first_name";
-                                    $resT = $conn->query($sqlT);
-                                    if ($resT && $resT->num_rows > 0) {
-                                        while ($rowT = $resT->fetch_assoc()) {
-                                            $fullName = trim((string)($rowT['last_name'] ?? '') . ', ' . (string)($rowT['first_name'] ?? ''));
-                                            $empNo = (string)($rowT['employee_no'] ?? '');
-                                            $dept = (string)($rowT['department'] ?? '');
-                                            $role = (string)($rowT['role'] ?? '');
-                                            $empId = (int)($rowT['id'] ?? 0);
-                                            echo '<tr>';
-                                            echo '<td><div class="font-semibold">' . htmlspecialchars($fullName) . '</div><div class="text-xs opacity-70">' . htmlspecialchars($empNo) . '</div></td>';
-                                            echo '<td>' . htmlspecialchars($dept) . '</td>';
-                                            echo '<td>' . htmlspecialchars($role) . '</td>';
-                                            echo '<td><button type="button" class="btn btn-sm bg-gray-900 text-white hover:bg-gray-800 border-0" data-assign-trainee-id="' . $empId . '" data-trainee-name="' . htmlspecialchars($fullName) . '" data-trainee-empno="' . htmlspecialchars($empNo) . '">Assign Training</button></td>';
-                                            echo '</tr>';
+                                        if ($tDeptFilter !== '' && $tDeptFilter !== 'all') {
+                                            $condsT[] = "department = ?";
                                         }
-                                    } else {
-                                        echo '<tr><td colspan="4" class="text-center text-sm opacity-70">No trainee records found.</td></tr>';
+                                        if ($tSearchFilter !== '') {
+                                            $condsT[] = "(CONCAT(last_name, ', ', first_name) LIKE ? OR employee_no LIKE ?)";
+                                        }
+                                        $sqlT = "SELECT id, employee_no, first_name, last_name, department, role" . ($hasEmploymentStatus ? ", employment_status" : "") . " FROM employees";
+                                        $paramsT = [];
+                                        if ($condsT) {
+                                            $sqlT .= " WHERE " . implode(" AND ", $condsT);
+                                            if ($hasEmploymentStatus && $tStatusFilter !== '' && $tStatusFilter !== 'all') $paramsT[] = $tStatusFilter;
+                                            if ($tDeptFilter !== '' && $tDeptFilter !== 'all') $paramsT[] = $tDeptFilter;
+                                            if ($tSearchFilter !== '') {
+                                                $paramsT[] = '%' . $tSearchFilter . '%';
+                                                $paramsT[] = '%' . $tSearchFilter . '%';
+                                            }
+                                        }
+                                        $sqlT .= " ORDER BY last_name, first_name";
+
+                                        if (!empty($paramsT)) {
+                                            $stmtT = $conn->prepare($sqlT);
+                                            $types = str_repeat('s', count($paramsT));
+                                            $stmtT->bind_param($types, ...$paramsT);
+                                            $stmtT->execute();
+                                            $resT = $stmtT->get_result();
+                                        } else {
+                                            $resT = $conn->query($sqlT);
+                                        }
+                                        if ($resT && $resT->num_rows > 0) {
+                                            while ($rowT = $resT->fetch_assoc()) {
+                                                $fullName = trim((string)($rowT['last_name'] ?? '') . ', ' . (string)($rowT['first_name'] ?? ''));
+                                                $empNo = (string)($rowT['employee_no'] ?? '');
+                                                $dept = (string)($rowT['department'] ?? '');
+                                                $role = (string)($rowT['role'] ?? '');
+                                                $statusLabel = $hasEmploymentStatus ? (string)($rowT['employment_status'] ?? '') : 'Trainee';
+                                                $empId = (int)($rowT['id'] ?? 0);
+                                                $empJson = htmlspecialchars(json_encode([
+                                                    'id' => $empId,
+                                                    'employee_no' => $empNo,
+                                                    'employee_name' => $fullName,
+                                                    'department' => $dept,
+                                                    'role' => $role,
+                                                    'employment_status' => $statusLabel,
+                                                ], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT));
+                                                $createUrl = 'add_training.php?trainee_id=' . urlencode((string)$empId);
+                                                echo '<tr>';
+                                                echo '<td data-label="Employee (ID)"><div class="font-semibold">' . htmlspecialchars($fullName) . '</div><div class="text-xs opacity-70">' . htmlspecialchars($empNo) . '</div></td>';
+                                                echo '<td data-label="Department">' . htmlspecialchars($dept) . '</td>';
+                                                echo '<td data-label="Role">' . htmlspecialchars($role) . '</td>';
+                                                echo '<td data-label="Status"><span class="badge">' . htmlspecialchars($statusLabel) . '</span></td>';
+                                                echo '<td data-label="Action" class="whitespace-nowrap">';
+                                                echo '<button type="button" class="btn btn-sm btn-outline mr-2" data-view-trainee="1" data-trainee="' . $empJson . '">View</button>';
+                                                echo '<a href="' . $createUrl . '" class="btn btn-sm bg-gray-900 text-white hover:bg-gray-800 border-0">';
+                                                echo '<i data-lucide="plus" class="w-4 h-4 mr-2"></i>Create Training</a>';
+                                                echo '</td>';
+                                                echo '</tr>';
+                                            }
+                                        } else {
+                                            echo '<tr class="card-empty"><td colspan="5">No trainee records found.</td></tr>';
+                                        }
+                                    } catch (Throwable $e) {
+                                        echo '<tr class="card-empty"><td colspan="5">Failed to load trainees.</td></tr>';
                                     }
-                                } catch (Throwable $e) {
-                                    echo '<tr><td colspan="4" class="text-center text-sm opacity-70">Failed to load trainees.</td></tr>';
-                                }
-                                ?>
-                            </tbody>
-                        </table>
+                                    ?>
+                                </tbody>
+                            </table>
                     </div>
                 </div>
-            </div>
-            <dialog id="assign-training-modal" class="modal">
-                <div class="modal-box w-11/12 max-w-5xl">
+            </main>
+            <dialog id="view-idp-modal" class="modal">
+                <div class="modal-box w-11/12 max-w-4xl">
                     <div class="flex items-start justify-between gap-3">
                         <div>
-                            <h2 class="text-xl font-semibold" id="assign-modal-title">Assign Training</h2>
-                            <div class="text-sm text-gray-600 mt-1" id="assign-modal-subtitle"></div>
+                            <h2 class="text-xl font-semibold" id="view-idp-title">Request Details</h2>
+                            <div class="text-sm text-gray-600 mt-1" id="view-idp-subtitle"></div>
                         </div>
-                        <button type="button" class="btn btn-ghost btn-sm" id="assign-modal-close">✕</button>
+                        <button type="button" class="btn btn-ghost btn-sm" data-close-modal="view-idp-modal">✕</button>
                     </div>
-                    <div class="mt-4">
-                        <div id="assign-training-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-sm text-gray-800">
-                            <div class="col-span-full text-center py-6 opacity-70">Loading posted trainings...</div>
+                    <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3 text-sm" id="view-idp-body"></div>
+                </div>
+                <form method="dialog" class="modal-backdrop"><button>close</button></form>
+            </dialog>
+            <dialog id="view-trainee-modal" class="modal">
+                <div class="modal-box w-11/12 max-w-3xl">
+                    <div class="flex items-start justify-between gap-3">
+                        <div>
+                            <h2 class="text-xl font-semibold" id="view-trainee-title">Trainee Details</h2>
+                            <div class="text-sm text-gray-600 mt-1" id="view-trainee-subtitle"></div>
                         </div>
+                        <button type="button" class="btn btn-ghost btn-sm" data-close-modal="view-trainee-modal">✕</button>
                     </div>
+                    <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3 text-sm" id="view-trainee-body"></div>
                 </div>
                 <form method="dialog" class="modal-backdrop"><button>close</button></form>
             </dialog>
         </div>
-    </div>
     </div>
     <script>
         if (window.lucide) lucide.createIcons();
@@ -352,12 +710,32 @@ require('../../partials/header.php');
             var tabTrainee = document.getElementById('tab-page-trainee');
             var idpSection = document.getElementById('idp-requests-section');
             var traineeSection = document.getElementById('trainee-requests-section');
-            var assignModal = document.getElementById('assign-training-modal');
-            var assignClose = document.getElementById('assign-modal-close');
-            var assignTitle = document.getElementById('assign-modal-title');
-            var assignSubtitle = document.getElementById('assign-modal-subtitle');
-            var assignList = document.getElementById('assign-training-list');
-            var activeTraineeId = 0;
+            var viewIdpModal = document.getElementById('view-idp-modal');
+            var viewIdpTitle = document.getElementById('view-idp-title');
+            var viewIdpSubtitle = document.getElementById('view-idp-subtitle');
+            var viewIdpBody = document.getElementById('view-idp-body');
+            var viewTraineeModal = document.getElementById('view-trainee-modal');
+            var viewTraineeSubtitle = document.getElementById('view-trainee-subtitle');
+            var viewTraineeBody = document.getElementById('view-trainee-body');
+
+            function esc(s) {
+                return String(s || '').replace(/[&<>"']/g, function(c) {
+                    return ({
+                        '&': '&amp;',
+                        '<': '&lt;',
+                        '>': '&gt;',
+                        '"': '&quot;',
+                        "'": '&#39;'
+                    })[c];
+                });
+            }
+
+            function renderInfoCard(label, value) {
+                return '<div class="bg-base-200 rounded-lg p-3">' +
+                    '<div class="text-xs opacity-70">' + esc(label) + '</div>' +
+                    '<div class="font-semibold mt-1 break-words">' + esc(value || '—') + '</div>' +
+                    '</div>';
+            }
 
             function setTab(tab) {
                 var isIdp = tab === 'idp';
@@ -381,114 +759,12 @@ require('../../partials/header.php');
                 }
                 if (idpSection) idpSection.classList.toggle('hidden', !isIdp);
                 if (traineeSection) traineeSection.classList.toggle('hidden', isIdp);
-            }
 
-            function loadPostedTrainings() {
-                if (!assignList) return;
-                assignList.innerHTML = '<div class="col-span-full text-center py-6 opacity-70">Loading posted trainings...</div>';
-                var url = 'posted_trainings.php?action=list_posts&filter=department';
-                fetch(url, {
-                        credentials: 'same-origin'
-                    })
-                    .then(function(res) {
-                        return res.json();
-                    })
-                    .then(function(data) {
-                        var items = data && data.success && Array.isArray(data.posts) ? data.posts : [];
-                        if (!items.length) {
-                            assignList.innerHTML = '<div class="col-span-full text-center py-6 opacity-70">No posted trainings found.</div>';
-                            return;
-                        }
-                        assignList.innerHTML = items.map(function(p) {
-                            var title = String(p.training_title || '');
-                            var type = String(p.training_type || '');
-                            var audience = String(p.target_audience || '');
-                            var sched = String(p.start_datetime || '') + ' to ' + String(p.end_datetime || '');
-                            var postedAt = String(p.posted_at || '');
-                            var programId = String(p.program_id || '');
-                            var submissionNo = String(p.submission_no || '1');
-                            return '' +
-                                '<div class="bg-white rounded-lg shadow-sm border border-gray-100 p-4 flex flex-col justify-between">' +
-                                '<div>' +
-                                '<div class="font-semibold text-sm text-gray-900">' + title.replace(/</g, '&lt;') + '</div>' +
-                                '<div class="mt-1 text-xs text-gray-600">Type: ' + type.replace(/</g, '&lt;') + '</div>' +
-                                '<div class="mt-1 text-xs text-gray-600">Audience: ' + audience.replace(/</g, '&lt;') + '</div>' +
-                                '<div class="mt-1 text-xs text-gray-600">Schedule: ' + sched.replace(/</g, '&lt;') + '</div>' +
-                                '<div class="mt-1 text-xs text-gray-500">Posted: ' + postedAt.replace(/</g, '&lt;') + '</div>' +
-                                '</div>' +
-                                '<div class="mt-3 flex justify-end">' +
-                                '<button type="button" class="btn btn-sm hr2-primary-btn" data-assign-program-id="' + programId + '" data-submission-no="' + submissionNo + '">Assign</button>' +
-                                '</div>' +
-                                '</div>';
-                        }).join('');
-                    })
-                    .catch(function() {
-                        assignList.innerHTML = '<div class="col-span-full text-center py-6 opacity-70">Failed to load posted trainings.</div>';
-                    });
-            }
-
-            function openAssignModal(traineeId, name, empNo) {
-                activeTraineeId = traineeId > 0 ? traineeId : 0;
-                if (assignTitle) {
-                    assignTitle.textContent = 'Assign Training';
-                }
-                if (assignSubtitle) {
-                    assignSubtitle.textContent = name + ' (' + empNo + ')';
-                }
-                loadPostedTrainings();
-                if (assignModal && typeof assignModal.showModal === 'function') {
-                    assignModal.showModal();
-                }
-            }
-
-            function assignToProgram(programId, submissionNo) {
-                if (!activeTraineeId || activeTraineeId <= 0) {
-                    alert('Cannot assign training to this sample trainee.');
-                    return;
-                }
-                var pid = String(programId || '');
-                var subNo = String(submissionNo || '1');
-                var getUrl = 'posted_trainings.php?action=get_assignments&program_id=' + encodeURIComponent(pid) + '&submission_no=' + encodeURIComponent(subNo);
-                fetch(getUrl, {
-                        credentials: 'same-origin'
-                    })
-                    .then(function(res) {
-                        return res.json();
-                    })
-                    .then(function(data) {
-                        var ids = (data && data.success && Array.isArray(data.employee_ids)) ? data.employee_ids.slice() : [];
-                        var tid = activeTraineeId;
-                        var has = ids.some(function(n) {
-                            return parseInt(n, 10) === tid;
-                        });
-                        if (!has) ids.push(tid);
-                        var fd = new FormData();
-                        fd.append('action', 'save_assignments');
-                        fd.append('program_id', pid);
-                        fd.append('submission_no', subNo);
-                        fd.append('employee_ids_json', JSON.stringify(ids));
-                        return fetch('posted_trainings.php', {
-                            method: 'POST',
-                            body: fd,
-                            credentials: 'same-origin'
-                        });
-                    })
-                    .then(function(res) {
-                        if (!res) return null;
-                        return res.json();
-                    })
-                    .then(function(r) {
-                        if (!r) return;
-                        if (!r.success) {
-                            alert((r && r.message) ? r.message : 'Failed to assign training.');
-                            return;
-                        }
-                        alert('Training assigned successfully.');
-                        if (assignModal) assignModal.close();
-                    })
-                    .catch(function() {
-                        alert('Failed to assign training.');
-                    });
+                try {
+                    var url = new URL(window.location.href);
+                    url.searchParams.set('tab', isIdp ? 'idp' : 'trainee');
+                    window.history.replaceState({}, '', url.toString());
+                } catch (_) {}
             }
 
             if (tabIdp) {
@@ -503,32 +779,71 @@ require('../../partials/header.php');
                     setTab('trainee');
                 });
             }
-            setTab('idp');
-
-            if (assignClose && assignModal) {
-                assignClose.addEventListener('click', function() {
-                    assignModal.close();
-                });
-            }
+            var initialTab = 'idp';
+            try {
+                var t0 = new URLSearchParams(window.location.search).get('tab');
+                if (t0 && String(t0).toLowerCase() === 'trainee') initialTab = 'trainee';
+            } catch (_) {}
+            setTab(initialTab);
 
             document.addEventListener('click', function(e) {
                 var t = e.target;
                 if (!t) return;
-                var btnAssignTrainee = t.closest('button[data-assign-trainee-id]');
-                if (btnAssignTrainee) {
+                var closeBtn = t.closest('button[data-close-modal]');
+                if (closeBtn) {
                     e.preventDefault();
-                    var traineeId = parseInt(btnAssignTrainee.getAttribute('data-assign-trainee-id') || '0', 10);
-                    var name = btnAssignTrainee.getAttribute('data-trainee-name') || '';
-                    var empNo = btnAssignTrainee.getAttribute('data-trainee-empno') || '';
-                    openAssignModal(traineeId, name, empNo);
+                    var mid = closeBtn.getAttribute('data-close-modal') || '';
+                    var modal = mid ? document.getElementById(mid) : null;
+                    if (modal) modal.close();
                     return;
                 }
-                var btnAssignProgram = t.closest('button[data-assign-program-id]');
-                if (btnAssignProgram) {
+
+                var btnViewIdp = t.closest('button[data-view-idp="1"]');
+                if (btnViewIdp) {
                     e.preventDefault();
-                    var programId = btnAssignProgram.getAttribute('data-assign-program-id') || '';
-                    var submissionNo = btnAssignProgram.getAttribute('data-submission-no') || '1';
-                    assignToProgram(programId, submissionNo);
+                    var raw = btnViewIdp.getAttribute('data-idp') || '';
+                    try {
+                        var r = JSON.parse(raw);
+                        if (viewIdpTitle) viewIdpTitle.textContent = 'Request Details';
+                        if (viewIdpSubtitle) viewIdpSubtitle.textContent = String(r.employee_name || '') + ' (' + String(r.employee_id || '') + ')';
+                        if (viewIdpBody) {
+                            viewIdpBody.innerHTML = [
+                                renderInfoCard('Department', r.department),
+                                renderInfoCard('Role', r.position),
+                                renderInfoCard('Status', r.idp_status),
+                                renderInfoCard('Delivery Mode', r.delivery_mode),
+                                renderInfoCard('Requested Training Type', r.requested_training_type),
+                                renderInfoCard('Requested Training Mode', r.requested_training_mode),
+                                renderInfoCard('Requested Start', r.requested_start_datetime),
+                                renderInfoCard('Requested End', r.requested_end_datetime),
+                            ].join('');
+                        }
+                        if (viewIdpModal && typeof viewIdpModal.showModal === 'function') {
+                            viewIdpModal.showModal();
+                        }
+                    } catch (_) {}
+                    return;
+                }
+
+                var btnViewTrainee = t.closest('button[data-view-trainee="1"]');
+                if (btnViewTrainee) {
+                    e.preventDefault();
+                    var rawT = btnViewTrainee.getAttribute('data-trainee') || '';
+                    try {
+                        var tr = JSON.parse(rawT);
+                        if (viewTraineeSubtitle) viewTraineeSubtitle.textContent = String(tr.employee_name || '') + ' (' + String(tr.employee_no || '') + ')';
+                        if (viewTraineeBody) {
+                            viewTraineeBody.innerHTML = [
+                                renderInfoCard('Employee No', tr.employee_no),
+                                renderInfoCard('Department', tr.department),
+                                renderInfoCard('Role', tr.role),
+                                renderInfoCard('Status', tr.employment_status),
+                            ].join('');
+                        }
+                        if (viewTraineeModal && typeof viewTraineeModal.showModal === 'function') {
+                            viewTraineeModal.showModal();
+                        }
+                    } catch (_) {}
                 }
             });
         });
