@@ -10,82 +10,94 @@ $employeeId = $_SESSION['employee_id'] ?? null;
 $displayName = trim((string)($_SESSION['employee_name'] ?? ($_SESSION['username'] ?? '')));
 $roleDisplay = trim((string)($_SESSION['role'] ?? ''));
 
-define('SUPPRESS_DB_ERRORS', true);
-require_once __DIR__ . '/db.php';
-define('HR_SKIP_CRITICALGAPS_BOOTSTRAP', true);
-require_once __DIR__ . '/COMPETENCY/criticalgaps/config.php';
-
-$preferredDbNames = ['hr2usm', 'rest_core_2_usm', 'hr2_usmhr2', 'hr2_soliera_usm'];
-$conn = null;
-foreach ($preferredDbNames as $dbName) {
-  if (isset($connections[$dbName]) && $connections[$dbName] instanceof mysqli) {
-    $conn = $connections[$dbName];
-    break;
-  }
+$isAnalyticsRequest = isset($_GET['analytics']);
+if (!defined('HR_SKIP_CRITICALGAPS_BOOTSTRAP')) {
+  define('HR_SKIP_CRITICALGAPS_BOOTSTRAP', true);
 }
-
-if ($conn && $employeeId) {
-  $stmt = mysqli_prepare($conn, "SELECT employee_name FROM department_accounts WHERE employee_id = ? LIMIT 1");
-  if ($stmt) {
-    mysqli_stmt_bind_param($stmt, 's', $employeeId);
-    mysqli_stmt_execute($stmt);
-    $res = mysqli_stmt_get_result($stmt);
-    $row = $res ? mysqli_fetch_assoc($res) : null;
-    mysqli_stmt_close($stmt);
-
-    if (is_array($row) && !empty($row['employee_name'])) {
-      $displayName = trim((string)$row['employee_name']);
-      $_SESSION['employee_name'] = $displayName;
-    }
-  }
+if (!defined('HR_SKIP_TRAINING_BOOTSTRAP')) {
+  define('HR_SKIP_TRAINING_BOOTSTRAP', true);
 }
 
 $essConn = null;
 $assignedComplaints = [];
-if ($employeeId) {
-  try {
-    require_once __DIR__ . '/ESS/db.php';
-    if (isset($ess_conn) && $ess_conn instanceof mysqli) {
-      $essConn = $ess_conn;
+
+if (!$isAnalyticsRequest) {
+  if (!defined('SUPPRESS_DB_ERRORS')) {
+    define('SUPPRESS_DB_ERRORS', true);
+  }
+  require_once __DIR__ . '/db.php';
+  require_once __DIR__ . '/COMPETENCY/criticalgaps/config.php';
+
+  $preferredDbNames = ['hr2usm', 'rest_core_2_usm', 'hr2_usmhr2', 'hr2_soliera_usm'];
+  $conn = null;
+  foreach ($preferredDbNames as $dbName) {
+    if (isset($connections[$dbName]) && $connections[$dbName] instanceof mysqli) {
+      $conn = $connections[$dbName];
+      break;
     }
+  }
 
-    if ($essConn) {
-      ess_ensure_complaint_tables($essConn);
+  if ($conn && $employeeId) {
+    $stmt = mysqli_prepare($conn, "SELECT employee_name FROM department_accounts WHERE employee_id = ? LIMIT 1");
+    if ($stmt) {
+      mysqli_stmt_bind_param($stmt, 's', $employeeId);
+      mysqli_stmt_execute($stmt);
+      $res = mysqli_stmt_get_result($stmt);
+      $row = $res ? mysqli_fetch_assoc($res) : null;
+      mysqli_stmt_close($stmt);
 
-      if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['mark_complaint_seen'])) {
-        $cid = (int)($_POST['complaint_id'] ?? 0);
-        if ($cid > 0) {
-          $stmt = mysqli_prepare($essConn, "UPDATE complaints SET seen_by_assignee = 1 WHERE id = ? AND assigned_to_employee_no = ?");
-          if ($stmt) {
-            mysqli_stmt_bind_param($stmt, 'is', $cid, $employeeId);
-            mysqli_stmt_execute($stmt);
-            mysqli_stmt_close($stmt);
+      if (is_array($row) && !empty($row['employee_name'])) {
+        $displayName = trim((string)$row['employee_name']);
+        $_SESSION['employee_name'] = $displayName;
+      }
+    }
+  }
+
+  if ($employeeId) {
+    try {
+      require_once __DIR__ . '/ESS/db.php';
+      if (isset($ess_conn) && $ess_conn instanceof mysqli) {
+        $essConn = $ess_conn;
+      }
+
+      if ($essConn) {
+        ess_ensure_complaint_tables($essConn);
+
+        if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['mark_complaint_seen'])) {
+          $cid = (int)($_POST['complaint_id'] ?? 0);
+          if ($cid > 0) {
+            $stmt = mysqli_prepare($essConn, "UPDATE complaints SET seen_by_assignee = 1 WHERE id = ? AND assigned_to_employee_no = ?");
+            if ($stmt) {
+              mysqli_stmt_bind_param($stmt, 'is', $cid, $employeeId);
+              mysqli_stmt_execute($stmt);
+              mysqli_stmt_close($stmt);
+            }
           }
+
+          header('Location: ' . (string)$_SERVER['PHP_SELF']);
+          exit;
         }
 
-        header('Location: ' . (string)$_SERVER['PHP_SELF']);
-        exit;
-      }
-
-      $stmt = mysqli_prepare(
-        $essConn,
-        "SELECT c.id, c.subject, c.category, c.category_other, c.incident_date, c.workflow_status, c.created_at, c.returned_reason, c.attachment_path, e.employee_no, e.first_name, e.last_name
-         FROM complaints c
-         LEFT JOIN employees e ON e.id = c.employee_id
-         WHERE c.workflow_status = 'Assigned' AND c.assigned_to_employee_no = ?
-         ORDER BY c.assigned_at DESC, c.created_at DESC"
-      );
-      if ($stmt) {
-        mysqli_stmt_bind_param($stmt, 's', $employeeId);
-        mysqli_stmt_execute($stmt);
-        $res = mysqli_stmt_get_result($stmt);
-        while ($res && ($row = mysqli_fetch_assoc($res))) {
-          $assignedComplaints[] = $row;
+        $stmt = mysqli_prepare(
+          $essConn,
+          "SELECT c.id, c.subject, c.category, c.category_other, c.incident_date, c.workflow_status, c.created_at, c.returned_reason, c.attachment_path, e.employee_no, e.first_name, e.last_name
+           FROM complaints c
+           LEFT JOIN employees e ON e.id = c.employee_id
+           WHERE c.workflow_status = 'Assigned' AND c.assigned_to_employee_no = ?
+           ORDER BY c.assigned_at DESC, c.created_at DESC"
+        );
+        if ($stmt) {
+          mysqli_stmt_bind_param($stmt, 's', $employeeId);
+          mysqli_stmt_execute($stmt);
+          $res = mysqli_stmt_get_result($stmt);
+          while ($res && ($row = mysqli_fetch_assoc($res))) {
+            $assignedComplaints[] = $row;
+          }
+          mysqli_stmt_close($stmt);
         }
-        mysqli_stmt_close($stmt);
       }
+    } catch (Throwable $e) {
     }
-  } catch (Throwable $e) {
   }
 }
 
@@ -135,10 +147,10 @@ function hr_dashboard_build_analytics(string $departmentFilter, string $rangeKey
         'complianceStandards' => 0,
         'criteriaRows' => 0,
         'activeMappings' => 0,
+        'totalEmployees' => 0,
       ],
-      'standardsByApproval' => ['labels' => [], 'values' => []],
-      'standardsByCategory' => ['labels' => [], 'values' => []],
       'standardsByRole' => ['labels' => [], 'values' => []],
+      'employeesByDepartment' => ['labels' => [], 'values' => []],
     ],
     'trainingRequests' => [
       'total' => 0,
@@ -170,6 +182,13 @@ function hr_dashboard_build_analytics(string $departmentFilter, string $rangeKey
         'cancelled' => 'Cancelled',
       ],
       'statusChart' => ['labels' => [], 'values' => []],
+      'resultsSummary' => [
+        'total' => 0,
+        'passed' => 0,
+        'failed' => 0,
+        'passRate' => null,
+      ],
+      'resultsChart' => ['labels' => [], 'values' => []],
     ],
     'idp' => [
       'statusCounts' => [],
@@ -219,7 +238,13 @@ function hr_dashboard_build_analytics(string $departmentFilter, string $rangeKey
         'values' => $values,
       ];
 
-      $trendSql = "SELECT DATE(training_requested_at) AS d,
+      $trendDateExpr = $rangeDays > 365
+        ? "DATE_FORMAT(training_requested_at, '%Y-%m-01')"
+        : "DATE(training_requested_at)";
+      $trendGroupExpr = $rangeDays > 365
+        ? "YEAR(training_requested_at), MONTH(training_requested_at)"
+        : "DATE(training_requested_at)";
+      $trendSql = "SELECT {$trendDateExpr} AS d,
                           SUM(CASE WHEN requested_training_type IS NOT NULL AND LOWER(requested_training_type) LIKE '%onboard%' THEN 1 ELSE 0 END) AS onboarding_count,
                           SUM(CASE WHEN requested_training_type IS NOT NULL AND LOWER(requested_training_type) LIKE '%idp%' THEN 1 ELSE 0 END) AS idp_count
                    FROM requested_idps_repository
@@ -233,7 +258,7 @@ function hr_dashboard_build_analytics(string $departmentFilter, string $rangeKey
         $trendParams[] = $departmentFilter;
         $trendTypes .= 's';
       }
-      $trendSql .= " GROUP BY DATE(training_requested_at) ORDER BY d ASC";
+      $trendSql .= " GROUP BY {$trendGroupExpr} ORDER BY d ASC";
       $trendLabels = [];
       $trendOnboarding = [];
       $trendIdp = [];
@@ -463,7 +488,13 @@ function hr_dashboard_build_analytics(string $departmentFilter, string $rangeKey
         'values' => $lmValues,
       ];
 
-      $trendSql = "SELECT DATE(created_at) AS d,
+      $trendDateExpr = $rangeDays > 365
+        ? "DATE_FORMAT(created_at, '%Y-%m-01')"
+        : "DATE(created_at)";
+      $trendGroupExpr = $rangeDays > 365
+        ? "YEAR(created_at), MONTH(created_at)"
+        : "DATE(created_at)";
+      $trendSql = "SELECT {$trendDateExpr} AS d,
                           status,
                           COUNT(*) AS c
                    FROM learning_modules
@@ -475,8 +506,8 @@ function hr_dashboard_build_analytics(string $departmentFilter, string $rangeKey
         $trendParams[] = $deptForLearning;
         $trendTypes .= 's';
       }
-      $trendSql .= " GROUP BY DATE(created_at), status
-                     ORDER BY DATE(created_at) ASC";
+      $trendSql .= " GROUP BY {$trendGroupExpr}, status
+                     ORDER BY d ASC";
       $trendStmt = $lconn->prepare($trendSql);
       if ($trendStmt) {
         $trendStmt->bind_param($trendTypes, ...$trendParams);
@@ -567,14 +598,76 @@ function hr_dashboard_build_analytics(string $departmentFilter, string $rangeKey
         'labels' => $examLabels,
         'values' => $examValues,
       ];
+
+      $resultSumSql = "SELECT
+                         SUM(CASE WHEN passed = 1 THEN 1 ELSE 0 END) AS passed,
+                         SUM(CASE WHEN passed = 0 THEN 1 ELSE 0 END) AS failed,
+                         COUNT(*) AS total
+                       FROM exam_results
+                       WHERE completed_at >= ?";
+      $resultSumParams = [$rangeStart];
+      $resultSumTypes = 's';
+      if ($deptForLearning !== null) {
+        $resultSumSql .= " AND taker_department = ?";
+        $resultSumParams[] = $deptForLearning;
+        $resultSumTypes .= 's';
+      }
+      $resultSumStmt = $lconn->prepare($resultSumSql);
+      $resultTotals = ['passed' => 0, 'failed' => 0, 'total' => 0];
+      if ($resultSumStmt) {
+        $resultSumStmt->bind_param($resultSumTypes, ...$resultSumParams);
+        $resultSumStmt->execute();
+        $resultSumRes = $resultSumStmt->get_result();
+        if ($resultSumRes) {
+          $row = $resultSumRes->fetch_assoc() ?: [];
+          $resultTotals['passed'] = (int)($row['passed'] ?? 0);
+          $resultTotals['failed'] = (int)($row['failed'] ?? 0);
+          $resultTotals['total'] = (int)($row['total'] ?? 0);
+        }
+      }
+      $data['examinations']['resultsSummary']['total'] = (int)$resultTotals['total'];
+      $data['examinations']['resultsSummary']['passed'] = (int)$resultTotals['passed'];
+      $data['examinations']['resultsSummary']['failed'] = (int)$resultTotals['failed'];
+      $data['examinations']['resultsSummary']['passRate'] = $resultTotals['total'] > 0 ? ($resultTotals['passed'] / $resultTotals['total']) * 100.0 : null;
+      $data['examinations']['resultsChart'] = [
+        'labels' => ['Passed', 'Failed'],
+        'values' => [(int)$resultTotals['passed'], (int)$resultTotals['failed']],
+      ];
     }
   } catch (Throwable $e) {
     error_log('dashboard_learning_analytics_error: ' . $e->getMessage());
   }
 
   try {
-    require_once __DIR__ . '/COMPETENCY/criticalgaps/config.php';
-    if (isset($pdo)) {
+    $dbPrefix = getenv('DB_PREFIX') ?: '';
+    $cgHost = getenv('CRITICAL_GAPS_DB_HOST') ?: (getenv('DB_HOST') ?: 'localhost');
+    $cgUser = getenv('CRITICAL_GAPS_DB_USER') ?: (getenv('DB_USER') ?: 'hr2_critical_gaps');
+    $cgPassEnv = getenv('CRITICAL_GAPS_DB_PASS');
+    $cgPassGlobal = getenv('DB_PASS');
+    $cgPassPassword = getenv('DB_PASSWORD');
+    $cgPass = 'hr2.soliera';
+    $cgPass = $cgPassEnv !== false
+      ? $cgPassEnv
+      : ($cgPassPassword !== false
+        ? $cgPassPassword
+        : ($cgPassGlobal !== false
+          ? $cgPassGlobal
+          : (($cgUser === 'root' && ($cgHost === 'localhost' || $cgHost === '127.0.0.1')) ? '' : 'hr2.soliera')));
+    $cgName = getenv('CRITICAL_GAPS_DB_NAME') ?: 'hr2_critical_gaps';
+    if ($dbPrefix !== '' && strpos($cgName, $dbPrefix) !== 0) {
+      $cgName = $dbPrefix . $cgName;
+    }
+
+    $cgPdo = new PDO(
+      "mysql:host={$cgHost};dbname={$cgName};charset=utf8mb4",
+      $cgUser,
+      $cgPass,
+      [
+        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+        PDO::ATTR_EMULATE_PREPARES => false,
+      ]
+    );
       $succSql = "SELECT succession_status, COUNT(*) AS c
                   FROM individual_development_plans";
       $succWhere = [];
@@ -585,7 +678,7 @@ function hr_dashboard_build_analytics(string $departmentFilter, string $rangeKey
         $succSql .= " WHERE " . implode(' AND ', $succWhere);
       }
       $succSql .= " GROUP BY succession_status";
-      $succStmt = $pdo->prepare($succSql);
+      $succStmt = $cgPdo->prepare($succSql);
       if ($departmentFilter !== '' && $departmentFilter !== 'all') {
         $succStmt->bindValue(':dept', $departmentFilter, PDO::PARAM_STR);
       }
@@ -611,7 +704,7 @@ function hr_dashboard_build_analytics(string $departmentFilter, string $rangeKey
         $gapSql .= " WHERE " . implode(' AND ', $gapWhere);
       }
       $gapSql .= " GROUP BY department ORDER BY department ASC";
-      $gapStmt = $pdo->prepare($gapSql);
+      $gapStmt = $cgPdo->prepare($gapSql);
       if ($departmentFilter !== '' && $departmentFilter !== 'all') {
         $gapStmt->bindValue(':dept', $departmentFilter, PDO::PARAM_STR);
       }
@@ -637,7 +730,7 @@ function hr_dashboard_build_analytics(string $departmentFilter, string $rangeKey
         $idpSql .= " WHERE " . implode(' AND ', $idpWhere);
       }
       $idpSql .= " GROUP BY idp_status";
-      $idpStmt = $pdo->prepare($idpSql);
+      $idpStmt = $cgPdo->prepare($idpSql);
       if ($departmentFilter !== '' && $departmentFilter !== 'all') {
         $idpStmt->bindValue(':dept2', $departmentFilter, PDO::PARAM_STR);
       }
@@ -677,7 +770,7 @@ function hr_dashboard_build_analytics(string $departmentFilter, string $rangeKey
         $deptSql .= " WHERE " . implode(' AND ', $deptWhere);
       }
       $deptSql .= " GROUP BY department ORDER BY department ASC";
-      $deptStmt = $pdo->prepare($deptSql);
+      $deptStmt = $cgPdo->prepare($deptSql);
       if ($departmentFilter !== '' && $departmentFilter !== 'all') {
         $deptStmt->bindValue(':dept3', $departmentFilter, PDO::PARAM_STR);
       }
@@ -707,7 +800,7 @@ function hr_dashboard_build_analytics(string $departmentFilter, string $rangeKey
       if (!empty($succSumWhere)) {
         $succSumSql .= " AND " . implode(' AND ', $succSumWhere);
       }
-      $succSumStmt = $pdo->prepare($succSumSql);
+      $succSumStmt = $cgPdo->prepare($succSumSql);
       if ($departmentFilter !== '' && $departmentFilter !== 'all') {
         $succSumStmt->bindValue(':sdept', $departmentFilter, PDO::PARAM_STR);
       }
@@ -730,7 +823,7 @@ function hr_dashboard_build_analytics(string $departmentFilter, string $rangeKey
       }
       $succStatusSql .= " GROUP BY status
                           ORDER BY FIELD(status, 'Retrain','Reskilling','Refresher Training','Upskilling','Succession Ready')";
-      $succStatusStmt = $pdo->prepare($succStatusSql);
+      $succStatusStmt = $cgPdo->prepare($succStatusSql);
       if ($departmentFilter !== '' && $departmentFilter !== 'all') {
         $succStatusStmt->bindValue(':sdept2', $departmentFilter, PDO::PARAM_STR);
       }
@@ -757,7 +850,7 @@ function hr_dashboard_build_analytics(string $departmentFilter, string $rangeKey
         $succDeptSql .= " AND " . implode(' AND ', $succDeptWhere);
       }
       $succDeptSql .= " GROUP BY department ORDER BY department ASC";
-      $succDeptStmt = $pdo->prepare($succDeptSql);
+      $succDeptStmt = $cgPdo->prepare($succDeptSql);
       if ($departmentFilter !== '' && $departmentFilter !== 'all') {
         $succDeptStmt->bindValue(':sdept3', $departmentFilter, PDO::PARAM_STR);
       }
@@ -773,7 +866,35 @@ function hr_dashboard_build_analytics(string $departmentFilter, string $rangeKey
         'values' => $succDeptValues,
       ];
 
-    }
+      $empSql = "SELECT department, COUNT(*) AS c
+                 FROM employees";
+      $empWhere = [];
+      if ($departmentFilter !== '' && $departmentFilter !== 'all') {
+        $empWhere[] = "department = :edept";
+      }
+      if (!empty($empWhere)) {
+        $empSql .= " WHERE " . implode(' AND ', $empWhere);
+      }
+      $empSql .= " GROUP BY department ORDER BY department ASC";
+      $empStmt = $cgPdo->prepare($empSql);
+      if ($departmentFilter !== '' && $departmentFilter !== 'all') {
+        $empStmt->bindValue(':edept', $departmentFilter, PDO::PARAM_STR);
+      }
+      $empStmt->execute();
+      $empLabels = [];
+      $empValues = [];
+      $empTotal = 0;
+      while ($row = $empStmt->fetch(PDO::FETCH_ASSOC)) {
+        $empLabels[] = (string)($row['department'] ?? '');
+        $count = (int)($row['c'] ?? 0);
+        $empValues[] = $count;
+        $empTotal += $count;
+      }
+      $data['competencyManagement']['employeesByDepartment'] = [
+        'labels' => $empLabels,
+        'values' => $empValues,
+      ];
+      $data['competencyManagement']['summary']['totalEmployees'] = $empTotal;
   } catch (Throwable $e) {
     error_log('dashboard_competency_analytics_error: ' . $e->getMessage());
   }
@@ -797,12 +918,14 @@ function hr_dashboard_build_analytics(string $departmentFilter, string $rangeKey
         $colRes->free();
       }
       $hasApproval = isset($cols['approval_status']);
+      $hasStatus = isset($cols['status']);
 
       $sumSql = "SELECT
                    COUNT(*) AS total,
-                   SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END) AS active_count,
-                   SUM(CASE WHEN status = 'inactive' THEN 1 ELSE 0 END) AS inactive_count" .
-                   ($hasApproval ? ",
+                   " . ($hasStatus ? "SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END) AS active_count,
+                   SUM(CASE WHEN status = 'inactive' THEN 1 ELSE 0 END) AS inactive_count" : "0 AS active_count,
+                   0 AS inactive_count") .
+        ($hasApproval ? ",
                    SUM(CASE WHEN approval_status = 'pending' THEN 1 ELSE 0 END) AS pending_count,
                    SUM(CASE WHEN approval_status = 'posted' THEN 1 ELSE 0 END) AS posted_count,
                    SUM(CASE WHEN approval_status = 'rejected' THEN 1 ELSE 0 END) AS rejected_count,
@@ -821,44 +944,13 @@ function hr_dashboard_build_analytics(string $departmentFilter, string $rangeKey
           $data['competencyManagement']['summary']['rejectedStandards'] = (int)($row['rejected_count'] ?? 0);
           $data['competencyManagement']['summary']['complianceStandards'] = (int)($row['compliance_count'] ?? 0);
         } else {
-          $data['competencyManagement']['summary']['postedStandards'] = (int)($row['active_count'] ?? 0);
-        }
-      }
-
-      $byApprovalLabels = [];
-      $byApprovalValues = [];
-      if ($hasApproval) {
-        $apRes = $jconn->query("SELECT approval_status, COUNT(*) AS c FROM competency_standards GROUP BY approval_status ORDER BY approval_status ASC");
-        if ($apRes) {
-          while ($row = $apRes->fetch_assoc()) {
-            $byApprovalLabels[] = ucwords(str_replace('_', ' ', (string)($row['approval_status'] ?? '')));
-            $byApprovalValues[] = (int)($row['c'] ?? 0);
+          if ($hasStatus) {
+            $data['competencyManagement']['summary']['postedStandards'] = (int)($row['active_count'] ?? 0);
+          } else {
+            $data['competencyManagement']['summary']['postedStandards'] = (int)($row['total'] ?? 0);
           }
-          $apRes->free();
         }
-      } else {
-        $byApprovalLabels = ['Posted'];
-        $byApprovalValues = [(int)($data['competencyManagement']['summary']['totalStandards'] ?? 0)];
       }
-      $data['competencyManagement']['standardsByApproval'] = [
-        'labels' => $byApprovalLabels,
-        'values' => $byApprovalValues,
-      ];
-
-      $catRes = $jconn->query("SELECT category, COUNT(*) AS c FROM competency_standards GROUP BY category ORDER BY category ASC");
-      $catLabels = [];
-      $catValues = [];
-      if ($catRes) {
-        while ($row = $catRes->fetch_assoc()) {
-          $catLabels[] = ucwords((string)($row['category'] ?? ''));
-          $catValues[] = (int)($row['c'] ?? 0);
-        }
-        $catRes->free();
-      }
-      $data['competencyManagement']['standardsByCategory'] = [
-        'labels' => $catLabels,
-        'values' => $catValues,
-      ];
 
       $roleRes = $jconn->query("SELECT role, COUNT(*) AS c FROM competency_standards GROUP BY role ORDER BY role ASC");
       $roleLabels = [];
@@ -908,10 +1000,36 @@ function hr_dashboard_build_analytics(string $departmentFilter, string $rangeKey
 
 if (isset($_GET['analytics'])) {
   header('Content-Type: application/json; charset=utf-8');
+  header('Cache-Control: private, max-age=60');
   $dept = isset($_GET['department']) ? (string)$_GET['department'] : 'all';
   $range = isset($_GET['range']) ? (string)$_GET['range'] : '30d';
+  $cacheTtlSeconds = 60;
+  $cacheKey = md5(strtolower(trim($dept)) . '|' . strtolower(trim($range)) . '|v3');
+  $cachePath = rtrim((string)sys_get_temp_dir(), "\\/") . DIRECTORY_SEPARATOR . 'hr2_dashboard_analytics_' . $cacheKey . '.json';
+  if (is_file($cachePath) && (time() - (int)filemtime($cachePath)) <= $cacheTtlSeconds) {
+    $cached = @file_get_contents($cachePath);
+    if ($cached !== false && $cached !== '') {
+      header('X-HR2-Analytics-Cache: HIT');
+      echo $cached;
+      exit;
+    }
+  }
+
   $analytics = hr_dashboard_build_analytics($dept, $range);
-  echo json_encode(['success' => true, 'data' => $analytics]);
+  $payload = json_encode(['success' => true, 'data' => $analytics], JSON_UNESCAPED_UNICODE);
+  if ($payload === false) {
+    $payload = json_encode(['success' => true, 'data' => $analytics]);
+  }
+  if ($payload !== false) {
+    try {
+      $tmpPath = $cachePath . '.' . bin2hex(random_bytes(6)) . '.tmp';
+      @file_put_contents($tmpPath, $payload, LOCK_EX);
+      @rename($tmpPath, $cachePath);
+    } catch (Throwable $e) {
+    }
+  }
+  header('X-HR2-Analytics-Cache: MISS');
+  echo $payload !== false ? $payload : json_encode(['success' => true, 'data' => $analytics]);
   exit;
 }
 
@@ -1025,7 +1143,7 @@ if (isset($_GET['analytics'])) {
           }
           try {
             $successionSummary['candidates'] = (int)($pdo->query("SELECT COUNT(*) FROM succession_submissions WHERE is_pushed = 1")->fetchColumn() ?? 0);
-            $stmtAvg = $pdo->query("SELECT AVG(comp) FROM (SELECT AVG(COALESCE(s2.score,0))/5*100 AS comp FROM employee_kpi_scores s2 JOIN succession_submissions ss ON ss.employee_id = s2.employee_id WHERE ss.is_pushed = 1 GROUP BY s2.employee_id) t");
+            $stmtAvg = $pdo->query("SELECT AVG(competency) FROM succession_submissions WHERE is_pushed = 1");
             $successionSummary['avg'] = (float)($stmtAvg ? ($stmtAvg->fetchColumn() ?? 0.0) : 0.0);
             $successionSummary['departments'] = (int)($pdo->query("SELECT COUNT(DISTINCT department) FROM succession_submissions WHERE is_pushed = 1")->fetchColumn() ?? 0);
           } catch (Throwable $e) {
@@ -1207,6 +1325,23 @@ if (isset($_GET['analytics'])) {
                       </div>
                     </div>
                   </div>
+                  <div class="card border border-gray-200">
+                    <div class="card-body">
+                      <div class="flex items-center justify-between mb-2">
+                        <h4 class="card-title text-sm font-semibold">Exam Results (Pass/Fail)</h4>
+                        <div class="flex gap-2 text-xs">
+                          <button type="button" class="btn btn-ghost btn-xs" data-export="examResults" data-format="png">PNG</button>
+                          <button type="button" class="btn btn-ghost btn-xs" data-export="examResults" data-format="csv">CSV</button>
+                          <button type="button" class="btn btn-ghost btn-xs" data-export="examResults" data-format="pdf">PDF</button>
+                        </div>
+                      </div>
+                      <div class="mt-2">
+                        <div class="analytics-skeleton h-56 rounded-lg bg-gray-100 animate-pulse" data-skeleton="examResults"></div>
+                        <canvas id="examResultsChart" class="w-full h-56 hidden" aria-label="Exam results pass fail chart" role="img"></canvas>
+                        <div class="text-sm text-gray-500 mt-2 hidden" id="examResultsEmptyMessage">No exam results in this period.</div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </section>
 
@@ -1215,7 +1350,7 @@ if (isset($_GET['analytics'])) {
                   <h3 class="text-sm font-semibold text-gray-700 uppercase tracking-wider">Succession</h3>
                   <div class="text-xs text-gray-500" id="successionAnalyticsSummary"></div>
                 </div>
-                <div class="grid grid-cols-2 md:grid-cols-4 gap-4" id="successionAnalyticsCards"></div>
+                <div class="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-6 gap-4" id="successionAnalyticsCards"></div>
                 <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
                   <div class="card border border-gray-200">
                     <div class="card-body">
@@ -1259,39 +1394,22 @@ if (isset($_GET['analytics'])) {
                   <h3 class="text-sm font-semibold text-gray-700 uppercase tracking-wider">Competency Management</h3>
                   <div class="text-xs text-gray-500" id="competencyManagementSummary"></div>
                 </div>
-                <div class="grid grid-cols-2 md:grid-cols-5 gap-4" id="competencyManagementCards"></div>
-                <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                <div class="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-6 gap-4" id="competencyManagementCards"></div>
+                <div class="grid grid-cols-1 xl:grid-cols-1 gap-6">
                   <div class="card border border-gray-200">
                     <div class="card-body">
                       <div class="flex items-center justify-between mb-2">
-                        <h4 class="card-title text-sm font-semibold">Standards by Approval Status</h4>
+                        <h4 class="card-title text-sm font-semibold">Employees by Department</h4>
                         <div class="flex gap-2 text-xs">
-                          <button type="button" class="btn btn-ghost btn-xs" data-export="competencyApproval" data-format="png">PNG</button>
-                          <button type="button" class="btn btn-ghost btn-xs" data-export="competencyApproval" data-format="csv">CSV</button>
-                          <button type="button" class="btn btn-ghost btn-xs" data-export="competencyApproval" data-format="pdf">PDF</button>
+                          <button type="button" class="btn btn-ghost btn-xs" data-export="competencyEmployeesDept" data-format="png">PNG</button>
+                          <button type="button" class="btn btn-ghost btn-xs" data-export="competencyEmployeesDept" data-format="csv">CSV</button>
+                          <button type="button" class="btn btn-ghost btn-xs" data-export="competencyEmployeesDept" data-format="pdf">PDF</button>
                         </div>
                       </div>
                       <div class="mt-2">
-                        <div class="analytics-skeleton h-56 rounded-lg bg-gray-100 animate-pulse" data-skeleton="competencyApproval"></div>
-                        <canvas id="competencyApprovalChart" class="w-full h-56 hidden" aria-label="Competency standards approval status chart" role="img"></canvas>
-                        <div class="text-sm text-gray-500 mt-2 hidden" id="competencyApprovalEmptyMessage">No competency standards data available.</div>
-                      </div>
-                    </div>
-                  </div>
-                  <div class="card border border-gray-200">
-                    <div class="card-body">
-                      <div class="flex items-center justify-between mb-2">
-                        <h4 class="card-title text-sm font-semibold">Standards by Category</h4>
-                        <div class="flex gap-2 text-xs">
-                          <button type="button" class="btn btn-ghost btn-xs" data-export="competencyCategory" data-format="png">PNG</button>
-                          <button type="button" class="btn btn-ghost btn-xs" data-export="competencyCategory" data-format="csv">CSV</button>
-                          <button type="button" class="btn btn-ghost btn-xs" data-export="competencyCategory" data-format="pdf">PDF</button>
-                        </div>
-                      </div>
-                      <div class="mt-2">
-                        <div class="analytics-skeleton h-56 rounded-lg bg-gray-100 animate-pulse" data-skeleton="competencyCategory"></div>
-                        <canvas id="competencyCategoryChart" class="w-full h-56 hidden" aria-label="Competency standards category chart" role="img"></canvas>
-                        <div class="text-sm text-gray-500 mt-2 hidden" id="competencyCategoryEmptyMessage">No competency category data available.</div>
+                        <div class="analytics-skeleton h-56 rounded-lg bg-gray-100 animate-pulse" data-skeleton="competencyEmployeesDept"></div>
+                        <canvas id="competencyEmployeesDeptChart" class="w-full h-56 hidden" aria-label="Employees by department chart" role="img"></canvas>
+                        <div class="text-sm text-gray-500 mt-2 hidden" id="competencyEmployeesDeptEmptyMessage">No employees data available.</div>
                       </div>
                     </div>
                   </div>
@@ -1487,10 +1605,6 @@ if (isset($_GET['analytics'])) {
             targetUrl = 'TRAINING/TRAINING/trainingrequest.php?source=dashboard&approval_segment=' + encodeURIComponent(label);
           } else if (type === 'competencyStatusTrend') {
             targetUrl = 'COMPETENCY/criticalgaps/index.php?source=dashboard&status_date=' + encodeURIComponent(label);
-          } else if (type === 'competencyApproval') {
-            targetUrl = 'COMPETENCY/job_desc/index.php?source=dashboard';
-          } else if (type === 'competencyCategory') {
-            targetUrl = 'COMPETENCY/job_desc/index.php?source=dashboard';
           }
           if (targetUrl) {
             window.location.href = targetUrl;
@@ -1647,12 +1761,16 @@ if (isset($_GET['analytics'])) {
         const chartData = analytics.statusChart || {};
         const summaryEl = document.getElementById('examCreatedSummary');
         hideSkeleton('examCreatedStatus');
+        hideSkeleton('examResults');
         const labels = Array.isArray(chartData.labels) ? chartData.labels : [];
         const values = Array.isArray(chartData.values) ? chartData.values : [];
         if (labels.length > 0 && values.some(v => v > 0)) {
           const ctx = document.getElementById('examCreatedStatusChart');
           if (ctx && window.Chart) {
             showCanvas('examCreatedStatusChart');
+            if (charts.examCreatedStatus) {
+              charts.examCreatedStatus.destroy();
+            }
             const chart = new Chart(ctx, {
               type: 'pie',
               data: {
@@ -1683,16 +1801,55 @@ if (isset($_GET['analytics'])) {
               }
             });
             charts.examCreatedStatus = chart;
-            if (summaryEl) {
-              const total = values.reduce((sum, v) => sum + v, 0);
-              summaryEl.textContent = total + ' examinations created';
-            }
           }
         } else {
           showEmptyMessage('examCreatedStatusEmptyMessage');
-          if (summaryEl) {
-            summaryEl.textContent = 'No examinations created';
+        }
+
+        const resultsSummary = analytics.resultsSummary || {};
+        const attempts = Number(resultsSummary.total || 0);
+        const passRate = resultsSummary.passRate !== null && resultsSummary.passRate !== undefined ? Number(resultsSummary.passRate) : null;
+        if (summaryEl) {
+          const createdTotal = values.reduce((sum, v) => sum + v, 0);
+          const createdText = createdTotal > 0 ? (createdTotal + ' created') : '0 created';
+          const attemptsText = attempts > 0 ? (attempts + ' attempts') : '0 attempts';
+          const rateText = passRate !== null ? ('Pass rate: ' + passRate.toFixed(1) + '%') : null;
+          summaryEl.textContent = createdText + ' • ' + attemptsText + (rateText ? (' • ' + rateText) : '');
+        }
+
+        const resultsChart = analytics.resultsChart || {};
+        const rLabels = Array.isArray(resultsChart.labels) ? resultsChart.labels : [];
+        const rValues = Array.isArray(resultsChart.values) ? resultsChart.values : [];
+        if (rLabels.length > 0 && rValues.some(v => v > 0)) {
+          const ctx = document.getElementById('examResultsChart');
+          if (ctx && window.Chart) {
+            showCanvas('examResultsChart');
+            if (charts.examResults) {
+              charts.examResults.destroy();
+            }
+            const chart = new Chart(ctx, {
+              type: 'doughnut',
+              data: {
+                labels: rLabels,
+                datasets: [{
+                  data: rValues,
+                  backgroundColor: ['#22c55e', '#ef4444']
+                }]
+              },
+              options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                  legend: {
+                    position: 'bottom'
+                  }
+                }
+              }
+            });
+            charts.examResults = chart;
           }
+        } else {
+          showEmptyMessage('examResultsEmptyMessage');
         }
       }
 
@@ -1702,13 +1859,11 @@ if (isset($_GET['analytics'])) {
         root.innerHTML = '';
         items.forEach(item => {
           const el = document.createElement('div');
-          el.className = 'card border border-gray-200';
+          el.className = 'hr2-summary-card rounded-xl shadow-md p-4 text-left border border-gray-200 bg-white';
           const sub = item.sub ? `<div class="text-xs text-gray-500 mt-1">${item.sub}</div>` : '';
-          el.innerHTML = `<div class="card-body p-4">
-              <div class="text-xs font-semibold text-gray-500 uppercase tracking-wider">${item.label}</div>
+          el.innerHTML = `<div class="text-xs font-semibold text-gray-500 uppercase tracking-wider">${item.label}</div>
               <div class="mt-1 text-2xl font-bold text-gray-900">${item.value}</div>
-              ${sub}
-            </div>`;
+              ${sub}`;
           root.appendChild(el);
         });
       }
@@ -1848,91 +2003,51 @@ if (isset($_GET['analytics'])) {
         const analytics = data.competencyManagement || {};
         const summary = analytics.summary || {};
         const summaryEl = document.getElementById('competencyManagementSummary');
-        hideSkeleton('competencyApproval');
-        hideSkeleton('competencyCategory');
+        hideSkeleton('competencyEmployeesDept');
 
         const total = Number(summary.totalStandards || 0);
         const pending = Number(summary.pendingStandards || 0);
+        const byEmpDept = analytics.employeesByDepartment || {};
+        const eLabels = Array.isArray(byEmpDept.labels) ? byEmpDept.labels : [];
+        const eValues = Array.isArray(byEmpDept.values) ? byEmpDept.values : [];
         if (summaryEl) {
-          summaryEl.textContent = total + ' standards • Pending: ' + pending;
+          const empTotal = Number(summary.totalEmployees || 0);
+          const posted = Number(summary.postedStandards || 0);
+          const criteria = Number(summary.criteriaRows || 0);
+          const mappings = Number(summary.activeMappings || 0);
+          summaryEl.textContent = total + ' standards • Posted: ' + posted + ' • Pending: ' + pending + ' • Criteria: ' + criteria + ' • Mappings: ' + mappings + ' • Employees: ' + empTotal;
         }
 
-        renderStatCards('competencyManagementCards', [{
-          label: 'Standards',
-          value: total,
-          sub: 'Total defined'
-        }, {
-          label: 'Active',
-          value: Number(summary.activeStandards || 0),
-          sub: 'Currently active'
-        }, {
-          label: 'Pending',
-          value: pending,
-          sub: 'Needs approval'
-        }, {
-          label: 'Posted',
-          value: Number(summary.postedStandards || 0),
-          sub: 'Approved/posted'
-        }, {
-          label: 'Mappings',
-          value: Number(summary.activeMappings || 0),
-          sub: 'Active mappings'
-        }]);
-
-        const byApproval = analytics.standardsByApproval || {};
-        const apLabels = Array.isArray(byApproval.labels) ? byApproval.labels : [];
-        const apValues = Array.isArray(byApproval.values) ? byApproval.values : [];
-        if (apLabels.length > 0 && apValues.some(v => v > 0)) {
-          const ctx = document.getElementById('competencyApprovalChart');
-          if (ctx && window.Chart) {
-            showCanvas('competencyApprovalChart');
-            if (charts.competencyApproval) {
-              charts.competencyApproval.destroy();
-            }
-            const chart = new Chart(ctx, {
-              type: 'doughnut',
-              data: {
-                labels: apLabels,
-                datasets: [{
-                  data: apValues,
-                  backgroundColor: ['#f97316', '#22c55e', '#ef4444', '#0ea5e9', '#94a3b8']
-                }]
-              },
-              options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                  legend: {
-                    position: 'bottom'
-                  }
-                }
-              }
-            });
-            attachDrilldown(chart, 'competencyApproval');
-            charts.competencyApproval = chart;
-          }
+        if (eLabels.length > 0) {
+          const deptCards = eLabels.map((label, idx) => ({
+            label,
+            value: Number(eValues[idx] || 0),
+            sub: 'Employees'
+          }));
+          renderStatCards('competencyManagementCards', deptCards);
         } else {
-          showEmptyMessage('competencyApprovalEmptyMessage');
+          renderStatCards('competencyManagementCards', [{
+            label: 'Employees',
+            value: Number(summary.totalEmployees || 0),
+            sub: 'In critical gaps DB'
+          }]);
         }
 
-        const byCat = analytics.standardsByCategory || {};
-        const cLabels = Array.isArray(byCat.labels) ? byCat.labels : [];
-        const cValues = Array.isArray(byCat.values) ? byCat.values : [];
-        if (cLabels.length > 0 && cValues.some(v => v > 0)) {
-          const ctx = document.getElementById('competencyCategoryChart');
+        if (eLabels.length > 0 && eValues.some(v => v > 0)) {
+          const ctx = document.getElementById('competencyEmployeesDeptChart');
           if (ctx && window.Chart) {
-            showCanvas('competencyCategoryChart');
-            if (charts.competencyCategory) {
-              charts.competencyCategory.destroy();
+            showCanvas('competencyEmployeesDeptChart');
+            if (charts.competencyEmployeesDept) {
+              charts.competencyEmployeesDept.destroy();
             }
             const chart = new Chart(ctx, {
               type: 'bar',
               data: {
-                labels: cLabels,
+                labels: eLabels,
                 datasets: [{
-                  label: 'Standards',
-                  data: cValues,
-                  backgroundColor: '#2563eb'
+                  label: 'Employees',
+                  data: eValues,
+                  backgroundColor: '#0ea5e9'
                 }]
               },
               options: {
@@ -1948,17 +2063,17 @@ if (isset($_GET['analytics'])) {
                     beginAtZero: true,
                     title: {
                       display: true,
-                      text: 'Standards'
+                      text: 'Employees'
                     }
                   }
                 }
               }
             });
-            attachDrilldown(chart, 'competencyCategory');
-            charts.competencyCategory = chart;
+            attachDrilldown(chart, 'competency');
+            charts.competencyEmployeesDept = chart;
           }
         } else {
-          showEmptyMessage('competencyCategoryEmptyMessage');
+          showEmptyMessage('competencyEmployeesDeptEmptyMessage');
         }
       }
 

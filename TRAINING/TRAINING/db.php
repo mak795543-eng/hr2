@@ -56,9 +56,11 @@ if (!preg_match('/^[A-Za-z0-9_]+$/', $REQUESTS_DB_NAME)) {
 
 $conn = training_db_connect($TRAINING_DB_NAME);
 
-try {
-    if ($REQUESTS_DB_NAME !== '' && $REQUESTS_DB_NAME !== $TRAINING_DB_NAME) {
-        $conn->query("CREATE DATABASE IF NOT EXISTS `{$REQUESTS_DB_NAME}` CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci");
+if (!defined('HR_SKIP_TRAINING_BOOTSTRAP') || !HR_SKIP_TRAINING_BOOTSTRAP) {
+    try {
+        if ($REQUESTS_DB_NAME !== '' && $REQUESTS_DB_NAME !== $TRAINING_DB_NAME) {
+            $conn->query("CREATE DATABASE IF NOT EXISTS `{$REQUESTS_DB_NAME}` CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci");
+        }
+    } catch (Throwable $e) {
     }
-} catch (Throwable $e) {
 }
