@@ -1,11 +1,12 @@
 <?php
-function dd($data) {
+function dd($data)
+{
     echo "<pre>";
     echo var_dump($data);
     echo "</pre>";
-die();
 }
-function job_desc_mysqli(): mysqli {
+function job_desc_mysqli(): mysqli
+{
     $dbPrefix = getenv('DB_PREFIX') ?: '';
     $host = getenv('JOB_DESC_DB_HOST') ?: (getenv('DB_HOST') ?: 'localhost');
     $username = getenv('JOB_DESC_DB_USER') ?: (getenv('DB_USER') ?: 'root');

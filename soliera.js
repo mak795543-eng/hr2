@@ -204,6 +204,7 @@ if (typeof document !== 'undefined') {
     var styleId = 'hr-swal-styles';
     if (document.getElementById(styleId)) return;
     var css = [
+      '.hr-swal-btn,',
       '.swal2-confirm-button,',
       '.swal2-deny-button,',
       '.swal2-cancel-button{',
@@ -212,37 +213,41 @@ if (typeof document !== 'undefined') {
       'justify-content:center!important;',
       'padding:10px 20px!important;',
       'margin:5px!important;',
-      'border-radius:6px!important;',
-      'font-weight:500!important;',
+      'border-radius:8px!important;',
+      'font-weight:600!important;',
       'font-size:14px!important;',
       'cursor:pointer!important;',
       'transition:all .2s ease!important;',
-      'border:none!important;',
+      'border:1px solid transparent!important;',
       'min-width:120px!important;',
       'opacity:1!important;',
       'visibility:visible!important;',
       '}',
+      '.hr-swal-confirm,',
       '.swal2-confirm-button{',
       'background-color:#111827!important;',
       'color:#fff!important;',
+      'border-color:#111827!important;',
       '}',
+      '.hr-swal-confirm:hover,',
       '.swal2-confirm-button:hover{',
       'background-color:#030712!important;',
+      'border-color:#030712!important;',
       '}',
-      '.swal2-deny-button{',
-      'background-color:#10b981!important;',
-      'color:#fff!important;',
-      '}',
-      '.swal2-deny-button:hover{',
-      'background-color:#059669!important;',
-      '}',
+      '.hr-swal-cancel,',
+      '.swal2-deny-button,',
       '.swal2-cancel-button{',
-      'background-color:#ef4444!important;',
-      'color:#fff!important;',
+      'background-color:#ffffff!important;',
+      'color:#111827!important;',
+      'border-color:#d1d5db!important;',
       '}',
+      '.hr-swal-cancel:hover,',
+      '.swal2-deny-button:hover,',
       '.swal2-cancel-button:hover{',
-      'background-color:#dc2626!important;',
+      'background-color:#f9fafb!important;',
+      'border-color:#9ca3af!important;',
       '}',
+      '.hr-swal-actions,',
       '.swal2-actions{',
       'display:flex!important;',
       'flex-wrap:wrap!important;',
@@ -311,9 +316,13 @@ window.hrSwal = (typeof Swal !== 'undefined' && Swal.mixin) ? Swal.mixin({
   buttonsStyling: false,
   showConfirmButton: true,
   confirmButtonText: 'OK',
+  reverseButtons: true,
+  focusCancel: true,
   customClass: {
-    confirmButton: 'btn bg-gray-900 text-white hover:bg-gray-800 border-0',
-    cancelButton: 'btn btn-outline'
+    actions: 'hr-swal-actions',
+    confirmButton: 'hr-swal-btn hr-swal-confirm',
+    denyButton: 'hr-swal-btn hr-swal-cancel',
+    cancelButton: 'hr-swal-btn hr-swal-cancel'
   }
 }) : null;
 
@@ -342,19 +351,35 @@ if (typeof Swal !== 'undefined' && typeof Swal.fire === 'function') {
       if (typeof opts.heightAuto === 'undefined') {
         opts.heightAuto = false;
       }
+      if (opts) {
+        try {
+          delete opts.confirmButtonColor;
+          delete opts.cancelButtonColor;
+          delete opts.denyButtonColor;
+          delete opts.buttonsStyling;
+        } catch (_) {}
+      }
       const base = {
         allowOutsideClick: false,
         buttonsStyling: false,
         showConfirmButton: true,
         confirmButtonText: 'OK',
+        reverseButtons: true,
+        focusCancel: true,
         customClass: {
-          confirmButton: 'btn bg-gray-900 text-white hover:bg-gray-800 border-0',
-          cancelButton: 'btn btn-outline'
+          actions: 'hr-swal-actions',
+          confirmButton: 'hr-swal-btn hr-swal-confirm',
+          denyButton: 'hr-swal-btn hr-swal-cancel',
+          cancelButton: 'hr-swal-btn hr-swal-cancel'
         }
       };
       const merged = Object.assign({}, base, opts || {});
       if (opts && opts.customClass) {
         merged.customClass = Object.assign({}, base.customClass, opts.customClass);
+        merged.customClass.actions = base.customClass.actions;
+        merged.customClass.confirmButton = base.customClass.confirmButton;
+        merged.customClass.denyButton = base.customClass.denyButton;
+        merged.customClass.cancelButton = base.customClass.cancelButton;
       }
       if (typeof window.Swal !== 'undefined') {
         try {

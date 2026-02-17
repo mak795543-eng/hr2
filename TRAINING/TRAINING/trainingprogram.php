@@ -633,6 +633,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         $facilityDetails = trim((string)($_POST['facility_details'] ?? ''));
         $adminDetailsJson = trim((string)($_POST['admin_details_json'] ?? ''));
 
+        $idpIdRaw = trim((string)($_POST['idp_id'] ?? ''));
+        $idpId = $idpIdRaw !== '' ? (int)$idpIdRaw : null;
+
         if ($trainingTitle === '' || $trainingType === '' || $description === '' || $targetAudience === '' || $startDatetime === '' || $endDatetime === '') {
             echo json_encode(['success' => false, 'message' => 'Missing required fields.']);
             exit;
@@ -749,6 +752,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         $stmt->bind_param('i', $programId);
         $stmt->execute();
         $program = $stmt->get_result()->fetch_assoc();
+
+        if ($idpId !== null && $idpId > 0) {
+            try {
+                require_once __DIR__ . '/../../COMPETENCY/criticalgaps/config.php';
+                $stmtRepo = $pdo->prepare(
+                    "UPDATE requested_idps_repository
+                     SET idp_status = 'under_review', updated_at = CURRENT_TIMESTAMP
+                     WHERE id = ? AND idp_status = 'requested'"
+                );
+                $stmtRepo->execute([$idpId]);
+            } catch (Throwable $e) {
+            }
+        }
 
         echo json_encode(['success' => true, 'program' => $program, 'request_ids' => []]);
         exit;
@@ -1213,29 +1229,37 @@ try {
     $deptAccounts = [];
 }
 
-$tpTotalTrainings = 0;
-$tpNotPostedTrainings = 0;
-$tpCompletedTrainings = 0;
+$tpUnderReviewTrainings = 0;
+$tpApprovedTrainings = 0;
+$tpRejectedTrainings = 0;
+$tpComplianceTrainings = 0;
 try {
-    $res = $conn->query("SELECT COUNT(*) AS c FROM training_programs");
+    $res = $conn->query("SELECT COUNT(*) AS c FROM training_programs WHERE status = 'Under Review'");
     $row = $res ? $res->fetch_assoc() : null;
-    $tpTotalTrainings = $row ? (int)($row['c'] ?? 0) : 0;
+    $tpUnderReviewTrainings = $row ? (int)($row['c'] ?? 0) : 0;
 } catch (Throwable $e) {
-    $tpTotalTrainings = 0;
+    $tpUnderReviewTrainings = 0;
 }
 try {
-    $res = $conn->query("SELECT COUNT(*) AS c FROM training_programs WHERE IFNULL(status, '') <> 'POSTED'");
+    $res = $conn->query("SELECT COUNT(*) AS c FROM training_programs WHERE status = 'Approved'");
     $row = $res ? $res->fetch_assoc() : null;
-    $tpNotPostedTrainings = $row ? (int)($row['c'] ?? 0) : 0;
+    $tpApprovedTrainings = $row ? (int)($row['c'] ?? 0) : 0;
 } catch (Throwable $e) {
-    $tpNotPostedTrainings = 0;
+    $tpApprovedTrainings = 0;
 }
 try {
-    $res = $conn->query("SELECT COUNT(*) AS c FROM training_programs WHERE status = 'Completed'");
+    $res = $conn->query("SELECT COUNT(*) AS c FROM training_programs WHERE status = 'Rejected'");
     $row = $res ? $res->fetch_assoc() : null;
-    $tpCompletedTrainings = $row ? (int)($row['c'] ?? 0) : 0;
+    $tpRejectedTrainings = $row ? (int)($row['c'] ?? 0) : 0;
 } catch (Throwable $e) {
-    $tpCompletedTrainings = 0;
+    $tpRejectedTrainings = 0;
+}
+try {
+    $res = $conn->query("SELECT COUNT(*) AS c FROM training_programs WHERE status = 'For Compliance'");
+    $row = $res ? $res->fetch_assoc() : null;
+    $tpComplianceTrainings = $row ? (int)($row['c'] ?? 0) : 0;
+} catch (Throwable $e) {
+    $tpComplianceTrainings = 0;
 }
 require('../../partials/header.php');
 ?>
@@ -1401,15 +1425,15 @@ require('../../partials/header.php');
 
                 <main class="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto">
 
-                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8 fade-in">
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8 fade-in">
                         <div class="hr2-summary-card rounded-xl shadow-md p-6">
                             <div class="flex items-center justify-between">
                                 <div>
-                                    <div class="text-sm text-gray-500">Total Trainings</div>
-                                    <div class="text-2xl font-bold text-gray-900"><?php echo (int)$tpTotalTrainings; ?></div>
+                                    <div class="text-sm text-gray-500">Under Review</div>
+                                    <div class="text-2xl font-bold text-gray-900"><?php echo (int)$tpUnderReviewTrainings; ?></div>
                                 </div>
                                 <div class="p-3 bg-blue-100 rounded-full">
-                                    <i data-lucide="layers" class="h-6 w-6 text-blue-600"></i>
+                                    <i data-lucide="search" class="h-6 w-6 text-blue-600"></i>
                                 </div>
                             </div>
                         </div>
@@ -1417,11 +1441,11 @@ require('../../partials/header.php');
                         <div class="hr2-summary-card rounded-xl shadow-md p-6">
                             <div class="flex items-center justify-between">
                                 <div>
-                                    <div class="text-sm text-gray-500">Not posted Trainings</div>
-                                    <div class="text-2xl font-bold text-gray-900"><?php echo (int)$tpNotPostedTrainings; ?></div>
+                                    <div class="text-sm text-gray-500">Approved</div>
+                                    <div class="text-2xl font-bold text-gray-900"><?php echo (int)$tpApprovedTrainings; ?></div>
                                 </div>
-                                <div class="p-3 bg-yellow-100 rounded-full">
-                                    <i data-lucide="upload" class="h-6 w-6 text-yellow-600"></i>
+                                <div class="p-3 bg-green-100 rounded-full">
+                                    <i data-lucide="check-circle" class="h-6 w-6 text-green-600"></i>
                                 </div>
                             </div>
                         </div>
@@ -1429,11 +1453,23 @@ require('../../partials/header.php');
                         <div class="hr2-summary-card rounded-xl shadow-md p-6">
                             <div class="flex items-center justify-between">
                                 <div>
-                                    <div class="text-sm text-gray-500">Completed Trainings</div>
-                                    <div class="text-2xl font-bold text-gray-900"><?php echo (int)$tpCompletedTrainings; ?></div>
+                                    <div class="text-sm text-gray-500">Rejected</div>
+                                    <div class="text-2xl font-bold text-gray-900"><?php echo (int)$tpRejectedTrainings; ?></div>
                                 </div>
                                 <div class="p-3 bg-purple-100 rounded-full">
-                                    <i data-lucide="check-circle" class="h-6 w-6 text-purple-600"></i>
+                                    <i data-lucide="x-circle" class="h-6 w-6 text-purple-600"></i>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="hr2-summary-card rounded-xl shadow-md p-6">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <div class="text-sm text-gray-500">For Compliance</div>
+                                    <div class="text-2xl font-bold text-gray-900"><?php echo (int)$tpComplianceTrainings; ?></div>
+                                </div>
+                                <div class="p-3 bg-yellow-100 rounded-full">
+                                    <i data-lucide="shield-check" class="h-6 w-6 text-yellow-600"></i>
                                 </div>
                             </div>
                         </div>
@@ -1501,7 +1537,7 @@ require('../../partials/header.php');
 
                                 <button id="add-training-btn" type="button" class="btn btn-sm hr2-primary-btn">
                                     <i data-lucide="plus" class="h-5 w-5 mr-2"></i>
-                                    Add Training
+                                    Create Training Program
                                 </button>
                             </div>
                         </div>
@@ -1521,13 +1557,21 @@ require('../../partials/header.php');
                         <div class="flex items-start justify-between gap-4">
                             <div>
                                 <h3 class="font-bold text-2xl mb-2" id="modal-title">Create New Training Program</h3>
-                                <p class="text-gray-600 mb-6" id="modal-subtitle">Fill in all required information to create a new training program</p>
+                                <p class="text-gray-600 mb-4" id="modal-subtitle">Fill in all required information to create a new training program</p>
+                                <button type="button" id="create-department-program-btn" class="btn btn-sm btn-outline">
+                                    Create Department Program
+                                </button>
                             </div>
                             <button type="button" id="training-modal-exit-btn" class="btn btn-ghost btn-sm">✕</button>
                         </div>
+                        <div class="mb-4 mt-4">
+                            <div class="inline-flex gap-2 rounded-lg bg-gray-100 p-1">
+                                <button type="button" id="tab-idp-requests" class="btn btn-sm btn-active">IDP Requests</button>
+                            </div>
+                        </div>
                         <div id="idp-list-container" class="mb-6">
                             <div class="flex items-center justify-between mb-3">
-                                <div class="text-sm font-semibold text-gray-800">Training Requests</div>
+                                <div class="text-sm font-semibold text-gray-800">IDP Training Requests</div>
                             </div>
                             <div id="idp-list-loading" class="text-sm text-gray-600">Loading...</div>
                             <div id="idp-list-table" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
@@ -2183,4 +2227,4 @@ require('../../partials/header.php');
                     </form>
                 </dialog>
                 <?php require('../../partials/footer.php') ?>
-                <script src="main.js?v=2"></script>
+                <script src="main.js?v=6"></script>
