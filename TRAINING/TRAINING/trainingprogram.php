@@ -1229,29 +1229,37 @@ try {
     $deptAccounts = [];
 }
 
-$tpTotalTrainings = 0;
-$tpNotPostedTrainings = 0;
-$tpCompletedTrainings = 0;
+$tpUnderReviewTrainings = 0;
+$tpApprovedTrainings = 0;
+$tpRejectedTrainings = 0;
+$tpComplianceTrainings = 0;
 try {
-    $res = $conn->query("SELECT COUNT(*) AS c FROM training_programs");
+    $res = $conn->query("SELECT COUNT(*) AS c FROM training_programs WHERE status = 'Under Review'");
     $row = $res ? $res->fetch_assoc() : null;
-    $tpTotalTrainings = $row ? (int)($row['c'] ?? 0) : 0;
+    $tpUnderReviewTrainings = $row ? (int)($row['c'] ?? 0) : 0;
 } catch (Throwable $e) {
-    $tpTotalTrainings = 0;
+    $tpUnderReviewTrainings = 0;
 }
 try {
-    $res = $conn->query("SELECT COUNT(*) AS c FROM training_programs WHERE IFNULL(status, '') <> 'POSTED'");
+    $res = $conn->query("SELECT COUNT(*) AS c FROM training_programs WHERE status = 'Approved'");
     $row = $res ? $res->fetch_assoc() : null;
-    $tpNotPostedTrainings = $row ? (int)($row['c'] ?? 0) : 0;
+    $tpApprovedTrainings = $row ? (int)($row['c'] ?? 0) : 0;
 } catch (Throwable $e) {
-    $tpNotPostedTrainings = 0;
+    $tpApprovedTrainings = 0;
 }
 try {
-    $res = $conn->query("SELECT COUNT(*) AS c FROM training_programs WHERE status = 'Completed'");
+    $res = $conn->query("SELECT COUNT(*) AS c FROM training_programs WHERE status = 'Rejected'");
     $row = $res ? $res->fetch_assoc() : null;
-    $tpCompletedTrainings = $row ? (int)($row['c'] ?? 0) : 0;
+    $tpRejectedTrainings = $row ? (int)($row['c'] ?? 0) : 0;
 } catch (Throwable $e) {
-    $tpCompletedTrainings = 0;
+    $tpRejectedTrainings = 0;
+}
+try {
+    $res = $conn->query("SELECT COUNT(*) AS c FROM training_programs WHERE status = 'For Compliance'");
+    $row = $res ? $res->fetch_assoc() : null;
+    $tpComplianceTrainings = $row ? (int)($row['c'] ?? 0) : 0;
+} catch (Throwable $e) {
+    $tpComplianceTrainings = 0;
 }
 require('../../partials/header.php');
 ?>
@@ -1417,15 +1425,15 @@ require('../../partials/header.php');
 
                 <main class="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto">
 
-                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8 fade-in">
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8 fade-in">
                         <div class="hr2-summary-card rounded-xl shadow-md p-6">
                             <div class="flex items-center justify-between">
                                 <div>
-                                    <div class="text-sm text-gray-500">Total Trainings</div>
-                                    <div class="text-2xl font-bold text-gray-900"><?php echo (int)$tpTotalTrainings; ?></div>
+                                    <div class="text-sm text-gray-500">Under Review</div>
+                                    <div class="text-2xl font-bold text-gray-900"><?php echo (int)$tpUnderReviewTrainings; ?></div>
                                 </div>
                                 <div class="p-3 bg-blue-100 rounded-full">
-                                    <i data-lucide="layers" class="h-6 w-6 text-blue-600"></i>
+                                    <i data-lucide="search" class="h-6 w-6 text-blue-600"></i>
                                 </div>
                             </div>
                         </div>
@@ -1433,11 +1441,11 @@ require('../../partials/header.php');
                         <div class="hr2-summary-card rounded-xl shadow-md p-6">
                             <div class="flex items-center justify-between">
                                 <div>
-                                    <div class="text-sm text-gray-500">Not posted Trainings</div>
-                                    <div class="text-2xl font-bold text-gray-900"><?php echo (int)$tpNotPostedTrainings; ?></div>
+                                    <div class="text-sm text-gray-500">Approved</div>
+                                    <div class="text-2xl font-bold text-gray-900"><?php echo (int)$tpApprovedTrainings; ?></div>
                                 </div>
-                                <div class="p-3 bg-yellow-100 rounded-full">
-                                    <i data-lucide="upload" class="h-6 w-6 text-yellow-600"></i>
+                                <div class="p-3 bg-green-100 rounded-full">
+                                    <i data-lucide="check-circle" class="h-6 w-6 text-green-600"></i>
                                 </div>
                             </div>
                         </div>
@@ -1445,11 +1453,23 @@ require('../../partials/header.php');
                         <div class="hr2-summary-card rounded-xl shadow-md p-6">
                             <div class="flex items-center justify-between">
                                 <div>
-                                    <div class="text-sm text-gray-500">Completed Trainings</div>
-                                    <div class="text-2xl font-bold text-gray-900"><?php echo (int)$tpCompletedTrainings; ?></div>
+                                    <div class="text-sm text-gray-500">Rejected</div>
+                                    <div class="text-2xl font-bold text-gray-900"><?php echo (int)$tpRejectedTrainings; ?></div>
                                 </div>
                                 <div class="p-3 bg-purple-100 rounded-full">
-                                    <i data-lucide="check-circle" class="h-6 w-6 text-purple-600"></i>
+                                    <i data-lucide="x-circle" class="h-6 w-6 text-purple-600"></i>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="hr2-summary-card rounded-xl shadow-md p-6">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <div class="text-sm text-gray-500">For Compliance</div>
+                                    <div class="text-2xl font-bold text-gray-900"><?php echo (int)$tpComplianceTrainings; ?></div>
+                                </div>
+                                <div class="p-3 bg-yellow-100 rounded-full">
+                                    <i data-lucide="shield-check" class="h-6 w-6 text-yellow-600"></i>
                                 </div>
                             </div>
                         </div>

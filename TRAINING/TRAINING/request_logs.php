@@ -21,6 +21,9 @@ $allowedTypes = ['financial', 'logistics', 'admin'];
 if (!in_array($type, $allowedTypes, true)) $type = '';
 
 $logs = [];
+$financialCount = 0;
+$logisticsCount = 0;
+$adminCount = 0;
 try {
     try {
         $conn->query("CREATE TABLE IF NOT EXISTS {$requestLogsTable} (id INT AUTO_INCREMENT PRIMARY KEY, request_type ENUM('financial','logistics','admin') NOT NULL, request_id INT NOT NULL, program_id INT NOT NULL, submission_no INT NOT NULL DEFAULT 1, old_status VARCHAR(50) NULL, new_status VARCHAR(50) NOT NULL, reason TEXT NULL, created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, INDEX idx_drl_program (program_id), INDEX idx_drl_type (request_type), INDEX idx_drl_created (created_at)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
@@ -74,6 +77,26 @@ try {
     $res = $conn->query($sql);
     while ($row = $res->fetch_assoc()) {
         $logs[] = $row;
+    }
+
+    $countSql = "SELECT l.request_type, COUNT(*) AS c
+                 FROM {$requestLogsTable} l
+                 WHERE 1=1";
+    if ($programId > 0) {
+        $countSql .= " AND l.program_id = " . $programId;
+        if ($submissionNo > 0) {
+            $countSql .= " AND l.submission_no = " . (int)$submissionNo;
+        }
+    }
+    $countSql .= " GROUP BY l.request_type";
+
+    $resCount = $conn->query($countSql);
+    while ($rowC = $resCount->fetch_assoc()) {
+        $rt = (string)($rowC['request_type'] ?? '');
+        $c = (int)($rowC['c'] ?? 0);
+        if ($rt === 'financial') $financialCount = $c;
+        if ($rt === 'logistics') $logisticsCount = $c;
+        if ($rt === 'admin') $adminCount = $c;
     }
 } catch (Throwable $e) {
     $logs = [];
@@ -155,6 +178,44 @@ require('../../partials/header.php');
                 </div>
                 <div class="flex items-center gap-2">
                     <a href="trainingprogram.php" class="btn btn-ghost">Back</a>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                <div class="hr2-summary-card rounded-xl shadow-md p-6">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <div class="text-sm text-gray-500">Financial Requests</div>
+                            <div class="text-2xl font-bold text-gray-900"><?php echo (int)$financialCount; ?></div>
+                        </div>
+                        <div class="p-3 bg-blue-100 rounded-full">
+                            <i data-lucide="file-text" class="h-6 w-6 text-blue-600"></i>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="hr2-summary-card rounded-xl shadow-md p-6">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <div class="text-sm text-gray-500">Logistics Requests</div>
+                            <div class="text-2xl font-bold text-gray-900"><?php echo (int)$logisticsCount; ?></div>
+                        </div>
+                        <div class="p-3 bg-green-100 rounded-full">
+                            <i data-lucide="truck" class="h-6 w-6 text-green-600"></i>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="hr2-summary-card rounded-xl shadow-md p-6">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <div class="text-sm text-gray-500">Admin Requests</div>
+                            <div class="text-2xl font-bold text-gray-900"><?php echo (int)$adminCount; ?></div>
+                        </div>
+                        <div class="p-3 bg-yellow-100 rounded-full">
+                            <i data-lucide="settings" class="h-6 w-6 text-yellow-600"></i>
+                        </div>
+                    </div>
                 </div>
             </div>
 
