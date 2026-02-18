@@ -5,6 +5,8 @@ $flashOk = (string)($_GET['ok'] ?? '');
 $flashErr = (string)($_GET['err'] ?? '');
 
 $period = date('Y') . '-Q' . (string)ceil((int)date('n') / 3);
+$selectedDepartment = trim((string)($_GET['department'] ?? 'all'));
+$selectedRole = trim((string)($_GET['role'] ?? 'all'));
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = (string)($_POST['action'] ?? '');
@@ -118,7 +120,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-$stmt = $pdo->prepare(
+$totalIdpsCount = 0;
+try {
+    $totalIdpsCount = (int)$pdo->query("SELECT COUNT(*) FROM individual_development_plans")->fetchColumn();
+} catch (Throwable $e) {
+    $totalIdpsCount = 0;
+}
+
+$departments = [];
+$roles = [];
+try {
+    $departments = $pdo->query("SELECT DISTINCT department FROM individual_development_plans WHERE idp_status = 'under_review' AND department IS NOT NULL AND department <> '' ORDER BY department ASC")->fetchAll(PDO::FETCH_COLUMN);
+    $roles = $pdo->query("SELECT DISTINCT position FROM individual_development_plans WHERE idp_status = 'under_review' AND position IS NOT NULL AND position <> '' ORDER BY position ASC")->fetchAll(PDO::FETCH_COLUMN);
+} catch (Throwable $e) {
+    $departments = [];
+    $roles = [];
+}
+
+$where = ["idp.idp_status = 'under_review'"];
+$params = [$period];
+if ($selectedDepartment !== '' && strtolower($selectedDepartment) !== 'all') {
+    $where[] = 'idp.department = ?';
+    $params[] = $selectedDepartment;
+}
+if ($selectedRole !== '' && strtolower($selectedRole) !== 'all') {
+    $where[] = 'idp.position = ?';
+    $params[] = $selectedRole;
+}
+
+$sql =
     "SELECT idp.id,
             idp.employee_id,
             idp.employee_name,
@@ -139,11 +169,22 @@ $stmt = $pdo->prepare(
          WHERE s2.evaluation_period = ?
          GROUP BY s2.employee_id
      ) gs ON gs.employee_id = idp.employee_id
-     WHERE idp.idp_status = 'under_review'
-     ORDER BY idp.updated_at DESC, idp.created_at DESC"
-);
-$stmt->execute([$period]);
+     WHERE " . implode(' AND ', $where) . "
+     ORDER BY idp.updated_at DESC, idp.created_at DESC";
+
+$stmt = $pdo->prepare($sql);
+$stmt->execute($params);
 $rows = $stmt->fetchAll();
+
+$levelOrder = ['Retrain', 'Reskilling', 'Refresher Training', 'Upskilling', 'Succession Ready'];
+$competencyLevelCounts = array_fill_keys($levelOrder, 0);
+foreach ($rows as $r) {
+    $pct = is_numeric($r['competency'] ?? null) ? (float)$r['competency'] : 0.0;
+    $lvl = function_exists('mapCompetencyToStatus') ? mapCompetencyToStatus($pct) : '';
+    if ($lvl !== '' && array_key_exists($lvl, $competencyLevelCounts)) {
+        $competencyLevelCounts[$lvl]++;
+    }
+}
 
 function h($v)
 {
@@ -194,9 +235,49 @@ require('../../partials/header.php');
                             <h1 class="text-2xl font-bold">IDP Review</h1>
                             <div class="text-sm opacity-70">Under Review: <span class="font-semibold"><?php echo count($rows); ?></span></div>
                         </div>
-                        <div class="flex items-center gap-2">
-
+                        <div class="hr2-summary-card rounded-lg px-4 py-3">
+                            <div class="text-sm text-gray-500">Total IDPs</div>
+                            <div class="text-2xl font-bold text-gray-800"><?php echo (int)$totalIdpsCount; ?></div>
                         </div>
+                    </div>
+
+                    <div class="card bg-base-100 shadow-md">
+                        <div class="card-body">
+                            <div class="flex flex-col md:flex-row md:items-end gap-3">
+                                <div class="flex-1">
+                                    <label class="label"><span class="label-text">Department</span></label>
+                                    <select id="filter_department" class="select select-bordered w-full">
+                                        <option value="all">All</option>
+                                        <?php foreach ($departments as $d): ?>
+                                            <option value="<?php echo h($d); ?>" <?php echo ($selectedDepartment === $d ? 'selected' : ''); ?>><?php echo h($d); ?></option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                </div>
+                                <div class="flex-1">
+                                    <label class="label"><span class="label-text">Role</span></label>
+                                    <select id="filter_role" class="select select-bordered w-full">
+                                        <option value="all">All</option>
+                                        <?php foreach ($roles as $rOpt): ?>
+                                            <option value="<?php echo h($rOpt); ?>" <?php echo ($selectedRole === $rOpt ? 'selected' : ''); ?>><?php echo h($rOpt); ?></option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                </div>
+                                <div class="flex gap-2">
+                                    <button type="button" class="btn btn-outline" onclick="applyIdpReviewFilters()">Apply</button>
+                                    <button type="button" class="btn btn-outline" onclick="clearIdpReviewFilters()">Clear</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+                        <?php foreach ($levelOrder as $lvl): ?>
+                            <div class="hr2-summary-card rounded-lg p-4">
+                                <div class="text-sm text-gray-500"><?php echo h($lvl); ?></div>
+                                <div class="text-2xl font-bold text-gray-800"><?php echo (int)($competencyLevelCounts[$lvl] ?? 0); ?></div>
+                                <div class="text-xs text-gray-400">Employees</div>
+                            </div>
+                        <?php endforeach; ?>
                     </div>
 
                     <?php if (count($rows) === 0): ?>
@@ -317,6 +398,22 @@ require('../../partials/header.php');
                                 text: 'Something went wrong.'
                             });
                         }
+
+                        window.applyIdpReviewFilters = function() {
+                            var dept = document.getElementById('filter_department') ? document.getElementById('filter_department').value : 'all';
+                            var role = document.getElementById('filter_role') ? document.getElementById('filter_role').value : 'all';
+                            var qs = new URLSearchParams(window.location.search);
+                            qs.set('department', dept || 'all');
+                            qs.set('role', role || 'all');
+                            window.location.search = qs.toString();
+                        };
+
+                        window.clearIdpReviewFilters = function() {
+                            var qs = new URLSearchParams(window.location.search);
+                            qs.delete('department');
+                            qs.delete('role');
+                            window.location.search = qs.toString();
+                        };
 
                         document.querySelectorAll('form[data-swal-confirm]').forEach(function(form) {
                             form.addEventListener('submit', function(e) {
@@ -474,6 +571,16 @@ require('../../partials/header.php');
                             });
                         }
 
+                        function competencyLevelFromPct(pct) {
+                            pct = Number(pct || 0);
+                            if (!Number.isFinite(pct)) pct = 0;
+                            if (pct <= 20) return 'Retrain';
+                            if (pct <= 40) return 'Reskilling';
+                            if (pct <= 60) return 'Refresher Training';
+                            if (pct <= 80) return 'Upskilling';
+                            return 'Succession Ready';
+                        }
+
                         function badgeClass(status) {
                             status = String(status || '');
                             switch (status) {
@@ -572,6 +679,7 @@ require('../../partials/header.php');
 
                                         var compPct = Number(r.competency || 0);
                                         var compFmt = Number.isFinite(compPct) ? compPct.toFixed(1) : '0.0';
+                                        var compLevel = competencyLevelFromPct(compPct);
 
                                         var initials = empName
                                             .split(/\s+/)
@@ -609,8 +717,8 @@ require('../../partials/header.php');
 
                                             '<div class="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">' +
                                             '<div class="rounded-lg bg-base-100 border border-base-300 p-3">' +
-                                            '<div class="text-[11px] font-semibold text-base-content/60 tracking-wide">IDP STATUS</div>' +
-                                            '<div class="font-semibold mt-1">' + esc(statusLabel(status)) + '</div>' +
+                                            '<div class="text-[11px] font-semibold text-base-content/60 tracking-wide">COMPETENCY LEVEL</div>' +
+                                            '<div class="font-semibold mt-1">' + esc(compLevel) + '</div>' +
                                             '</div>' +
                                             '<div class="rounded-lg bg-base-100 border border-base-300 p-3">' +
                                             '<div class="text-[11px] font-semibold text-base-content/60 tracking-wide">TARGET SCORE</div>' +

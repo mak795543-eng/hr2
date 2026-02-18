@@ -10,6 +10,10 @@ function h($v)
 $departmentFilter = (string)($_GET['department'] ?? 'all');
 $statusFilter = (string)($_GET['status'] ?? 'all');
 $search = trim((string)($_GET['search'] ?? ''));
+$view = (string)($_GET['view'] ?? 'idp');
+$otherDepartment = (string)($_GET['other_department'] ?? 'all');
+$otherRole = (string)($_GET['other_role'] ?? 'all');
+$otherProfile = (string)($_GET['other_profile'] ?? 'all');
 
 $departments = [];
 try {
@@ -22,6 +26,52 @@ $allowedStatuses = ['Retrain', 'Reskilling', 'Refresher Training', 'Upskilling',
 $filterStatus = ($statusFilter !== 'all' && in_array($statusFilter, $allowedStatuses, true)) ? $statusFilter : 'all';
 
 $employees = getEmployees($filterStatus, $search, $departmentFilter);
+$forwardedFromGap = [];
+$forwardedForIdpAll = [];
+$otherProfilesAll = [];
+foreach (($employees ?? []) as $e) {
+    $dev = computeEmployeeDevelopmentStatus((string)($e['employee_id'] ?? ''));
+    $e['development_status'] = $dev;
+    if ($dev === '') {
+        $forwardedFromGap[] = $e;
+    } else {
+        if ($dev === 'Forwarded for IDP') {
+            $forwardedForIdpAll[] = $e;
+        } else {
+            $otherProfilesAll[] = $e;
+        }
+    }
+}
+
+$allowedOtherProfiles = ['IDP Created', 'Training Requested', 'On-going Training'];
+$otherDeptOptions = [];
+$otherRoleOptions = [];
+foreach ($otherProfilesAll as $e) {
+    $d = trim((string)($e['department'] ?? ''));
+    $p = trim((string)($e['position'] ?? ''));
+    if ($d !== '') $otherDeptOptions[$d] = true;
+    if ($p !== '') $otherRoleOptions[$p] = true;
+}
+$otherDeptOptions = array_keys($otherDeptOptions);
+$otherRoleOptions = array_keys($otherRoleOptions);
+sort($otherDeptOptions, SORT_NATURAL | SORT_FLAG_CASE);
+sort($otherRoleOptions, SORT_NATURAL | SORT_FLAG_CASE);
+
+$otherProfileFilter = ($otherProfile !== 'all' && in_array($otherProfile, $allowedOtherProfiles, true)) ? $otherProfile : 'all';
+$otherProfiles = array_values(array_filter($otherProfilesAll, static function ($e) use ($otherDepartment, $otherRole, $otherProfileFilter) {
+    if ($otherDepartment !== 'all' && (string)($e['department'] ?? '') !== $otherDepartment) return false;
+    if ($otherRole !== 'all' && (string)($e['position'] ?? '') !== $otherRole) return false;
+    if ($otherProfileFilter !== 'all' && (string)($e['development_status'] ?? '') !== $otherProfileFilter) return false;
+    return true;
+}));
+
+$otherCounts = array_fill_keys($allowedOtherProfiles, 0);
+foreach ($otherProfiles as $e) {
+    $ds = (string)($e['development_status'] ?? '');
+    if ($ds !== '' && array_key_exists($ds, $otherCounts)) {
+        $otherCounts[$ds]++;
+    }
+}
 $criticalTotal = (int)count($employees ?? []);
 $criticalAvg = 0.0;
 $deptSet = [];
@@ -31,6 +81,133 @@ foreach (($employees ?? []) as $e) {
 }
 $criticalAvg = $criticalTotal > 0 ? round($criticalAvg / $criticalTotal, 1) : 0.0;
 $criticalDeptCount = count(array_filter(array_keys($deptSet), static fn($d) => trim((string)$d) !== ''));
+
+function renderEmployeeCard(array $emp): void
+{
+    $status = (string)($emp['status'] ?? 'Retrain');
+    $statusClass = 'badge-neutral';
+    if ($status === 'Reskilling') $statusClass = 'badge-error';
+    if ($status === 'Refresher Training') $statusClass = 'badge-warning';
+    if ($status === 'Upskilling') $statusClass = 'badge-info';
+    if ($status === 'Succession Ready') $statusClass = 'badge-success';
+
+    $competency = is_numeric($emp['competency'] ?? null) ? (float)$emp['competency'] : 0.0;
+    $chartColor = '#6b7280';
+    $progressColor = 'bg-gray-500';
+    if ($competency <= 20) {
+        $progressColor = 'bg-gray-500';
+        $chartColor = '#6b7280';
+    } elseif ($competency <= 40) {
+        $progressColor = 'bg-red-500';
+        $chartColor = '#dc2626';
+    } elseif ($competency <= 60) {
+        $progressColor = 'bg-amber-500';
+        $chartColor = '#d97706';
+    } elseif ($competency <= 80) {
+        $progressColor = 'bg-blue-500';
+        $chartColor = '#2563eb';
+    } else {
+        $progressColor = 'bg-emerald-500';
+        $chartColor = '#059669';
+    }
+
+    $developmentStatus = (string)($emp['development_status'] ?? '');
+    $badgeLabel = $developmentStatus !== '' ? $developmentStatus : $status;
+    $badgeClass = $statusClass;
+    if ($developmentStatus !== '') {
+        if ($developmentStatus === 'Forwarded for IDP') {
+            $badgeClass = 'badge-info';
+        } elseif ($developmentStatus === 'IDP Created') {
+            $badgeClass = 'badge-warning';
+        } elseif ($developmentStatus === 'Training Requested') {
+            $badgeClass = 'badge-primary';
+        } elseif ($developmentStatus === 'On-going Training') {
+            $badgeClass = 'badge-success';
+        } else {
+            $badgeClass = 'badge-neutral';
+        }
+    }
+
+    $forwardDisabled = in_array($developmentStatus, ['Forwarded for IDP', 'IDP Created', 'Training Requested', 'On-going Training'], true);
+    ?>
+    <div class="employee-card bg-white border border-gray-300 rounded-xl shadow-sm" data-employee-id="<?php echo h($emp['employee_id'] ?? ''); ?>">
+        <div class="p-6">
+            <div class="flex items-start justify-between mb-6">
+                <div class="flex items-start gap-4">
+                    <div class="employee-avatar bg-gray-100">
+                        <i data-lucide="user" class="w-8 h-8 text-gray-400"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-bold text-gray-900 text-lg"><?php echo h($emp['full_name'] ?? ''); ?></h3>
+                        <p class="text-sm text-gray-600 mt-1"><?php echo h($emp['employee_id'] ?? ''); ?></p>
+                    </div>
+                </div>
+                <span class="badge badge-sm <?php echo h($badgeClass); ?> employee-status-badge whitespace-normal break-words text-center px-3">
+                    <?php echo h($badgeLabel); ?>
+                </span>
+            </div>
+
+            <div class="flex items-center justify-center mb-6">
+                <div class="competency-chart">
+                    <div class="chart-background" style="--percentage: 100"></div>
+                    <div class="chart-fill" style="--percentage: <?php echo min(100, $competency); ?>; --chart-color: <?php echo h($chartColor); ?>"></div>
+                    <div class="chart-inner">
+                        <div class="chart-value" style="color: <?php echo h($chartColor); ?>">
+                            <?php echo number_format($competency, 1); ?>%
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="space-y-1 mb-6">
+                <div class="card-detail-item">
+                    <i data-lucide="briefcase" class="w-4 h-4 text-gray-400"></i>
+                    <span class="text-sm text-gray-600 flex-1">Position</span>
+                    <span class="text-sm font-medium text-gray-900"><?php echo h($emp['position'] ?? ''); ?></span>
+                </div>
+                <div class="card-detail-item">
+                    <i data-lucide="building" class="w-4 h-4 text-gray-400"></i>
+                    <span class="text-sm text-gray-600 flex-1">Department</span>
+                    <span class="text-sm font-medium text-gray-900"><?php echo h($emp['department'] ?? ''); ?></span>
+                </div>
+                <div class="card-detail-item">
+                    <i data-lucide="trending-up" class="w-4 h-4 text-gray-400"></i>
+                    <span class="text-sm text-gray-600 flex-1">Progress</span>
+                    <div class="w-24">
+                        <div class="progress-bar h-2 rounded-full overflow-hidden">
+                            <div class="progress-fill h-full <?php echo h($progressColor); ?>" style="width: <?php echo min(100, $competency); ?>%"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex flex-col gap-2">
+                <div class="flex gap-2">
+                    <button class="btn flex-1 bg-white border border-gray-300 hover:bg-gray-50 text-gray-800"
+                        onclick="openViewModal('<?php echo h($emp['employee_id'] ?? ''); ?>')"
+                        title="View Competency Details">
+                        <i data-lucide="eye" class="w-4 h-4 mr-2"></i>
+                        View
+                    </button>
+                    <button class="btn flex-1 bg-gray-900 text-white hover:bg-gray-800 border-0 idp-btn"
+                        data-employee-id="<?php echo h($emp['employee_id'] ?? ''); ?>"
+                        data-employee-name="<?php echo h($emp['full_name'] ?? ''); ?>"
+                        title="Forward for Individual Development Plan"
+                        <?php echo $forwardDisabled ? 'disabled' : ''; ?>>
+                        <i data-lucide="clipboard-list" class="w-4 h-4 mr-2"></i>
+                        Forward for IDP
+                    </button>
+                </div>
+                <?php if ($developmentStatus === ''): ?>
+                    <div class="text-xs text-gray-500 text-right">
+                        <?php echo h($status); ?>
+                    </div>
+                <?php endif; ?>
+            </div>
+        </div>
+    </div>
+    <?php
+}
 require('../../partials/header.php');
 ?>
 
@@ -146,137 +323,15 @@ require('../../partials/header.php');
                     </div>
                 </div>
 
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    <?php if (count($employees) > 0): ?>
-                        <?php foreach ($employees as $emp): ?>
-                            <?php
-                            $status = (string)($emp['status'] ?? 'Retrain');
-                            $statusClass = 'badge-neutral';
-                            if ($status === 'Reskilling') $statusClass = 'badge-error';
-                            if ($status === 'Refresher Training') $statusClass = 'badge-warning';
-                            if ($status === 'Upskilling') $statusClass = 'badge-info';
-                            if ($status === 'Succession Ready') $statusClass = 'badge-success';
+                <div class="flex items-center justify-between mb-3">
+                    <h2 class="text-lg font-semibold text-gray-800">Forwarded from Gap Analysis</h2>
+                    <div class="text-sm opacity-70">Total: <span class="font-semibold"><?php echo (int)count($forwardedFromGap); ?></span></div>
+                </div>
 
-                            $chartColor = '#6b7280';
-                            $progressColor = 'bg-gray-500';
-                            if ((float)($emp['competency'] ?? 0) <= 20) {
-                                $progressColor = 'bg-gray-500';
-                                $chartColor = '#6b7280';
-                            } elseif ((float)($emp['competency'] ?? 0) <= 40) {
-                                $progressColor = 'bg-red-500';
-                                $chartColor = '#dc2626';
-                            } elseif ((float)($emp['competency'] ?? 0) <= 60) {
-                                $progressColor = 'bg-amber-500';
-                                $chartColor = '#d97706';
-                            } elseif ((float)($emp['competency'] ?? 0) <= 80) {
-                                $progressColor = 'bg-blue-500';
-                                $chartColor = '#2563eb';
-                            } else {
-                                $progressColor = 'bg-emerald-500';
-                                $chartColor = '#059669';
-                            }
-
-                            $developmentStatus = computeEmployeeDevelopmentStatus((string)($emp['employee_id'] ?? ''));
-                            $badgeLabel = $developmentStatus !== '' ? $developmentStatus : $status;
-                            $badgeClass = $statusClass;
-
-                            if ($developmentStatus !== '') {
-                                if ($developmentStatus === 'Forwarded for IDP') {
-                                    $badgeClass = 'badge-info';
-                                } elseif ($developmentStatus === 'IDP Created') {
-                                    $badgeClass = 'badge-warning';
-                                } elseif ($developmentStatus === 'Training Requested') {
-                                    $badgeClass = 'badge-primary';
-                                } elseif ($developmentStatus === 'On-going Training') {
-                                    $badgeClass = 'badge-success';
-                                } else {
-                                    $badgeClass = 'badge-neutral';
-                                }
-                            }
-
-                            $forwardDisabled = in_array($developmentStatus, ['Forwarded for IDP', 'IDP Created', 'Training Requested', 'On-going Training'], true);
-                            ?>
-                            <div class="employee-card bg-white border border-gray-300 rounded-xl shadow-sm" data-employee-id="<?php echo h($emp['employee_id'] ?? ''); ?>">
-                                <div class="p-6">
-                                    <div class="flex items-start justify-between mb-6">
-                                        <div class="flex items-start gap-4">
-                                            <div class="employee-avatar bg-gray-100">
-                                                <i data-lucide="user" class="w-8 h-8 text-gray-400"></i>
-                                            </div>
-                                            <div>
-                                                <h3 class="font-bold text-gray-900 text-lg"><?php echo h($emp['full_name'] ?? ''); ?></h3>
-                                                <p class="text-sm text-gray-600 mt-1"><?php echo h($emp['employee_id'] ?? ''); ?></p>
-                                            </div>
-                                        </div>
-                                        <span class="badge badge-sm <?php echo h($badgeClass); ?> employee-status-badge whitespace-normal break-words text-center px-3">
-                                            <?php echo h($badgeLabel); ?>
-                                        </span>
-                                    </div>
-
-                                    <div class="flex items-center justify-center mb-6">
-                                        <div class="competency-chart">
-                                            <div class="chart-background" style="--percentage: 100"></div>
-                                            <div class="chart-fill"
-                                                style="--percentage: <?php echo min(100, $emp['competency']); ?>; --chart-color: <?php echo $chartColor; ?>"></div>
-                                                <div class="chart-inner">
-                                                    <div class="chart-value" style="color: <?php echo $chartColor; ?>">
-                                                        <?php echo number_format($emp['competency'], 1); ?>%
-                                                    </div>
-                                                </div>
-
-                                        </div>
-                                    </div>
-
-
-                                    <!-- Details -->
-                                    <div class="space-y-1 mb-6">
-                                        <div class="card-detail-item">
-                                            <i data-lucide="briefcase" class="w-4 h-4 text-gray-400"></i>
-                                            <span class="text-sm text-gray-600 flex-1">Position</span>
-                                            <span class="text-sm font-medium text-gray-900"><?php echo htmlspecialchars($emp['position']); ?></span>
-                                        </div>
-                                        <div class="card-detail-item">
-                                            <i data-lucide="building" class="w-4 h-4 text-gray-400"></i>
-                                            <span class="text-sm text-gray-600 flex-1">Department</span>
-                                            <span class="text-sm font-medium text-gray-900"><?php echo htmlspecialchars($emp['department'] ?? ''); ?></span>
-                                        </div>
-                                        <div class="card-detail-item">
-                                            <i data-lucide="trending-up" class="w-4 h-4 text-gray-400"></i>
-                                            <span class="text-sm text-gray-600 flex-1">Progress</span>
-                                            <div class="w-24">
-                                                <div class="progress-bar h-2 rounded-full overflow-hidden">
-                                                    <div class="progress-fill h-full <?php echo $progressColor; ?>"
-                                                        style="width: <?php echo min(100, $emp['competency']); ?>%"></div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div class="flex flex-col gap-2">
-                                        <div class="flex gap-2">
-                                            <button class="btn flex-1 bg-white border border-gray-300 hover:bg-gray-50 text-gray-800"
-                                                onclick="openViewModal('<?php echo $emp['employee_id']; ?>')"
-                                                title="View Competency Details">
-                                                <i data-lucide="eye" class="w-4 h-4 mr-2"></i>
-                                                View
-                                            </button>
-                                            <button class="btn flex-1 bg-gray-900 text-white hover:bg-gray-800 border-0 idp-btn"
-                                                data-employee-id="<?php echo $emp['employee_id']; ?>"
-                                                data-employee-name="<?php echo htmlspecialchars($emp['full_name']); ?>"
-                                                title="Forward for Individual Development Plan"
-                                                <?php echo $forwardDisabled ? 'disabled' : ''; ?>>
-                                                <i data-lucide="clipboard-list" class="w-4 h-4 mr-2"></i>
-                                                Forward for IDP
-                                            </button>
-                                        </div>
-                                        <?php if ($developmentStatus === ''): ?>
-                                            <div class="text-xs text-gray-500 text-right">
-                                                <?php echo h($status); ?>
-                                            </div>
-                                        <?php endif; ?>
-                                    </div>
-                                </div>
-                            </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
+                    <?php if (count($forwardedFromGap) > 0): ?>
+                        <?php foreach ($forwardedFromGap as $emp): ?>
+                            <?php renderEmployeeCard($emp); ?>
                         <?php endforeach; ?>
                     <?php else: ?>
                         <div class="empty-state">
@@ -284,15 +339,122 @@ require('../../partials/header.php');
                                 <i data-lucide="users" class="w-8 h-8 text-gray-400"></i>
                             </div>
                             <h3 class="text-lg font-medium text-gray-700 mb-2">No employees found</h3>
-                            <p class="text-gray-500">Try adjusting your filters or search term</p>
+                            <p class="text-gray-500">No newly forwarded employees.</p>
                         </div>
                     <?php endif; ?>
                 </div>
-            </div>
 
-            <!-- Total Count -->
-            <div class="text-right mt-4 text-sm text-gray-600">
-                Total: <span class="font-medium"><?php echo count($employees); ?></span> employees
+                <div class="flex flex-wrap gap-2 mb-6">
+                    <button type="button" id="btn-view-idp" class="btn btn-sm <?php echo ($view === 'other') ? 'btn-outline' : 'btn-primary'; ?>">Forwarded for IDP</button>
+                    <button type="button" id="btn-view-other" class="btn btn-sm <?php echo ($view === 'other') ? 'btn-primary' : 'btn-outline'; ?>">Other Profiles</button>
+                </div>
+
+                <div id="view-idp" class="<?php echo ($view === 'other') ? 'hidden' : ''; ?>">
+                    <div class="flex items-center justify-between mb-3">
+                        <h2 class="text-lg font-semibold text-gray-800">Forwarded for IDP</h2>
+                        <div class="text-sm opacity-70">Total: <span class="font-semibold"><?php echo (int)count($forwardedForIdpAll); ?></span></div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        <?php if (count($forwardedForIdpAll) > 0): ?>
+                            <?php foreach ($forwardedForIdpAll as $emp): ?>
+                                <?php renderEmployeeCard($emp); ?>
+                            <?php endforeach; ?>
+                        <?php else: ?>
+                            <div class="empty-state">
+                                <div class="inline-flex items-center justify-center w-16 h-16 bg-gray-100 rounded-full mb-4 border border-gray-300 mx-auto">
+                                    <i data-lucide="users" class="w-8 h-8 text-gray-400"></i>
+                                </div>
+                                <h3 class="text-lg font-medium text-gray-700 mb-2">No employees found</h3>
+                                <p class="text-gray-500">No employees are currently forwarded for IDP.</p>
+                            </div>
+                        <?php endif; ?>
+                    </div>
+                </div>
+
+                <div id="view-other" class="<?php echo ($view === 'other') ? '' : 'hidden'; ?>">
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
+                        <?php foreach ($allowedOtherProfiles as $st): ?>
+                            <div class="hr2-summary-card rounded-xl shadow-md p-6">
+                                <div class="flex items-center justify-between">
+                                    <div>
+                                        <div class="text-sm text-gray-500"><?php echo h($st); ?></div>
+                                        <div class="text-2xl font-bold text-gray-900"><?php echo (int)($otherCounts[$st] ?? 0); ?></div>
+                                    </div>
+                                    <div class="p-3 bg-gray-100 rounded-full">
+                                        <i data-lucide="users" class="h-6 w-6 text-gray-600"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        <?php endforeach; ?>
+                    </div>
+
+                    <div class="card bg-base-100 shadow mb-6">
+                        <div class="card-body">
+                            <form method="GET" class="flex flex-col md:flex-row gap-3 md:items-end">
+                                <input type="hidden" name="view" value="other" />
+                                <input type="hidden" name="search" value="<?php echo h($search); ?>" />
+                                <input type="hidden" name="department" value="<?php echo h($departmentFilter); ?>" />
+                                <input type="hidden" name="status" value="<?php echo h($statusFilter); ?>" />
+
+                                <div class="w-full md:w-64">
+                                    <label class="label"><span class="label-text">Department</span></label>
+                                    <select name="other_department" class="select select-bordered w-full">
+                                        <option value="all" <?php echo $otherDepartment === 'all' ? 'selected' : ''; ?>>All Departments</option>
+                                        <?php foreach ($otherDeptOptions as $dept): ?>
+                                            <option value="<?php echo h($dept); ?>" <?php echo $otherDepartment === $dept ? 'selected' : ''; ?>><?php echo h($dept); ?></option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                </div>
+
+                                <div class="w-full md:w-72">
+                                    <label class="label"><span class="label-text">Role</span></label>
+                                    <select name="other_role" class="select select-bordered w-full">
+                                        <option value="all" <?php echo $otherRole === 'all' ? 'selected' : ''; ?>>All Roles</option>
+                                        <?php foreach ($otherRoleOptions as $r): ?>
+                                            <option value="<?php echo h($r); ?>" <?php echo $otherRole === $r ? 'selected' : ''; ?>><?php echo h($r); ?></option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                </div>
+
+                                <div class="w-full md:w-64">
+                                    <label class="label"><span class="label-text">Profile Status</span></label>
+                                    <select name="other_profile" class="select select-bordered w-full">
+                                        <option value="all" <?php echo $otherProfile === 'all' ? 'selected' : ''; ?>>All</option>
+                                        <?php foreach ($allowedOtherProfiles as $st): ?>
+                                            <option value="<?php echo h($st); ?>" <?php echo $otherProfile === $st ? 'selected' : ''; ?>><?php echo h($st); ?></option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                </div>
+
+                                <div class="flex gap-2">
+                                    <button type="submit" class="btn btn-primary">Filter</button>
+                                    <a href="criticalgaps.php?view=other" class="btn btn-outline">Reset</a>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        <?php if (count($otherProfiles) > 0): ?>
+                            <?php foreach ($otherProfiles as $emp): ?>
+                                <?php renderEmployeeCard($emp); ?>
+                            <?php endforeach; ?>
+                        <?php else: ?>
+                            <div class="empty-state">
+                                <div class="inline-flex items-center justify-center w-16 h-16 bg-gray-100 rounded-full mb-4 border border-gray-300 mx-auto">
+                                    <i data-lucide="users" class="w-8 h-8 text-gray-400"></i>
+                                </div>
+                                <h3 class="text-lg font-medium text-gray-700 mb-2">No profiles found</h3>
+                                <p class="text-gray-500">Try adjusting your filters</p>
+                            </div>
+                        <?php endif; ?>
+                    </div>
+
+                    <div class="text-right mt-4 text-sm text-gray-600">
+                        Total: <span class="font-medium"><?php echo count($otherProfiles); ?></span> employees
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -401,6 +563,31 @@ require('../../partials/header.php');
         <script>
             // Initialize Lucide icons
             lucide.createIcons();
+
+            const btnViewIdp = document.getElementById('btn-view-idp');
+            const btnViewOther = document.getElementById('btn-view-other');
+            const viewIdp = document.getElementById('view-idp');
+            const viewOther = document.getElementById('view-other');
+
+            function setProfilesView(v, pushState = true) {
+                const isOther = v === 'other';
+                if (viewIdp) viewIdp.classList.toggle('hidden', isOther);
+                if (viewOther) viewOther.classList.toggle('hidden', !isOther);
+                if (btnViewIdp) btnViewIdp.classList.toggle('btn-primary', !isOther);
+                if (btnViewIdp) btnViewIdp.classList.toggle('btn-outline', isOther);
+                if (btnViewOther) btnViewOther.classList.toggle('btn-primary', isOther);
+                if (btnViewOther) btnViewOther.classList.toggle('btn-outline', !isOther);
+
+                if (pushState) {
+                    const qs = new URLSearchParams(window.location.search);
+                    qs.set('view', isOther ? 'other' : 'idp');
+                    window.history.replaceState({}, '', `${window.location.pathname}?${qs.toString()}`);
+                }
+            }
+
+            if (btnViewIdp) btnViewIdp.addEventListener('click', () => setProfilesView('idp'));
+            if (btnViewOther) btnViewOther.addEventListener('click', () => setProfilesView('other'));
+            setProfilesView(<?php echo json_encode($view === 'other' ? 'other' : 'idp'); ?>, false);
 
             const employeesForBulkPush = <?php echo json_encode($employees ?? []); ?>;
 
