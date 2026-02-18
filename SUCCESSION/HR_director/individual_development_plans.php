@@ -3,6 +3,19 @@ require_once __DIR__ . '/../../COMPETENCY/criticalgaps/config.php';
 
 $flashOk = (string)($_GET['ok'] ?? '');
 $flashErr = (string)($_GET['err'] ?? '');
+$flashErrMsg = (string)($_GET['err_msg'] ?? '');
+
+function classifyDbError(Throwable $e): string
+{
+    $msg = strtolower((string)$e->getMessage());
+    if (str_contains($msg, 'base table') && str_contains($msg, 'doesn\'t exist')) return 'db_table_missing';
+    if (str_contains($msg, 'table') && str_contains($msg, 'doesn\'t exist')) return 'db_table_missing';
+    if (str_contains($msg, 'access denied') || str_contains($msg, 'command denied') || str_contains($msg, 'permission')) return 'db_permission_denied';
+    if (str_contains($msg, 'foreign key constraint fails')) return 'db_fk_error';
+    if (str_contains($msg, 'unknown column')) return 'db_schema_mismatch';
+    if (str_contains($msg, 'duplicate entry')) return 'db_duplicate';
+    return 'failed';
+}
 
 function getTableColumnSet(PDO $pdo, string $tableName): array
 {
@@ -279,7 +292,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if ($pdo->inTransaction()) {
                     $pdo->rollBack();
                 }
-                throw $e;
+                error_log('IDP repo request_training error: ' . $e->getMessage());
+                $code = classifyDbError($e);
+                header('Location: individual_development_plans.php?err=' . rawurlencode($code));
+                exit;
             }
         }
 
@@ -599,6 +615,7 @@ require('../../partials/header.php');
                 (function() {
                     var ok = <?php echo json_encode($flashOk); ?>;
                     var err = <?php echo json_encode($flashErr); ?>;
+                    var errMsg = <?php echo json_encode($flashErrMsg); ?>;
 
                     var okMap = {
                         created: 'IDP created successfully.',
@@ -621,10 +638,18 @@ require('../../partials/header.php');
                     }
 
                     if (err) {
+                        var errMap = {
+                            db_table_missing: 'Request repository table is missing in the database.',
+                            db_permission_denied: 'Database permission denied while requesting.',
+                            db_fk_error: 'Database constraint error. Employee record may be missing.',
+                            db_schema_mismatch: 'Database schema mismatch. Columns differ from expected.',
+                            db_duplicate: 'This request already exists.',
+                            invalid: 'Invalid request.'
+                        };
                         Swal.fire({
                             icon: 'error',
                             title: 'Error',
-                            text: 'Something went wrong.'
+                            text: errMsg || errMap[err] || 'Something went wrong.'
                         });
                     }
 
