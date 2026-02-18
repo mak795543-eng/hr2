@@ -655,9 +655,13 @@ $conn->close();
               </div>
             <?php else: ?>
               <?php foreach ($pending_modules as $module): ?>
+                <?php
+                  $moduleIdRaw = $module['id'] ?? ($module['module_id'] ?? ($module['learning_module_id'] ?? null));
+                  $moduleId = (is_numeric($moduleIdRaw) && (int)$moduleIdRaw > 0) ? (int)$moduleIdRaw : 0;
+                ?>
                 <div class="card bg-base-100 shadow-md module-card"
                   data-department="<?php echo $module['department']; ?>"
-                  data-id="<?php echo $module['id']; ?>"
+                  data-id="<?php echo $moduleId; ?>"
                   data-content="<?php echo htmlspecialchars($module['content'] ?? '', ENT_QUOTES, 'UTF-8'); ?>">
                   <div class="card-body">
                     <div class="flex justify-between items-start">
@@ -673,7 +677,7 @@ $conn->close();
                     <p class="text-sm text-gray-500">Date Added: <?php echo date('Y-m-d', strtotime($module['created_at'])); ?></p>
                     <p class="text-sm text-gray-500">Topic: <?php echo htmlspecialchars($module['topic']); ?></p>
                     <div class="card-actions justify-end mt-4">
-                      <button class="btn-sm-border" onclick="viewPendingModule(<?php echo $module['id']; ?>)">Review</button>
+                      <button class="btn-sm-border" <?php echo $moduleId > 0 ? ('onclick="viewPendingModule(' . $moduleId . ')"') : 'disabled'; ?>>Review</button>
                     </div>
                   </div>
                 </div>
@@ -1219,14 +1223,11 @@ $conn->close();
       }
 
       // If card data not available, fetch from server
-      fetch(`fetch_module_data.php?module_id=${moduleId}`)
+      fetchJsonSafe(buildLearningUrl('training_dev_officer/fetch_module_data.php', {
+        module_id: moduleId
+      }))
         .then(response => {
-          if (!response.ok) {
-            throw new Error('Network response was not ok');
-          }
-          return response.json();
-        })
-        .then(moduleData => {
+          const moduleData = response;
           console.log('Module data fetched:', moduleData);
           currentReviewModuleData = moduleData;
           showPendingReviewModal(moduleData);

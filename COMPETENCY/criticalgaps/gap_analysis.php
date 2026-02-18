@@ -105,7 +105,7 @@ require('../../partials/header.php');
             });
             ?>
 
-            <div class="max-w-7xl mx-auto p-6">
+            <div class="max-w-none mx-auto p-6">
                 <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-6">
                     <div>
                         <h1 class="text-2xl font-bold">Skill Gap Analysis</h1>
