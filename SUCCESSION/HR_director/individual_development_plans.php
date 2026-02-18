@@ -21,6 +21,7 @@ function classifyDbError(Throwable $e): string
             if ($errNo === 1452 || $errNo === 1451) return 'db_fk_error';
         }
         if ($errNo === 1044 || $errNo === 1142 || $errNo === 1143) return 'db_permission_denied';
+        if ($errNo === 1265) return 'db_schema_mismatch';
         if ($errNo === 1054) return 'db_schema_mismatch';
         if ($errNo === 1146) return 'db_table_missing';
     }
@@ -83,6 +84,45 @@ function getTableColumnSet(PDO $pdo, string $tableName): array
         if ($c !== '') $set[$c] = true;
     }
     return $set;
+}
+
+function getEnumValues(PDO $pdo, string $tableName, string $columnName): array
+{
+    $stmt = $pdo->prepare(
+        "SELECT COLUMN_TYPE
+         FROM information_schema.columns
+         WHERE table_schema = DATABASE()
+           AND table_name = ?
+           AND column_name = ?
+         LIMIT 1"
+    );
+    $stmt->execute([$tableName, $columnName]);
+    $type = (string)($stmt->fetchColumn() ?: '');
+    if ($type === '' || stripos($type, 'enum(') !== 0) return [];
+
+    $m = [];
+    preg_match_all("/'((?:\\\\'|[^'])*)'/", $type, $m);
+    $vals = $m[1] ?? [];
+    $out = [];
+    foreach ($vals as $v) {
+        $out[] = str_replace("\\'", "'", (string)$v);
+    }
+    return $out;
+}
+
+function detectRequestedStatusValue(PDO $pdo): string
+{
+    try {
+        $vals = getEnumValues($pdo, 'requested_idps_repository', 'idp_status');
+        foreach ($vals as $v) {
+            if (strcasecmp($v, 'requested') === 0) return $v;
+        }
+        foreach ($vals as $v) {
+            if ($v !== '' && stripos($v, 'request') !== false) return $v;
+        }
+    } catch (Throwable $e) {
+    }
+    return 'requested';
 }
 
 function tableExists(PDO $pdo, string $tableName): bool
@@ -313,6 +353,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 ensureIdpRequestColumns($pdo);
                 ensureRequestedIdpsRepositoryTable($pdo);
+                $requestedStatusValue = detectRequestedStatusValue($pdo);
                 $colSet = getTableColumnSet($pdo, 'requested_idps_repository');
                 if (empty($colSet)) {
                     throw new RuntimeException('requested_idps_repository missing.');
@@ -344,7 +385,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $add('requested_training_mode', $row['requested_training_mode'] ?? null);
                 $add('requested_start_datetime', $row['requested_start_datetime'] ?? null);
                 $add('requested_end_datetime', $row['requested_end_datetime'] ?? null);
-                $add('idp_status', 'requested');
+                $add('idp_status', $requestedStatusValue);
                 $add('training_requested_at', $trainingRequestedAt);
                 $add('learning_requested_at', $learningRequestedAt);
                 $add('created_at', $row['created_at'] ?? null);
@@ -361,7 +402,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 foreach ($insertCols as $c) {
                     if ($c === 'id' || $c === 'created_at') continue;
                     if ($c === 'idp_status') {
-                        $updateClauses[] = "idp_status = 'requested'";
+                        $updateClauses[] = "idp_status = VALUES(idp_status)";
                     } else {
                         $updateClauses[] = "{$c} = VALUES({$c})";
                     }
@@ -449,7 +490,7 @@ $sql =
      FROM individual_development_plans idp
      LEFT JOIN requested_idps_repository req
        ON req.employee_id = idp.employee_id
-      AND req.idp_status = 'requested'
+      AND LOWER(req.idp_status) = 'requested'
      LEFT JOIN (
          SELECT s2.employee_id, AVG(COALESCE(s2.score, 0)) / 5 * 100 AS competency
          FROM employee_kpi_scores s2
