@@ -17,6 +17,20 @@ function classifyDbError(Throwable $e): string
     return 'failed';
 }
 
+function friendlyErrMsg(string $code): string
+{
+    $map = [
+        'db_table_missing' => 'Request repository table is missing in the database.',
+        'db_permission_denied' => 'Database permission denied while requesting.',
+        'db_fk_error' => 'Database constraint error. Employee record may be missing.',
+        'db_schema_mismatch' => 'Database schema mismatch. Columns differ from expected.',
+        'db_duplicate' => 'This request already exists.',
+        'invalid' => 'Invalid request.',
+        'failed' => 'Request failed due to a server/database issue.',
+    ];
+    return $map[$code] ?? 'Something went wrong.';
+}
+
 function getTableColumnSet(PDO $pdo, string $tableName): array
 {
     $stmt = $pdo->prepare(
@@ -129,6 +143,7 @@ $selectedRole = trim((string)($_GET['role'] ?? 'all'));
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = (string)($_POST['action'] ?? '');
     $idpId = (int)($_POST['idp_id'] ?? 0);
+    $returnBasePost = buildReturnUrl('individual_development_plans.php');
 
     if ($action === 'get_general_skills') {
         header('Content-Type: application/json; charset=utf-8');
@@ -215,7 +230,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         if ($action === 'request_training' && $idpId > 0) {
-            $returnBase = buildReturnUrl('individual_development_plans.php');
+            $returnBase = $returnBasePost;
             try {
                 $pdo->beginTransaction();
 
@@ -330,7 +345,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
                 error_log('IDP repo request_training error: ' . $e->getMessage());
                 $code = classifyDbError($e);
-                header('Location: ' . addQueryParams($returnBase, ['err' => $code]));
+                header('Location: ' . addQueryParams($returnBase, ['err' => $code, 'err_msg' => friendlyErrMsg($code)]));
                 exit;
             }
         }
@@ -339,7 +354,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     } catch (Throwable $e) {
         error_log('IDP repo action error: ' . $e->getMessage());
-        header('Location: individual_development_plans.php?err=failed');
+        $code = classifyDbError($e);
+        header('Location: ' . addQueryParams($returnBasePost, ['err' => $code, 'err_msg' => friendlyErrMsg($code)]));
         exit;
     }
 }
@@ -680,7 +696,8 @@ require('../../partials/header.php');
                             db_fk_error: 'Database constraint error. Employee record may be missing.',
                             db_schema_mismatch: 'Database schema mismatch. Columns differ from expected.',
                             db_duplicate: 'This request already exists.',
-                            invalid: 'Invalid request.'
+                            invalid: 'Invalid request.',
+                            failed: 'Request failed due to a server/database issue.'
                         };
                         Swal.fire({
                             icon: 'error',
