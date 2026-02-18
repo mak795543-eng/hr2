@@ -7,6 +7,24 @@ $flashErrMsg = (string)($_GET['err_msg'] ?? '');
 
 function classifyDbError(Throwable $e): string
 {
+    if ($e instanceof PDOException) {
+        $sqlState = (string)($e->getCode() ?? '');
+        $errNo = null;
+        if (is_array($e->errorInfo ?? null)) {
+            $errNo = isset($e->errorInfo[1]) ? (int)$e->errorInfo[1] : null;
+        }
+
+        if ($sqlState === '42S02') return 'db_table_missing';
+        if ($sqlState === '28000') return 'db_permission_denied';
+        if ($sqlState === '23000') {
+            if ($errNo === 1062) return 'db_duplicate';
+            if ($errNo === 1452 || $errNo === 1451) return 'db_fk_error';
+        }
+        if ($errNo === 1044 || $errNo === 1142 || $errNo === 1143) return 'db_permission_denied';
+        if ($errNo === 1054) return 'db_schema_mismatch';
+        if ($errNo === 1146) return 'db_table_missing';
+    }
+
     $msg = strtolower((string)$e->getMessage());
     if (str_contains($msg, 'base table') && str_contains($msg, 'doesn\'t exist')) return 'db_table_missing';
     if (str_contains($msg, 'table') && str_contains($msg, 'doesn\'t exist')) return 'db_table_missing';
@@ -15,6 +33,24 @@ function classifyDbError(Throwable $e): string
     if (str_contains($msg, 'unknown column')) return 'db_schema_mismatch';
     if (str_contains($msg, 'duplicate entry')) return 'db_duplicate';
     return 'failed';
+}
+
+function errorDebugTag(Throwable $e): string
+{
+    if ($e instanceof PDOException) {
+        $sqlState = (string)($e->getCode() ?? '');
+        $errNo = '';
+        if (is_array($e->errorInfo ?? null)) {
+            $errNo = isset($e->errorInfo[1]) ? (string)$e->errorInfo[1] : '';
+        }
+        $m = trim((string)$e->getMessage());
+        if (strlen($m) > 140) $m = substr($m, 0, 140) . '...';
+        $out = trim("SQLSTATE={$sqlState}" . ($errNo !== '' ? " ERRNO={$errNo}" : '') . ($m !== '' ? " MSG={$m}" : ''));
+        return $out;
+    }
+    $m = trim((string)$e->getMessage());
+    if (strlen($m) > 140) $m = substr($m, 0, 140) . '...';
+    return $m;
 }
 
 function friendlyErrMsg(string $code): string
@@ -94,6 +130,18 @@ function ensureRequestedIdpsRepositoryTable(PDO $pdo): void
             INDEX idx_requested_idp_status (idp_status)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
     );
+}
+
+function ensureIdpRequestColumns(PDO $pdo): void
+{
+    $cols = getTableColumnSet($pdo, 'individual_development_plans');
+
+    if (!isset($cols['training_requested_at'])) {
+        $pdo->exec("ALTER TABLE individual_development_plans ADD COLUMN training_requested_at TIMESTAMP NULL DEFAULT NULL");
+    }
+    if (!isset($cols['learning_requested_at'])) {
+        $pdo->exec("ALTER TABLE individual_development_plans ADD COLUMN learning_requested_at TIMESTAMP NULL DEFAULT NULL");
+    }
 }
 
 function buildReturnUrl(string $fallbackPath = 'individual_development_plans.php'): string
@@ -263,6 +311,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $trainingRequestedAt = $now;
                 }
 
+                ensureIdpRequestColumns($pdo);
                 ensureRequestedIdpsRepositoryTable($pdo);
                 $colSet = getTableColumnSet($pdo, 'requested_idps_repository');
                 if (empty($colSet)) {
@@ -345,7 +394,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
                 error_log('IDP repo request_training error: ' . $e->getMessage());
                 $code = classifyDbError($e);
-                header('Location: ' . addQueryParams($returnBase, ['err' => $code, 'err_msg' => friendlyErrMsg($code)]));
+                header('Location: ' . addQueryParams($returnBase, ['err' => $code, 'err_msg' => friendlyErrMsg($code), 'err_dbg' => errorDebugTag($e)]));
                 exit;
             }
         }
@@ -355,7 +404,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } catch (Throwable $e) {
         error_log('IDP repo action error: ' . $e->getMessage());
         $code = classifyDbError($e);
-        header('Location: ' . addQueryParams($returnBasePost, ['err' => $code, 'err_msg' => friendlyErrMsg($code)]));
+        header('Location: ' . addQueryParams($returnBasePost, ['err' => $code, 'err_msg' => friendlyErrMsg($code), 'err_dbg' => errorDebugTag($e)]));
         exit;
     }
 }
@@ -668,6 +717,7 @@ require('../../partials/header.php');
                     var ok = <?php echo json_encode($flashOk); ?>;
                     var err = <?php echo json_encode($flashErr); ?>;
                     var errMsg = <?php echo json_encode($flashErrMsg); ?>;
+                    var errDbg = <?php echo json_encode((string)($_GET['err_dbg'] ?? '')); ?>;
 
                     var okMap = {
                         created: 'IDP created successfully.',
@@ -702,7 +752,7 @@ require('../../partials/header.php');
                         Swal.fire({
                             icon: 'error',
                             title: 'Error',
-                            text: errMsg || errMap[err] || 'Something went wrong.'
+                            text: errDbg ? ((errMsg || errMap[err] || 'Something went wrong.') + ' (' + errDbg + ')') : (errMsg || errMap[err] || 'Something went wrong.')
                         });
                     }
 
