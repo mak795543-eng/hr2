@@ -419,8 +419,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 $stmtUpd = $pdo->prepare(
                     "UPDATE individual_development_plans
-                     SET idp_status = 'requested',
-                         training_requested_at = ?,
+                     SET training_requested_at = ?,
                          learning_requested_at = ?
                      WHERE id = ?"
                 );
@@ -1131,15 +1130,21 @@ require('../../partials/header.php');
                                 loadGapAnalysis(String(r.employee_id || ''));
 
                                 if (viewBadge) {
-                                    viewBadge.className = 'badge badge-sm ' + badgeClass(status);
-                                    viewBadge.textContent = statusLabel(status);
+                                    var isRequested = Number(r.is_requested || 0) === 1 || status === 'requested';
+                                    if (isRequested) {
+                                        viewBadge.className = 'badge badge-sm badge-accent badge-outline';
+                                        viewBadge.textContent = 'Requested';
+                                    } else {
+                                        viewBadge.className = 'badge badge-sm ' + badgeClass(status);
+                                        viewBadge.textContent = statusLabel(status);
+                                    }
                                 }
 
                                 if (idReq) idReq.value = id;
                                 if (idCancel) idCancel.value = id;
                                 if (idDelete) idDelete.value = id;
 
-                                show(formReq, status === 'approved');
+                                show(formReq, status === 'approved' && !(Number(r.is_requested || 0) === 1 || status === 'requested'));
                                 show(formCancel, status === 'under_review');
                                 show(formDelete, status === 'for_compliance' || status === 'cancelled' || status === 'rejected');
 
