@@ -41,7 +41,7 @@ try {
                    development_plan,
                    learning_requested_at, training_requested_at
             FROM requested_idps_repository
-            WHERE LOWER(idp_status) = 'requested'
+            WHERE idp_status = 'requested'
               AND delivery_mode IN ('Online','Hybrid')
               AND learning_requested_at IS NOT NULL
             ORDER BY COALESCE(learning_requested_at, training_requested_at, updated_at) DESC";
