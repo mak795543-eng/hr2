@@ -148,7 +148,7 @@ $stmt = $pdo->prepare(
          WHERE s2.evaluation_period = ?
          GROUP BY s2.employee_id
      ) gs ON gs.employee_id = idp.employee_id
-     WHERE idp.idp_status = 'requested'
+     WHERE LOWER(idp.idp_status) = 'requested'
      ORDER BY COALESCE(idp.learning_requested_at, idp.training_requested_at, idp.updated_at) DESC"
 );
 $stmt->execute([$period]);
