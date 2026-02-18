@@ -32,6 +32,10 @@ function normalize_department_slug(string $v): string
 
 
 $requests = [];
+$selectedDepartment = trim((string)($_GET['department'] ?? 'all'));
+$search = trim((string)($_GET['search'] ?? ''));
+$deptOptions = [];
+$deptCounts = [];
 try {
     $sql = "SELECT id, employee_id, employee_name, position, department, succession_status, idp_status, delivery_mode,
                    development_plan,
@@ -46,6 +50,32 @@ try {
 } catch (Throwable $e) {
     $requests = [];
 }
+
+foreach ($requests as $r) {
+    $d = trim((string)($r['department'] ?? ''));
+    if ($d !== '') {
+        $deptOptions[$d] = true;
+        $deptCounts[$d] = (int)($deptCounts[$d] ?? 0) + 1;
+    }
+}
+$deptOptions = array_keys($deptOptions);
+sort($deptOptions, SORT_NATURAL | SORT_FLAG_CASE);
+
+$filteredRequests = array_values(array_filter($requests, static function ($r) use ($selectedDepartment, $search) {
+    if ($selectedDepartment !== '' && $selectedDepartment !== 'all') {
+        if ((string)($r['department'] ?? '') !== $selectedDepartment) return false;
+    }
+    if ($search !== '') {
+        $hay = strtolower(
+            (string)($r['employee_name'] ?? '') . ' ' .
+                (string)($r['employee_id'] ?? '') . ' ' .
+                (string)($r['position'] ?? '') . ' ' .
+                (string)($r['department'] ?? '')
+        );
+        if (strpos($hay, strtolower($search)) === false) return false;
+    }
+    return true;
+}));
 ?>
 <!DOCTYPE html>
 <html lang="en" data-theme="light">
@@ -83,6 +113,49 @@ try {
                     </div>
                 </div>
 
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+                    <?php foreach ($deptOptions as $dept): ?>
+                        <a class="hr2-summary-card rounded-xl shadow-md p-5 block hover:shadow-lg transition"
+                            href="<?php echo h('requested_learning.php?department=' . rawurlencode($dept) . ($search !== '' ? ('&search=' . rawurlencode($search)) : '')); ?>">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <div class="text-sm text-gray-500"><?php echo h($dept); ?></div>
+                                    <div class="text-2xl font-bold text-gray-900"><?php echo (int)($deptCounts[$dept] ?? 0); ?></div>
+                                </div>
+                                <div class="p-3 bg-blue-100 rounded-full">
+                                    <i data-lucide="building" class="h-6 w-6 text-blue-600"></i>
+                                </div>
+                            </div>
+                        </a>
+                    <?php endforeach; ?>
+                </div>
+
+                <div class="card bg-base-100 shadow mb-6">
+                    <div class="card-body">
+                        <form method="GET" class="flex flex-col md:flex-row gap-3 md:items-end">
+                            <div class="w-full md:w-72">
+                                <label class="label"><span class="label-text">Department</span></label>
+                                <select name="department" class="select select-bordered w-full">
+                                    <option value="all" <?php echo $selectedDepartment === 'all' ? 'selected' : ''; ?>>All Departments</option>
+                                    <?php foreach ($deptOptions as $dept): ?>
+                                        <option value="<?php echo h($dept); ?>" <?php echo $selectedDepartment === $dept ? 'selected' : ''; ?>><?php echo h($dept); ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
+
+                            <div class="w-full md:flex-1">
+                                <label class="label"><span class="label-text">Search</span></label>
+                                <input name="search" class="input input-bordered w-full" value="<?php echo h($search); ?>" placeholder="Employee / ID / Position" />
+                            </div>
+
+                            <div class="flex gap-2">
+                                <button type="submit" class="btn btn-primary">Apply</button>
+                                <a href="requested_learning.php" class="btn btn-outline">Clear</a>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
                 <div class="bg-white rounded-xl shadow-md p-4">
                     <table class="table w-full">
                         <thead>
@@ -98,12 +171,12 @@ try {
                             </tr>
                         </thead>
                         <tbody>
-                            <?php if (empty($requests)): ?>
+                            <?php if (empty($filteredRequests)): ?>
                                 <tr>
                                     <td colspan="8" class="text-center text-gray-500 py-6">No learning requests yet.</td>
                                 </tr>
                             <?php else: ?>
-                                <?php foreach ($requests as $i => $r): ?>
+                                <?php foreach ($filteredRequests as $i => $r): ?>
                                     <?php
                                     $idpId = (int)($r['id'] ?? 0);
                                     $deptSlug = normalize_department_slug((string)($r['department'] ?? ''));
@@ -265,6 +338,10 @@ try {
     </dialog>
 
     <script>
+        if (typeof lucide !== 'undefined') {
+            lucide.createIcons();
+        }
+
         const requestModal = document.getElementById('request_modal');
         const createModuleModal = document.getElementById('create_module_modal');
         const cmTitle = document.getElementById('cm_title');

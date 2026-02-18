@@ -35,6 +35,93 @@ function getTableColumnSet(PDO $pdo, string $tableName): array
     return $set;
 }
 
+function tableExists(PDO $pdo, string $tableName): bool
+{
+    $stmt = $pdo->prepare(
+        "SELECT 1
+         FROM information_schema.tables
+         WHERE table_schema = DATABASE()
+           AND table_name = ?
+         LIMIT 1"
+    );
+    $stmt->execute([$tableName]);
+    return (bool)$stmt->fetchColumn();
+}
+
+function ensureRequestedIdpsRepositoryTable(PDO $pdo): void
+{
+    if (tableExists($pdo, 'requested_idps_repository')) {
+        return;
+    }
+
+    $pdo->exec(
+        "CREATE TABLE IF NOT EXISTS requested_idps_repository (
+            id INT PRIMARY KEY,
+            employee_id VARCHAR(50) NOT NULL,
+            employee_name VARCHAR(100) NOT NULL,
+            position VARCHAR(100) NOT NULL,
+            department VARCHAR(100) NOT NULL,
+            competency DECIMAL(5,2) DEFAULT 0,
+            succession_status ENUM('Retrain','Reskilling','Refresher Training','Upskilling','Succession Ready') DEFAULT 'Retrain',
+            development_plan TEXT,
+            target_score DECIMAL(5,2) DEFAULT NULL,
+            target_date DATE DEFAULT NULL,
+            delivery_mode ENUM('Online','Onsite','Hybrid') DEFAULT 'Onsite',
+            requested_training_type VARCHAR(50) DEFAULT NULL,
+            requested_training_mode VARCHAR(20) DEFAULT NULL,
+            requested_start_datetime DATETIME DEFAULT NULL,
+            requested_end_datetime DATETIME DEFAULT NULL,
+            idp_status ENUM('approved','on_hold','for_compliance','cancelled','rejected','under_review','requested') DEFAULT 'requested',
+            training_requested_at TIMESTAMP NULL DEFAULT NULL,
+            learning_requested_at TIMESTAMP NULL DEFAULT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            UNIQUE KEY unique_employee_requested_idp (employee_id),
+            INDEX idx_requested_idp_status (idp_status)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
+    );
+}
+
+function buildReturnUrl(string $fallbackPath = 'individual_development_plans.php'): string
+{
+    $ref = (string)($_SERVER['HTTP_REFERER'] ?? '');
+    if ($ref === '') return $fallbackPath;
+
+    $parts = parse_url($ref);
+    if (!is_array($parts)) return $fallbackPath;
+
+    $path = (string)($parts['path'] ?? '');
+    if ($path === '' || stripos($path, 'individual_development_plans.php') === false) {
+        return $fallbackPath;
+    }
+
+    $q = [];
+    parse_str((string)($parts['query'] ?? ''), $q);
+    $dept = isset($q['department']) ? trim((string)$q['department']) : '';
+    $role = isset($q['role']) ? trim((string)$q['role']) : '';
+
+    $out = [];
+    if ($dept !== '') $out['department'] = $dept;
+    if ($role !== '') $out['role'] = $role;
+
+    return $fallbackPath . (count($out) ? ('?' . http_build_query($out)) : '');
+}
+
+function addQueryParams(string $url, array $params): string
+{
+    $parts = parse_url($url);
+    if (!is_array($parts)) return $url;
+
+    $path = (string)($parts['path'] ?? $url);
+    $q = [];
+    parse_str((string)($parts['query'] ?? ''), $q);
+    foreach ($params as $k => $v) {
+        $q[(string)$k] = (string)$v;
+    }
+    $query = http_build_query($q);
+    return $path . ($query !== '' ? ('?' . $query) : '');
+}
+
 $period = date('Y') . '-Q' . (string)ceil((int)date('n') / 3);
 $selectedDepartment = trim((string)($_GET['department'] ?? 'all'));
 $selectedRole = trim((string)($_GET['role'] ?? 'all'));
@@ -128,6 +215,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         if ($action === 'request_training' && $idpId > 0) {
+            $returnBase = buildReturnUrl('individual_development_plans.php');
             try {
                 $pdo->beginTransaction();
 
@@ -143,7 +231,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 if (!$row) {
                     $pdo->rollBack();
-                    header('Location: individual_development_plans.php?err=invalid');
+                    header('Location: ' . addQueryParams($returnBase, ['err' => 'invalid']));
                     exit;
                 }
 
@@ -160,121 +248,69 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $trainingRequestedAt = $now;
                 }
 
-                $colSet = [];
-                try {
-                    $colSet = getTableColumnSet($pdo, 'requested_idps_repository');
-                } catch (Throwable $e) {
-                    $colSet = [];
-                }
-
+                ensureRequestedIdpsRepositoryTable($pdo);
+                $colSet = getTableColumnSet($pdo, 'requested_idps_repository');
                 if (empty($colSet)) {
-                    $stmtInsert = $pdo->prepare(
-                        "INSERT INTO requested_idps_repository
-                            (id, employee_id, employee_name, position, department, competency, succession_status,
-                             development_plan, target_score, target_date, delivery_mode,
-                             requested_training_type, requested_training_mode, requested_start_datetime, requested_end_datetime,
-                             idp_status, training_requested_at, learning_requested_at, created_at, updated_at)
-                         VALUES
-                            (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'requested', ?, ?, ?, ?)
-                         ON DUPLICATE KEY UPDATE
-                            employee_name = VALUES(employee_name),
-                            position = VALUES(position),
-                            department = VALUES(department),
-                            competency = VALUES(competency),
-                            succession_status = VALUES(succession_status),
-                            development_plan = VALUES(development_plan),
-                            target_score = VALUES(target_score),
-                            target_date = VALUES(target_date),
-                            delivery_mode = VALUES(delivery_mode),
-                            requested_training_type = VALUES(requested_training_type),
-                            requested_training_mode = VALUES(requested_training_mode),
-                            requested_start_datetime = VALUES(requested_start_datetime),
-                            requested_end_datetime = VALUES(requested_end_datetime),
-                            idp_status = 'requested',
-                            training_requested_at = VALUES(training_requested_at),
-                            learning_requested_at = VALUES(learning_requested_at),
-                            updated_at = VALUES(updated_at)"
-                    );
-                    $stmtInsert->execute([
-                        (int)$row['id'],
-                        $row['employee_id'],
-                        $row['employee_name'],
-                        $row['position'],
-                        $row['department'],
-                        $row['competency'],
-                        $row['succession_status'],
-                        $row['development_plan'],
-                        $row['target_score'],
-                        $row['target_date'],
-                        $deliveryMode,
-                        $row['requested_training_type'],
-                        $row['requested_training_mode'],
-                        $row['requested_start_datetime'],
-                        $row['requested_end_datetime'],
-                        $trainingRequestedAt,
-                        $learningRequestedAt,
-                        $row['created_at'],
-                        $now,
-                    ]);
-                } else {
-                    $insertCols = [];
-                    $insertVals = [];
-                    $insertParams = [];
-
-                    $add = static function (string $col, $val) use (&$insertCols, &$insertVals, &$insertParams, $colSet): void {
-                        if (!isset($colSet[$col])) return;
-                        $insertCols[] = $col;
-                        $insertVals[] = '?';
-                        $insertParams[] = $val;
-                    };
-
-                    $add('id', (int)($row['id'] ?? 0));
-                    $add('employee_id', (string)($row['employee_id'] ?? ''));
-                    $add('employee_name', (string)($row['employee_name'] ?? ''));
-                    $add('position', (string)($row['position'] ?? ''));
-                    $add('department', (string)($row['department'] ?? ''));
-                    $add('competency', $row['competency'] ?? 0);
-                    $add('succession_status', (string)($row['succession_status'] ?? ''));
-                    $add('development_plan', (string)($row['development_plan'] ?? ''));
-                    $add('target_score', $row['target_score'] ?? null);
-                    $add('target_date', $row['target_date'] ?? null);
-                    $add('delivery_mode', $deliveryMode);
-                    $add('requested_training_type', $row['requested_training_type'] ?? null);
-                    $add('requested_training_mode', $row['requested_training_mode'] ?? null);
-                    $add('requested_start_datetime', $row['requested_start_datetime'] ?? null);
-                    $add('requested_end_datetime', $row['requested_end_datetime'] ?? null);
-                    $add('idp_status', 'requested');
-                    $add('training_requested_at', $trainingRequestedAt);
-                    $add('learning_requested_at', $learningRequestedAt);
-                    $add('created_at', $row['created_at'] ?? null);
-                    $add('updated_at', $now);
-
-                    if (empty($insertCols)) {
-                        throw new RuntimeException('No columns available for requested_idps_repository insert.');
-                    }
-                    if (isset($colSet['employee_id']) && trim((string)($row['employee_id'] ?? '')) === '') {
-                        throw new RuntimeException('Missing employee_id.');
-                    }
-
-                    $updateClauses = [];
-                    foreach ($insertCols as $c) {
-                        if ($c === 'id' || $c === 'created_at') continue;
-                        if ($c === 'idp_status') {
-                            $updateClauses[] = "idp_status = 'requested'";
-                        } else {
-                            $updateClauses[] = "{$c} = VALUES({$c})";
-                        }
-                    }
-
-                    $sql = "INSERT INTO requested_idps_repository (" . implode(',', $insertCols) . ")
-                            VALUES (" . implode(',', $insertVals) . ")";
-                    if (!empty($updateClauses)) {
-                        $sql .= " ON DUPLICATE KEY UPDATE " . implode(',', $updateClauses);
-                    }
-
-                    $stmtInsert = $pdo->prepare($sql);
-                    $stmtInsert->execute($insertParams);
+                    throw new RuntimeException('requested_idps_repository missing.');
                 }
+
+                $insertCols = [];
+                $insertVals = [];
+                $insertParams = [];
+
+                $add = static function (string $col, $val) use (&$insertCols, &$insertVals, &$insertParams, $colSet): void {
+                    if (!isset($colSet[$col])) return;
+                    $insertCols[] = $col;
+                    $insertVals[] = '?';
+                    $insertParams[] = $val;
+                };
+
+                $add('id', (int)($row['id'] ?? 0));
+                $add('employee_id', (string)($row['employee_id'] ?? ''));
+                $add('employee_name', (string)($row['employee_name'] ?? ''));
+                $add('position', (string)($row['position'] ?? ''));
+                $add('department', (string)($row['department'] ?? ''));
+                $add('competency', $row['competency'] ?? 0);
+                $add('succession_status', (string)($row['succession_status'] ?? ''));
+                $add('development_plan', (string)($row['development_plan'] ?? ''));
+                $add('target_score', $row['target_score'] ?? null);
+                $add('target_date', $row['target_date'] ?? null);
+                $add('delivery_mode', $deliveryMode);
+                $add('requested_training_type', $row['requested_training_type'] ?? null);
+                $add('requested_training_mode', $row['requested_training_mode'] ?? null);
+                $add('requested_start_datetime', $row['requested_start_datetime'] ?? null);
+                $add('requested_end_datetime', $row['requested_end_datetime'] ?? null);
+                $add('idp_status', 'requested');
+                $add('training_requested_at', $trainingRequestedAt);
+                $add('learning_requested_at', $learningRequestedAt);
+                $add('created_at', $row['created_at'] ?? null);
+                $add('updated_at', $now);
+
+                if (empty($insertCols)) {
+                    throw new RuntimeException('No columns available for requested_idps_repository insert.');
+                }
+                if (isset($colSet['employee_id']) && trim((string)($row['employee_id'] ?? '')) === '') {
+                    throw new RuntimeException('Missing employee_id.');
+                }
+
+                $updateClauses = [];
+                foreach ($insertCols as $c) {
+                    if ($c === 'id' || $c === 'created_at') continue;
+                    if ($c === 'idp_status') {
+                        $updateClauses[] = "idp_status = 'requested'";
+                    } else {
+                        $updateClauses[] = "{$c} = VALUES({$c})";
+                    }
+                }
+
+                $sql = "INSERT INTO requested_idps_repository (" . implode(',', $insertCols) . ")
+                        VALUES (" . implode(',', $insertVals) . ")";
+                if (!empty($updateClauses)) {
+                    $sql .= " ON DUPLICATE KEY UPDATE " . implode(',', $updateClauses);
+                }
+
+                $stmtInsert = $pdo->prepare($sql);
+                $stmtInsert->execute($insertParams);
 
                 $stmtUpd = $pdo->prepare(
                     "UPDATE individual_development_plans
@@ -286,7 +322,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmtUpd->execute([$trainingRequestedAt, $learningRequestedAt, $idpId]);
 
                 $pdo->commit();
-                header('Location: individual_development_plans.php?ok=requested');
+                header('Location: ' . addQueryParams($returnBase, ['ok' => 'requested']));
                 exit;
             } catch (Throwable $e) {
                 if ($pdo->inTransaction()) {
@@ -294,7 +330,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
                 error_log('IDP repo request_training error: ' . $e->getMessage());
                 $code = classifyDbError($e);
-                header('Location: individual_development_plans.php?err=' . rawurlencode($code));
+                header('Location: ' . addQueryParams($returnBase, ['err' => $code]));
                 exit;
             }
         }
