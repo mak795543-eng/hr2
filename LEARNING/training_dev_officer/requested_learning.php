@@ -1,11 +1,6 @@
 <?php
 session_start();
-require_once __DIR__ . '/../db.php';
-
-$conn = usm_db_connect('hr2_critical_gaps');
-if ($conn->connect_error) {
-    die('Connection failed: ' . $conn->connect_error);
-}
+require_once __DIR__ . '/../../COMPETENCY/criticalgaps/config.php';
 
 function h($v)
 {
@@ -46,17 +41,11 @@ try {
               AND delivery_mode IN ('Online','Hybrid')
               AND learning_requested_at IS NOT NULL
             ORDER BY COALESCE(learning_requested_at, training_requested_at, updated_at) DESC";
-    $res = $conn->query($sql);
-    if ($res) {
-        while ($row = $res->fetch_assoc()) {
-            $requests[] = $row;
-        }
-    }
+    $stmt = $pdo->query($sql);
+    $requests = $stmt ? ($stmt->fetchAll() ?: []) : [];
 } catch (Throwable $e) {
     $requests = [];
 }
-
-$conn->close();
 ?>
 <!DOCTYPE html>
 <html lang="en" data-theme="light">
