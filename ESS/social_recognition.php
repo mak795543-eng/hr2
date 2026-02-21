@@ -1,4 +1,6 @@
 <?php
+session_start();
+
 require_once __DIR__ . '/db.php';
 
 $employeeId = ess_employee_id($conn);
@@ -6,48 +8,60 @@ $employeeId = ess_employee_id($conn);
 $records = [];
 
 if ($conn && $employeeId) {
-    $stmt = mysqli_prepare($conn, 'SELECT title, issued_by, achievement_date FROM employee_achievements WHERE employee_id = ? ORDER BY achievement_date DESC');
-    if ($stmt) {
-        mysqli_stmt_bind_param($stmt, 'i', $employeeId);
-        mysqli_stmt_execute($stmt);
-        $res = mysqli_stmt_get_result($stmt);
-        if ($res) {
-            while ($r = mysqli_fetch_assoc($res)) {
-                $records[] = [
-                    'title' => (string)($r['title'] ?? ''),
-                    'category' => 'Achievement',
-                    'issued_by' => (string)($r['issued_by'] ?? ''),
-                    'date_awarded' => (string)($r['achievement_date'] ?? ''),
-                    'status' => 'Verified',
-                ];
-            }
-        }
-        mysqli_stmt_close($stmt);
+  $stmt = mysqli_prepare($conn, 'SELECT title, issued_by, achievement_date FROM employee_achievements WHERE employee_id = ? ORDER BY achievement_date DESC');
+  if ($stmt) {
+    mysqli_stmt_bind_param($stmt, 'i', $employeeId);
+    mysqli_stmt_execute($stmt);
+    $res = mysqli_stmt_get_result($stmt);
+    if ($res) {
+      while ($r = mysqli_fetch_assoc($res)) {
+        $records[] = [
+          'title' => (string)($r['title'] ?? ''),
+          'category' => 'Achievement',
+          'issued_by' => (string)($r['issued_by'] ?? ''),
+          'date_awarded' => (string)($r['achievement_date'] ?? ''),
+          'status' => 'Verified',
+        ];
+      }
     }
+    mysqli_stmt_close($stmt);
+  }
 }
 
-function categoryBadgeClass($category) {
-    $c = strtolower(trim((string)$category));
-    return match ($c) {
-        'award' => 'badge-warning',
-        'certificate' => 'badge-info',
-        'achievement' => 'badge-success',
-        'commendation' => 'badge-ghost',
-        default => 'badge-ghost',
-    };
+function categoryBadgeClass($category)
+{
+  $c = strtolower(trim((string)$category));
+  return match ($c) {
+    'award' => 'badge-warning',
+    'certificate' => 'badge-info',
+    'achievement' => 'badge-success',
+    'commendation' => 'badge-ghost',
+    default => 'badge-ghost',
+  };
 }
 
-function statusBadgeClass($status) {
-    $s = strtolower(trim((string)$status));
-    return match ($s) {
-        'verified' => 'badge-success',
-        'pending' => 'badge-warning',
-        'rejected' => 'badge-error',
-        default => 'badge-ghost',
-    };
+function statusBadgeClass($status)
+{
+  $s = strtolower(trim((string)$status));
+  return match ($s) {
+    'verified' => 'badge-success',
+    'pending' => 'badge-warning',
+    'rejected' => 'badge-error',
+    default => 'badge-ghost',
+  };
 }
-require('../../partials/header.php');
 ?>
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Social Recognition</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://cdn.jsdelivr.net/npm/daisyui@4.6.0/dist/full.css" rel="stylesheet" type="text/css" />
+  <script src="https://unpkg.com/lucide@latest"></script>
+</head>
 
 <body class="bg-gray-50 min-h-screen">
   <div class="flex h-screen">
@@ -184,20 +198,20 @@ require('../../partials/header.php');
       srApplyFilters();
     }
 
-    document.addEventListener('DOMContentLoaded', function () {
+    document.addEventListener('DOMContentLoaded', function() {
       lucide.createIcons();
 
       document.getElementById('srSearch').addEventListener('input', srApplyFilters);
       document.getElementById('srCategory').addEventListener('change', srApplyFilters);
       document.getElementById('srSort').addEventListener('change', srSortRows);
 
-      document.getElementById('srLoadMore').addEventListener('click', function () {
+      document.getElementById('srLoadMore').addEventListener('click', function() {
         this.classList.add('btn-disabled');
       });
 
       srSortRows();
     });
   </script>
-   <?php require('../partials/footer.php') ?>
 </body>
+
 </html>
