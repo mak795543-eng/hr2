@@ -1,4 +1,5 @@
 <?php
+session_start();
 
 require_once __DIR__ . '/../LEARNING/db.php';
 
@@ -272,39 +273,49 @@ if ($roleLower !== '') {
     $stmt->close();
   }
 }
-require('../partials/header.php');
+
 $conn->close();
 ?>
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
 
-<style>
-  .swal2-container {
-    position: fixed !important;
-    inset: 0 !important;
-    z-index: 2147483647 !important;
-    pointer-events: auto !important;
-  }
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>My Modules</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://cdn.jsdelivr.net/npm/daisyui@4.6.0/dist/full.css" rel="stylesheet" type="text/css" />
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <style>
+    .swal2-container {
+      position: fixed !important;
+      inset: 0 !important;
+      z-index: 2147483647 !important;
+      pointer-events: auto !important;
+    }
 
-  .swal2-popup {
-    z-index: 2147483647 !important;
-  }
+    .swal2-popup {
+      z-index: 2147483647 !important;
+    }
 
-  .swal2-actions {
-    display: flex !important;
-    flex-direction: row !important;
-    gap: 0.5rem !important;
-    justify-content: center !important;
-    visibility: visible !important;
-    opacity: 1 !important;
-  }
+    .swal2-actions {
+      display: flex !important;
+      flex-direction: row !important;
+      gap: 0.5rem !important;
+      justify-content: center !important;
+      visibility: visible !important;
+      opacity: 1 !important;
+    }
 
-  .swal2-confirm,
-  .swal2-cancel,
-  .swal2-deny {
-    display: inline-flex !important;
-    visibility: visible !important;
-    opacity: 1 !important;
-  }
-</style>
+    .swal2-confirm,
+    .swal2-cancel,
+    .swal2-deny {
+      display: inline-flex !important;
+      visibility: visible !important;
+      opacity: 1 !important;
+    }
+  </style>
 </head>
 
 <body class="bg-gray-50 min-h-screen">

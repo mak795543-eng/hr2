@@ -1,4 +1,4 @@
- <?php $base_url = getenv('APP_BASE_PATH') ?: '/index.php'; ?>
+ <?php $base_url = getenv('APP_BASE_PATH') ?: '/hr2/'; ?>
  <form id="logoutForm" method="POST" action="">
      <input type="hidden" name="logout" value="1">
  </form>

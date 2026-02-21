@@ -1,4 +1,5 @@
 <?php
+session_start();
 
 require_once __DIR__ . '/db.php';
 
@@ -285,8 +286,20 @@ if ($viewParam !== '') {
   echo 'File not found.';
   exit;
 }
-require('../partials/header.php');
 ?>
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>My Documents</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://cdn.jsdelivr.net/npm/daisyui@4.6.0/dist/full.css" rel="stylesheet" type="text/css" />
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://unpkg.com/mammoth@1.6.0/mammoth.browser.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+</head>
 
 <body class="bg-gray-50 min-h-screen">
   <div class="flex h-screen">
@@ -722,7 +735,6 @@ require('../partials/header.php');
       }
     });
   </script>
-  <?php require('../partials/footer.php') ?>
 </body>
 
 </html>
