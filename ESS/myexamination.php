@@ -1,17 +1,16 @@
 <?php
-session_start();
 
 require_once __DIR__ . '/../LEARNING/db.php';
 
 $conn = usm_db_connect('hr2_learning_db');
 if ($conn->connect_error) {
-    http_response_code(500);
-    die('Database connection failed');
+  http_response_code(500);
+  die('Database connection failed');
 }
 $conn->set_charset('utf8mb4');
 
 $conn->query(
-    "CREATE TABLE IF NOT EXISTS exam_repository_assignments (\n" .
+  "CREATE TABLE IF NOT EXISTS exam_repository_assignments (\n" .
     "  id INT PRIMARY KEY AUTO_INCREMENT,\n" .
     "  exam_id INT NOT NULL,\n" .
     "  audience ENUM('applicant', 'employee') NOT NULL,\n" .
@@ -31,104 +30,94 @@ $roleLower = strtolower($role);
 $employeeId = (string)($_SESSION['employee_id'] ?? ($_SESSION['user_id'] ?? ''));
 
 if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['exam_id'])) {
-    header('Content-Type: application/json; charset=utf-8');
+  header('Content-Type: application/json; charset=utf-8');
 
-    $examId = (int)($_GET['exam_id'] ?? 0);
-    if ($examId <= 0 || $roleLower === '') {
-        http_response_code(400);
-        echo json_encode(['success' => false, 'message' => 'Invalid request']);
-        exit;
-    }
-
-    $stmt = $conn->prepare(
-        "SELECT er.*, lm.title AS module_title\n         FROM exam_repository er\n         LEFT JOIN learning_modules lm ON er.module_id = lm.id\n         INNER JOIN exam_repository_assignments a\n           ON a.exam_id = er.id\n          AND a.audience = 'employee'\n          AND a.status = 'active'\n         WHERE er.id = ?\n           AND er.status = 'posted'\n           AND LOWER(a.role) = ?\n         LIMIT 1"
-    );
-
-    if (!$stmt) {
-        http_response_code(500);
-        echo json_encode(['success' => false, 'message' => 'Query prepare failed']);
-        exit;
-    }
-
-    $stmt->bind_param('is', $examId, $roleLower);
-    $stmt->execute();
-    $res = $stmt->get_result();
-    $exam = $res ? $res->fetch_assoc() : null;
-    $stmt->close();
-
-    if (!is_array($exam)) {
-        http_response_code(404);
-        echo json_encode(['success' => false, 'message' => 'Examination not found']);
-        exit;
-    }
-
-    $qStmt = $conn->prepare('SELECT * FROM exam_repository_questions WHERE exam_id = ? ORDER BY question_number');
-    if ($qStmt) {
-        $qStmt->bind_param('i', $examId);
-        $qStmt->execute();
-        $qRes = $qStmt->get_result();
-        $questions = [];
-        while ($qRes && ($row = $qRes->fetch_assoc())) {
-            $questions[] = $row;
-        }
-        $qStmt->close();
-        $exam['questions'] = $questions;
-    } else {
-        $exam['questions'] = [];
-    }
-
-    echo json_encode(['success' => true, 'exam' => $exam]);
+  $examId = (int)($_GET['exam_id'] ?? 0);
+  if ($examId <= 0 || $roleLower === '') {
+    http_response_code(400);
+    echo json_encode(['success' => false, 'message' => 'Invalid request']);
     exit;
+  }
+
+  $stmt = $conn->prepare(
+    "SELECT er.*, lm.title AS module_title\n         FROM exam_repository er\n         LEFT JOIN learning_modules lm ON er.module_id = lm.id\n         INNER JOIN exam_repository_assignments a\n           ON a.exam_id = er.id\n          AND a.audience = 'employee'\n          AND a.status = 'active'\n         WHERE er.id = ?\n           AND er.status = 'posted'\n           AND LOWER(a.role) = ?\n         LIMIT 1"
+  );
+
+  if (!$stmt) {
+    http_response_code(500);
+    echo json_encode(['success' => false, 'message' => 'Query prepare failed']);
+    exit;
+  }
+
+  $stmt->bind_param('is', $examId, $roleLower);
+  $stmt->execute();
+  $res = $stmt->get_result();
+  $exam = $res ? $res->fetch_assoc() : null;
+  $stmt->close();
+
+  if (!is_array($exam)) {
+    http_response_code(404);
+    echo json_encode(['success' => false, 'message' => 'Examination not found']);
+    exit;
+  }
+
+  $qStmt = $conn->prepare('SELECT * FROM exam_repository_questions WHERE exam_id = ? ORDER BY question_number');
+  if ($qStmt) {
+    $qStmt->bind_param('i', $examId);
+    $qStmt->execute();
+    $qRes = $qStmt->get_result();
+    $questions = [];
+    while ($qRes && ($row = $qRes->fetch_assoc())) {
+      $questions[] = $row;
+    }
+    $qStmt->close();
+    $exam['questions'] = $questions;
+  } else {
+    $exam['questions'] = [];
+  }
+
+  echo json_encode(['success' => true, 'exam' => $exam]);
+  exit;
 }
 
 $exams = [];
 if ($roleLower !== '') {
-    $stmt = $conn->prepare(
-        "SELECT er.id, er.title, er.description, er.department, er.roles, er.duration, er.passing_score, er.created_at,\n                COUNT(eq.id) AS question_count, lm.title AS module_title\n         FROM exam_repository er\n         INNER JOIN exam_repository_assignments a\n           ON a.exam_id = er.id\n          AND a.audience = 'employee'\n          AND a.status = 'active'\n         LEFT JOIN exam_repository_questions eq ON eq.exam_id = er.id\n         LEFT JOIN learning_modules lm ON lm.id = er.module_id\n         WHERE er.status = 'posted'\n           AND LOWER(a.role) = ?\n         GROUP BY er.id\n         ORDER BY er.created_at DESC"
-    );
-    if ($stmt) {
-        $stmt->bind_param('s', $roleLower);
-        $stmt->execute();
-        $res = $stmt->get_result();
-        while ($res && ($row = $res->fetch_assoc())) {
-            $exams[] = $row;
-        }
-        $stmt->close();
+  $stmt = $conn->prepare(
+    "SELECT er.id, er.title, er.description, er.department, er.roles, er.duration, er.passing_score, er.created_at,\n                COUNT(eq.id) AS question_count, lm.title AS module_title\n         FROM exam_repository er\n         INNER JOIN exam_repository_assignments a\n           ON a.exam_id = er.id\n          AND a.audience = 'employee'\n          AND a.status = 'active'\n         LEFT JOIN exam_repository_questions eq ON eq.exam_id = er.id\n         LEFT JOIN learning_modules lm ON lm.id = er.module_id\n         WHERE er.status = 'posted'\n           AND LOWER(a.role) = ?\n         GROUP BY er.id\n         ORDER BY er.created_at DESC"
+  );
+  if ($stmt) {
+    $stmt->bind_param('s', $roleLower);
+    $stmt->execute();
+    $res = $stmt->get_result();
+    while ($res && ($row = $res->fetch_assoc())) {
+      $exams[] = $row;
     }
+    $stmt->close();
+  }
 }
 
 $completedExamIds = [];
 if ($employeeId !== '' && $roleLower !== '' && $conn) {
-    $stmt = $conn->prepare(
-        "SELECT DISTINCT exam_id
+  $stmt = $conn->prepare(
+    "SELECT DISTINCT exam_id
          FROM exam_results
          WHERE employee_id = ?
            AND taker_type = 'employee'"
-    );
-    if ($stmt) {
-        $stmt->bind_param('s', $employeeId);
-        $stmt->execute();
-        $res = $stmt->get_result();
-        while ($res && ($row = $res->fetch_assoc())) {
-            $completedExamIds[(int)($row['exam_id'] ?? 0)] = true;
-        }
-        $stmt->close();
+  );
+  if ($stmt) {
+    $stmt->bind_param('s', $employeeId);
+    $stmt->execute();
+    $res = $stmt->get_result();
+    while ($res && ($row = $res->fetch_assoc())) {
+      $completedExamIds[(int)($row['exam_id'] ?? 0)] = true;
     }
+    $stmt->close();
+  }
 }
-
+require('../partials/header.php');
 $conn->close();
 ?>
-<!DOCTYPE html>
-<html lang="en" data-theme="light">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>My Examinations</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <link href="https://cdn.jsdelivr.net/npm/daisyui@4.6.0/dist/full.css" rel="stylesheet" type="text/css" />
-  <script src="https://unpkg.com/lucide@latest"></script>
-  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-</head>
+
 <body class="bg-gray-50 min-h-screen">
   <div class="flex h-screen">
     <?php include '../USM/sidebarr.php'; ?>
@@ -266,7 +255,7 @@ $conn->close();
           </label>
 
           <button id="accept_all_start_btn" class="btn btn-primary" disabled>
-              Start Examination
+            Start Examination
           </button>
         </div>
         <div class="text-xs text-gray-500 mt-2">You must accept the Terms and Conditions before you can proceed.</div>
@@ -378,11 +367,13 @@ $conn->close();
       metaEl.textContent = '';
       qEl.innerHTML = '<div class="flex items-center gap-2 text-gray-500"><span class="loading loading-spinner loading-sm"></span><span>Loading examination...</span></div>';
 
-      try { window.hrCloseDialogs && window.hrCloseDialogs(); } catch(e) {}
+      try {
+        window.hrCloseDialogs && window.hrCloseDialogs();
+      } catch (e) {}
       if (typeof modal.showModal === 'function') {
         modal.showModal();
       } else {
-        modal.setAttribute('open','');
+        modal.setAttribute('open', '');
       }
 
       fetch(`myexamination.php?exam_id=${examId}`)
@@ -412,24 +403,46 @@ $conn->close();
           }
 
           function getBadge(type) {
-            switch(String(type||'').toLowerCase()) {
-              case 'multiple': return { cls: 'bg-blue-100 text-blue-800', icon: 'list' , label: 'Multiple Choice' };
-              case 'truefalse': return { cls: 'bg-purple-100 text-purple-800', icon: 'toggle-left' , label: 'True/False' };
-              case 'shortanswer': return { cls: 'bg-green-100 text-green-800', icon: 'align-left' , label: 'Short Answer' };
-              case 'identification': return { cls: 'bg-orange-100 text-orange-800', icon: 'type' , label: 'Identification' };
-              default: return { cls: 'bg-gray-100 text-gray-800', icon: 'help-circle' , label: String(type||'') };
+            switch (String(type || '').toLowerCase()) {
+              case 'multiple':
+                return {
+                  cls: 'bg-blue-100 text-blue-800', icon: 'list', label: 'Multiple Choice'
+                };
+              case 'truefalse':
+                return {
+                  cls: 'bg-purple-100 text-purple-800', icon: 'toggle-left', label: 'True/False'
+                };
+              case 'shortanswer':
+                return {
+                  cls: 'bg-green-100 text-green-800', icon: 'align-left', label: 'Short Answer'
+                };
+              case 'identification':
+                return {
+                  cls: 'bg-orange-100 text-orange-800', icon: 'type', label: 'Identification'
+                };
+              default:
+                return {
+                  cls: 'bg-gray-100 text-gray-800', icon: 'help-circle', label: String(type || '')
+                };
             }
           }
 
           const html = questions.map((q, idx) => {
-            const n = Number(q.question_number || (idx+1));
+            const n = Number(q.question_number || (idx + 1));
             const text = escapeHtml(q.question_text);
             const badge = getBadge(q.question_type);
-            let answerKey = { correctAnswers: [], points: Number(q.points||1) };
-            try { if (q.answer_key) answerKey = JSON.parse(q.answer_key); } catch(_){}
+            let answerKey = {
+              correctAnswers: [],
+              points: Number(q.points || 1)
+            };
+            try {
+              if (q.answer_key) answerKey = JSON.parse(q.answer_key);
+            } catch (_) {}
             let options = [];
-            try { if (q.options) options = JSON.parse(q.options); } catch(_){}
-            const points = Number(answerKey.points||q.points||1);
+            try {
+              if (q.options) options = JSON.parse(q.options);
+            } catch (_) {}
+            const points = Number(answerKey.points || q.points || 1);
 
             let body = '';
             if ((String(q.question_type).toLowerCase() === 'multiple' || String(q.question_type).toLowerCase() === 'truefalse') && options.length) {
@@ -540,5 +553,7 @@ $conn->close();
 
     lucide.createIcons();
   </script>
+  <?php require('../partials/footer.php') ?>
 </body>
+
 </html>

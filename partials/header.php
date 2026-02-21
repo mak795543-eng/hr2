@@ -12,7 +12,7 @@ if (!function_exists('dd')) {
 }
 
 if (!isset($_SESSION['employee_id'])) {
-    header('Location: /hr2/index.php');
+    header('Location: /index.php');
     exit;
 }
 

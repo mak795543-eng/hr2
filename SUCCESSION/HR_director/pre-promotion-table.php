@@ -354,5 +354,7 @@ require('../../partials/header.php');
                 cancelBtn.addEventListener('click', closeModal);
             }
         })();
+         
     </script>
 </body>
+<?php require('../../partials/footer.php') ?>

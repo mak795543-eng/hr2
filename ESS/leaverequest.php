@@ -1,5 +1,5 @@
 <?php
-session_start();
+
 
 require_once __DIR__ . '/db.php';
 
@@ -199,23 +199,13 @@ function leaveStatusBadge($status)
     default => 'badge-ghost',
   };
 }
+require('../partials/header.php');
 ?>
-<!DOCTYPE html>
-<html lang="en" data-theme="light">
-
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Leave Request</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <link href="https://cdn.jsdelivr.net/npm/daisyui@4.6.0/dist/full.css" rel="stylesheet" type="text/css" />
-  <script src="https://unpkg.com/lucide@latest"></script>
-  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-  <style>
-    .swal2-container {
-      z-index: 5000 !important;
-    }
-  </style>
+<style>
+  .swal2-container {
+    z-index: 5000 !important;
+  }
+</style>
 </head>
 
 <body class="bg-gray-50 min-h-screen">
