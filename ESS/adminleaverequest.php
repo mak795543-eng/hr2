@@ -1,13 +1,13 @@
 <?php
-session_start();
+
 
 require_once __DIR__ . '/db.php';
 
 $rawRole = strtolower(trim((string)($_SESSION['role'] ?? 'guest')));
 $allowedRoles = ['admin', 'supervisor', 'hr_manager', 'manager'];
 if (!in_array($rawRole, $allowedRoles, true)) {
-    header('Location: dashboard.php');
-    exit;
+  header('Location: dashboard.php');
+  exit;
 }
 
 $success_message = '';
@@ -16,110 +16,110 @@ $error_message = '';
 $filterStatus = strtolower(trim((string)($_GET['status'] ?? 'all')));
 $allowedFilters = ['all', 'pending', 'approved', 'rejected', 'for compliance'];
 if (!in_array($filterStatus, $allowedFilters, true)) {
-    $filterStatus = 'all';
+  $filterStatus = 'all';
 }
 
 $q = trim((string)($_GET['q'] ?? ''));
 
 function leaveStatusBadgeAdmin($status): string
 {
-    $s = strtolower(trim((string)$status));
-    return match ($s) {
-        'approved' => 'badge-success',
-        'pending' => 'badge-warning',
-        'rejected' => 'badge-error',
-        'for compliance' => 'badge-info',
-        default => 'badge-ghost',
-    };
+  $s = strtolower(trim((string)$status));
+  return match ($s) {
+    'approved' => 'badge-success',
+    'pending' => 'badge-warning',
+    'rejected' => 'badge-error',
+    'for compliance' => 'badge-info',
+    default => 'badge-ghost',
+  };
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_leave'])) {
-    $leaveId = (int)($_POST['leave_id'] ?? 0);
-    $uiStatus = trim((string)($_POST['status'] ?? ''));
-    $remarks = trim((string)($_POST['remarks'] ?? ''));
+  $leaveId = (int)($_POST['leave_id'] ?? 0);
+  $uiStatus = trim((string)($_POST['status'] ?? ''));
+  $remarks = trim((string)($_POST['remarks'] ?? ''));
 
-    $allowedUi = ['Approved', 'Rejected', 'For Compliance', 'Pending'];
+  $allowedUi = ['Approved', 'Rejected', 'For Compliance', 'Pending'];
 
-    if ($leaveId <= 0 || !in_array($uiStatus, $allowedUi, true)) {
-        $error_message = 'Invalid leave request.';
-    } elseif (!$conn) {
-        $error_message = 'Database connection unavailable.';
-    } elseif (strtolower($uiStatus) === 'rejected' && $remarks === '') {
-        $error_message = 'Rejection remarks are required.';
-    } elseif (strtolower($uiStatus) === 'for compliance' && $remarks === '') {
-        $error_message = 'Compliance remarks are required.';
+  if ($leaveId <= 0 || !in_array($uiStatus, $allowedUi, true)) {
+    $error_message = 'Invalid leave request.';
+  } elseif (!$conn) {
+    $error_message = 'Database connection unavailable.';
+  } elseif (strtolower($uiStatus) === 'rejected' && $remarks === '') {
+    $error_message = 'Rejection remarks are required.';
+  } elseif (strtolower($uiStatus) === 'for compliance' && $remarks === '') {
+    $error_message = 'Compliance remarks are required.';
+  } else {
+    $dbStatus = $uiStatus;
+    $actorId = ess_employee_id($conn);
+    $actor = is_int($actorId) ? $actorId : 0;
+    $now = date('Y-m-d H:i:s');
+
+    $setApprover = ($dbStatus === 'Approved' || $dbStatus === 'Rejected');
+    $approvedBy = $setApprover ? $actor : null;
+    $approvedAt = $setApprover ? $now : null;
+
+    $stmt = mysqli_prepare(
+      $conn,
+      'UPDATE leave_requests SET status = ?, remarks = ?, approved_by = ?, approved_at = ? WHERE id = ?'
+    );
+    if (!$stmt) {
+      $error_message = 'Failed to update leave request.';
     } else {
-        $dbStatus = $uiStatus;
-        $actorId = ess_employee_id($conn);
-        $actor = is_int($actorId) ? $actorId : 0;
-        $now = date('Y-m-d H:i:s');
+      mysqli_stmt_bind_param($stmt, 'ssisi', $dbStatus, $remarks, $approvedBy, $approvedAt, $leaveId);
+      $ok = mysqli_stmt_execute($stmt);
+      mysqli_stmt_close($stmt);
 
-        $setApprover = ($dbStatus === 'Approved' || $dbStatus === 'Rejected');
-        $approvedBy = $setApprover ? $actor : null;
-        $approvedAt = $setApprover ? $now : null;
+      if (!$ok) {
+        $error_message = 'Failed to update leave request.';
+      } else {
+        $employeeTargetId = 0;
+        $leaveType = '';
+        $startDate = '';
+        $endDate = '';
+        $stmtMeta = mysqli_prepare($conn, 'SELECT employee_id, leave_type, start_date, end_date FROM leave_requests WHERE id = ? LIMIT 1');
+        if ($stmtMeta) {
+          mysqli_stmt_bind_param($stmtMeta, 'i', $leaveId);
+          mysqli_stmt_execute($stmtMeta);
+          $resMeta = mysqli_stmt_get_result($stmtMeta);
+          $rowMeta = $resMeta ? mysqli_fetch_assoc($resMeta) : null;
+          mysqli_stmt_close($stmtMeta);
+          if (is_array($rowMeta)) {
+            $employeeTargetId = (int)($rowMeta['employee_id'] ?? 0);
+            $leaveType = (string)($rowMeta['leave_type'] ?? '');
+            $startDate = (string)($rowMeta['start_date'] ?? '');
+            $endDate = (string)($rowMeta['end_date'] ?? '');
+          }
+        }
 
-        $stmt = mysqli_prepare(
+        if ($employeeTargetId > 0) {
+          $notifType = 'Leave Update';
+          $title = '';
+          $message = '';
+          $stLower = strtolower(trim($dbStatus));
+          if ($stLower === 'approved') {
+            $title = 'Leave Request Approved';
+            $message = 'The leave requested is approved, you may now leave.';
+          } elseif ($stLower === 'rejected') {
+            $title = 'Leave Request Rejected';
+            $message = $remarks !== '' ? ('Reason: ' . $remarks) : 'Rejected.';
+          } elseif ($stLower === 'for compliance') {
+            $title = 'Leave Request For Compliance';
+            $message = $remarks !== '' ? ('Reason: ' . $remarks) : 'For compliance.';
+          } else {
+            $title = 'Leave Request Updated';
+            $message = $remarks;
+          }
+
+          $range = trim($startDate) !== '' && trim($endDate) !== '' ? ($startDate . ' - ' . $endDate) : '';
+          $meta = trim($leaveType) !== '' ? ('Leave: ' . $leaveType . ($range !== '' ? (' (' . $range . ')') : '') . '. ' . $message) : $message;
+
+          $notifKey = sha1('leave_update|' . $leaveId . '|' . $dbStatus . '|' . $now);
+          $notifLink = 'leaverequest.php';
+          $notifDate = $now;
+
+          $stmtNotif = mysqli_prepare(
             $conn,
-            'UPDATE leave_requests SET status = ?, remarks = ?, approved_by = ?, approved_at = ? WHERE id = ?'
-        );
-        if (!$stmt) {
-            $error_message = 'Failed to update leave request.';
-        } else {
-            mysqli_stmt_bind_param($stmt, 'ssisi', $dbStatus, $remarks, $approvedBy, $approvedAt, $leaveId);
-            $ok = mysqli_stmt_execute($stmt);
-            mysqli_stmt_close($stmt);
-
-            if (!$ok) {
-                $error_message = 'Failed to update leave request.';
-            } else {
-                $employeeTargetId = 0;
-                $leaveType = '';
-                $startDate = '';
-                $endDate = '';
-                $stmtMeta = mysqli_prepare($conn, 'SELECT employee_id, leave_type, start_date, end_date FROM leave_requests WHERE id = ? LIMIT 1');
-                if ($stmtMeta) {
-                    mysqli_stmt_bind_param($stmtMeta, 'i', $leaveId);
-                    mysqli_stmt_execute($stmtMeta);
-                    $resMeta = mysqli_stmt_get_result($stmtMeta);
-                    $rowMeta = $resMeta ? mysqli_fetch_assoc($resMeta) : null;
-                    mysqli_stmt_close($stmtMeta);
-                    if (is_array($rowMeta)) {
-                        $employeeTargetId = (int)($rowMeta['employee_id'] ?? 0);
-                        $leaveType = (string)($rowMeta['leave_type'] ?? '');
-                        $startDate = (string)($rowMeta['start_date'] ?? '');
-                        $endDate = (string)($rowMeta['end_date'] ?? '');
-                    }
-                }
-
-                if ($employeeTargetId > 0) {
-                    $notifType = 'Leave Update';
-                    $title = '';
-                    $message = '';
-                    $stLower = strtolower(trim($dbStatus));
-                    if ($stLower === 'approved') {
-                        $title = 'Leave Request Approved';
-                        $message = 'The leave requested is approved, you may now leave.';
-                    } elseif ($stLower === 'rejected') {
-                        $title = 'Leave Request Rejected';
-                        $message = $remarks !== '' ? ('Reason: ' . $remarks) : 'Rejected.';
-                    } elseif ($stLower === 'for compliance') {
-                        $title = 'Leave Request For Compliance';
-                        $message = $remarks !== '' ? ('Reason: ' . $remarks) : 'For compliance.';
-                    } else {
-                        $title = 'Leave Request Updated';
-                        $message = $remarks;
-                    }
-
-                    $range = trim($startDate) !== '' && trim($endDate) !== '' ? ($startDate . ' - ' . $endDate) : '';
-                    $meta = trim($leaveType) !== '' ? ('Leave: ' . $leaveType . ($range !== '' ? (' (' . $range . ')') : '') . '. ' . $message) : $message;
-
-                    $notifKey = sha1('leave_update|' . $leaveId . '|' . $dbStatus . '|' . $now);
-                    $notifLink = 'leaverequest.php';
-                    $notifDate = $now;
-
-                    $stmtNotif = mysqli_prepare(
-                        $conn,
-                        "INSERT INTO notification_states (employee_id, notif_key, status, deleted, notif_type, notif_title, notif_meta, notif_link, notif_date)
+            "INSERT INTO notification_states (employee_id, notif_key, status, deleted, notif_type, notif_title, notif_meta, notif_link, notif_date)
                          VALUES (?, ?, 'unread', 0, ?, ?, ?, ?, ?)
                          ON DUPLICATE KEY UPDATE
                            status = 'unread',
@@ -130,110 +130,102 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_leave'])) {
                            notif_link = VALUES(notif_link),
                            notif_date = VALUES(notif_date),
                            updated_at = CURRENT_TIMESTAMP"
-                    );
-                    if ($stmtNotif) {
-                        mysqli_stmt_bind_param($stmtNotif, 'issssss', $employeeTargetId, $notifKey, $notifType, $title, $meta, $notifLink, $notifDate);
-                        @mysqli_stmt_execute($stmtNotif);
-                        mysqli_stmt_close($stmtNotif);
-                    }
-                }
-
-                $success_message = 'Leave request updated.';
-            }
+          );
+          if ($stmtNotif) {
+            mysqli_stmt_bind_param($stmtNotif, 'issssss', $employeeTargetId, $notifKey, $notifType, $title, $meta, $notifLink, $notifDate);
+            @mysqli_stmt_execute($stmtNotif);
+            mysqli_stmt_close($stmtNotif);
+          }
         }
 
-        if ($error_message === '' && $success_message !== '') {
-            $qs = [];
-            if ($filterStatus !== 'all') $qs['status'] = $filterStatus;
-            if ($q !== '') $qs['q'] = $q;
-            $redirect = basename((string)$_SERVER['PHP_SELF']);
-            $url = $redirect . (count($qs) ? ('?' . http_build_query($qs)) : '');
-            header('Location: ' . $url);
-            exit;
-        }
+        $success_message = 'Leave request updated.';
+      }
     }
+
+    if ($error_message === '' && $success_message !== '') {
+      $qs = [];
+      if ($filterStatus !== 'all') $qs['status'] = $filterStatus;
+      if ($q !== '') $qs['q'] = $q;
+      $redirect = basename((string)$_SERVER['PHP_SELF']);
+      $url = $redirect . (count($qs) ? ('?' . http_build_query($qs)) : '');
+      header('Location: ' . $url);
+      exit;
+    }
+  }
 }
 
 $summary = [
-    'total' => 0,
-    'pending' => 0,
-    'approved' => 0,
-    'rejected' => 0,
-    'for_compliance' => 0,
+  'total' => 0,
+  'pending' => 0,
+  'approved' => 0,
+  'rejected' => 0,
+  'for_compliance' => 0,
 ];
 
 $rows = [];
 
 if ($conn) {
-    try {
-        $res = mysqli_query($conn, 'SELECT status, COUNT(*) AS c FROM leave_requests GROUP BY status');
-        if ($res) {
-            while ($r = mysqli_fetch_assoc($res)) {
-                $st = strtolower(trim((string)($r['status'] ?? '')));
-                $c = (int)($r['c'] ?? 0);
-                $summary['total'] += $c;
-                if ($st === 'pending') $summary['pending'] = $c;
-                if ($st === 'approved') $summary['approved'] = $c;
-                if ($st === 'rejected') $summary['rejected'] = $c;
-                if ($st === 'for compliance') $summary['for_compliance'] = $c;
-            }
-        }
-    } catch (Throwable $e) {
+  try {
+    $res = mysqli_query($conn, 'SELECT status, COUNT(*) AS c FROM leave_requests GROUP BY status');
+    if ($res) {
+      while ($r = mysqli_fetch_assoc($res)) {
+        $st = strtolower(trim((string)($r['status'] ?? '')));
+        $c = (int)($r['c'] ?? 0);
+        $summary['total'] += $c;
+        if ($st === 'pending') $summary['pending'] = $c;
+        if ($st === 'approved') $summary['approved'] = $c;
+        if ($st === 'rejected') $summary['rejected'] = $c;
+        if ($st === 'for compliance') $summary['for_compliance'] = $c;
+      }
     }
+  } catch (Throwable $e) {
+  }
 
-    $where = [];
-    $params = [];
-    $types = '';
+  $where = [];
+  $params = [];
+  $types = '';
 
-    if ($filterStatus !== 'all') {
-        $where[] = 'lr.status = ?';
-        $types .= 's';
-        $params[] = ucwords($filterStatus);
-        if ($filterStatus === 'for compliance') {
-            $params[count($params) - 1] = 'For Compliance';
-        }
+  if ($filterStatus !== 'all') {
+    $where[] = 'lr.status = ?';
+    $types .= 's';
+    $params[] = ucwords($filterStatus);
+    if ($filterStatus === 'for compliance') {
+      $params[count($params) - 1] = 'For Compliance';
     }
+  }
 
-    if ($q !== '') {
-        $where[] = '(e.employee_no LIKE ? OR e.first_name LIKE ? OR e.last_name LIKE ? OR CONCAT(e.first_name, " ", e.last_name) LIKE ?)';
-        $types .= 'ssss';
-        $like = '%' . $q . '%';
-        $params[] = $like;
-        $params[] = $like;
-        $params[] = $like;
-        $params[] = $like;
+  if ($q !== '') {
+    $where[] = '(e.employee_no LIKE ? OR e.first_name LIKE ? OR e.last_name LIKE ? OR CONCAT(e.first_name, " ", e.last_name) LIKE ?)';
+    $types .= 'ssss';
+    $like = '%' . $q . '%';
+    $params[] = $like;
+    $params[] = $like;
+    $params[] = $like;
+    $params[] = $like;
+  }
+
+  $sql = 'SELECT lr.id, lr.employee_id, lr.leave_type, lr.start_date, lr.end_date, lr.reason, lr.status, lr.remarks, lr.created_at, lr.approved_at, e.employee_no, e.first_name, e.last_name, e.department '
+    . 'FROM leave_requests lr '
+    . 'LEFT JOIN employees e ON e.id = lr.employee_id '
+    . (count($where) ? ('WHERE ' . implode(' AND ', $where) . ' ') : '')
+    . 'ORDER BY lr.created_at DESC';
+
+  $stmt = mysqli_prepare($conn, $sql);
+  if ($stmt) {
+    if ($types !== '') {
+      mysqli_stmt_bind_param($stmt, $types, ...$params);
     }
-
-    $sql = 'SELECT lr.id, lr.employee_id, lr.leave_type, lr.start_date, lr.end_date, lr.reason, lr.status, lr.remarks, lr.created_at, lr.approved_at, e.employee_no, e.first_name, e.last_name, e.department '
-        . 'FROM leave_requests lr '
-        . 'LEFT JOIN employees e ON e.id = lr.employee_id '
-        . (count($where) ? ('WHERE ' . implode(' AND ', $where) . ' ') : '')
-        . 'ORDER BY lr.created_at DESC';
-
-    $stmt = mysqli_prepare($conn, $sql);
-    if ($stmt) {
-        if ($types !== '') {
-            mysqli_stmt_bind_param($stmt, $types, ...$params);
-        }
-        mysqli_stmt_execute($stmt);
-        $res = mysqli_stmt_get_result($stmt);
-        while ($res && ($row = mysqli_fetch_assoc($res))) {
-            $rows[] = $row;
-        }
-        mysqli_stmt_close($stmt);
+    mysqli_stmt_execute($stmt);
+    $res = mysqli_stmt_get_result($stmt);
+    while ($res && ($row = mysqli_fetch_assoc($res))) {
+      $rows[] = $row;
     }
+    mysqli_stmt_close($stmt);
+  }
 }
+require('../partials/header.php');
 ?>
-<!DOCTYPE html>
-<html lang="en" data-theme="light">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Leave Management</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <link href="https://cdn.jsdelivr.net/npm/daisyui@4.6.0/dist/full.css" rel="stylesheet" type="text/css" />
-  <script src="https://unpkg.com/lucide@latest"></script>
-</head>
+
 <body class="bg-gray-50 min-h-screen">
   <div class="flex h-screen">
     <?php include '../USM/sidebarr.php'; ?>
@@ -392,29 +384,33 @@ if ($conn) {
                   </thead>
                   <tbody>
                     <?php if (!$conn): ?>
-                      <tr><td colspan="7" class="text-center text-gray-500">Database connection unavailable.</td></tr>
+                      <tr>
+                        <td colspan="7" class="text-center text-gray-500">Database connection unavailable.</td>
+                      </tr>
                     <?php elseif (count($rows) === 0): ?>
-                      <tr><td colspan="7" class="text-center text-gray-500">No leave requests found.</td></tr>
+                      <tr>
+                        <td colspan="7" class="text-center text-gray-500">No leave requests found.</td>
+                      </tr>
                     <?php else: ?>
                       <?php foreach ($rows as $r): ?>
                         <?php
-                          $s = (string)($r['start_date'] ?? '');
-                          $e = (string)($r['end_date'] ?? '');
-                          $days = 0;
-                          if ($s !== '' && $e !== '') {
-                              $sd = strtotime($s);
-                              $ed = strtotime($e);
-                              if ($sd !== false && $ed !== false && $ed >= $sd) {
-                                  $days = (int)floor(($ed - $sd) / 86400) + 1;
-                              }
+                        $s = (string)($r['start_date'] ?? '');
+                        $e = (string)($r['end_date'] ?? '');
+                        $days = 0;
+                        if ($s !== '' && $e !== '') {
+                          $sd = strtotime($s);
+                          $ed = strtotime($e);
+                          if ($sd !== false && $ed !== false && $ed >= $sd) {
+                            $days = (int)floor(($ed - $sd) / 86400) + 1;
                           }
-                          $employeeName = trim((string)($r['first_name'] ?? '') . ' ' . (string)($r['last_name'] ?? ''));
-                          $employeeNo = (string)($r['employee_no'] ?? '');
-                          $dept = (string)($r['department'] ?? '');
-                          $status = (string)($r['status'] ?? 'Pending');
-                          $reason = (string)($r['reason'] ?? '');
-                          $remarks = (string)($r['remarks'] ?? '');
-                          $submittedAt = (string)($r['created_at'] ?? '');
+                        }
+                        $employeeName = trim((string)($r['first_name'] ?? '') . ' ' . (string)($r['last_name'] ?? ''));
+                        $employeeNo = (string)($r['employee_no'] ?? '');
+                        $dept = (string)($r['department'] ?? '');
+                        $status = (string)($r['status'] ?? 'Pending');
+                        $reason = (string)($r['reason'] ?? '');
+                        $remarks = (string)($r['remarks'] ?? '');
+                        $submittedAt = (string)($r['created_at'] ?? '');
                         ?>
                         <tr>
                           <td>
@@ -451,8 +447,7 @@ if ($conn) {
                                 data-end="<?php echo htmlspecialchars($e); ?>"
                                 data-reason="<?php echo htmlspecialchars($reason); ?>"
                                 data-status="<?php echo htmlspecialchars($status); ?>"
-                                data-remarks="<?php echo htmlspecialchars($remarks); ?>"
-                              >View</button>
+                                data-remarks="<?php echo htmlspecialchars($remarks); ?>">View</button>
 
                               <button type="button" class="btn btn-sm hr2-primary-btn" data-action="approve" data-id="<?php echo (int)($r['id'] ?? 0); ?>">Approve</button>
                               <button type="button" class="btn btn-sm hr2-outline-btn" data-action="compliance" data-id="<?php echo (int)($r['id'] ?? 0); ?>">For Compliance</button>
@@ -551,9 +546,9 @@ if ($conn) {
       </main>
     </div>
   </div>
-<?php require('../partials/footer.php') ?>
+  <?php require('../partials/footer.php') ?>
   <script>
-    (function () {
+    (function() {
       if (window.lucide) window.lucide.createIcons();
 
       const viewModal = document.getElementById('leave-view-modal');
@@ -581,7 +576,9 @@ if ($conn) {
         if (el) el.innerHTML = html || '';
       };
 
-      const closeDialog = (dlg) => { if (dlg) dlg.close(); };
+      const closeDialog = (dlg) => {
+        if (dlg) dlg.close();
+      };
       if (viewClose) viewClose.addEventListener('click', () => closeDialog(viewModal));
       if (viewOk) viewOk.addEventListener('click', () => closeDialog(viewModal));
       if (actionClose) actionClose.addEventListener('click', () => closeDialog(actionModal));
@@ -670,5 +667,7 @@ if ($conn) {
       });
     })();
   </script>
+  <?php require('../partials/footer.php') ?>
 </body>
+
 </html>

@@ -1,136 +1,134 @@
 <?php
-session_start();
-
 require __DIR__ . '/db.php';
 
 $employeeId = ess_employee_id($conn);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['complaint_api'])) {
-    header('Content-Type: application/json; charset=utf-8');
+  header('Content-Type: application/json; charset=utf-8');
 
-    if (!$conn || !is_int($employeeId) || $employeeId <= 0) {
-        echo json_encode(['success' => false, 'message' => 'Unauthorized']);
-        exit;
+  if (!$conn || !is_int($employeeId) || $employeeId <= 0) {
+    echo json_encode(['success' => false, 'message' => 'Unauthorized']);
+    exit;
+  }
+
+  $employeeNo = ess_current_employee_no();
+  $action = strtolower(trim((string)($_POST['action'] ?? '')));
+  $cid = (int)($_POST['complaint_id'] ?? 0);
+  if (!in_array($action, ['details', 'schedule'], true) || $cid <= 0) {
+    echo json_encode(['success' => false, 'message' => 'Invalid request']);
+    exit;
+  }
+
+  $stmt = mysqli_prepare(
+    $conn,
+    'SELECT id, employee_id, subject, description, category, category_other, incident_date, attachment_path, workflow_status, assigned_to_employee_no, meeting_date, meeting_time, meeting_place FROM complaints WHERE id = ? LIMIT 1'
+  );
+  if (!$stmt) {
+    echo json_encode(['success' => false, 'message' => 'Server error']);
+    exit;
+  }
+  mysqli_stmt_bind_param($stmt, 'i', $cid);
+  mysqli_stmt_execute($stmt);
+  $res = mysqli_stmt_get_result($stmt);
+  $row = $res ? mysqli_fetch_assoc($res) : null;
+  mysqli_stmt_close($stmt);
+
+  if (!is_array($row)) {
+    echo json_encode(['success' => false, 'message' => 'Not found']);
+    exit;
+  }
+
+  $assignedTo = (string)($row['assigned_to_employee_no'] ?? '');
+  $isAssignee = ($employeeNo !== '' && $assignedTo !== '' && $assignedTo === $employeeNo);
+  $isOwner = ((int)($row['employee_id'] ?? 0) === (int)$employeeId);
+
+  if (!$isAssignee && !$isOwner) {
+    echo json_encode(['success' => false, 'message' => 'Unauthorized']);
+    exit;
+  }
+
+  if ($action === 'details') {
+    $cat = (string)($row['category'] ?? '');
+    $catOther = (string)($row['category_other'] ?? '');
+    $categoryDisplay = $cat;
+    $catLower = strtolower(trim($cat));
+    if (in_array($catLower, ['other', 'others'], true) && $catOther !== '') {
+      $categoryDisplay = 'Other - ' . $catOther;
     }
 
-    $employeeNo = ess_current_employee_no();
-    $action = strtolower(trim((string)($_POST['action'] ?? '')));
-    $cid = (int)($_POST['complaint_id'] ?? 0);
-    if (!in_array($action, ['details', 'schedule'], true) || $cid <= 0) {
-        echo json_encode(['success' => false, 'message' => 'Invalid request']);
-        exit;
-    }
+    echo json_encode([
+      'success' => true,
+      'complaint' => [
+        'id' => (int)($row['id'] ?? 0),
+        'subject' => (string)($row['subject'] ?? ''),
+        'description' => (string)($row['description'] ?? ''),
+        'category' => $categoryDisplay,
+        'incident_date' => (string)($row['incident_date'] ?? ''),
+        'workflow_status' => (string)($row['workflow_status'] ?? ''),
+        'attachment_path' => (string)($row['attachment_path'] ?? ''),
+        'meeting_date' => (string)($row['meeting_date'] ?? ''),
+        'meeting_time' => (string)($row['meeting_time'] ?? ''),
+        'meeting_place' => (string)($row['meeting_place'] ?? ''),
+      ],
+      'is_assignee' => $isAssignee,
+      'is_owner' => $isOwner,
+    ]);
+    exit;
+  }
 
-    $stmt = mysqli_prepare(
-        $conn,
-        'SELECT id, employee_id, subject, description, category, category_other, incident_date, attachment_path, workflow_status, assigned_to_employee_no, meeting_date, meeting_time, meeting_place FROM complaints WHERE id = ? LIMIT 1'
-    );
-    if (!$stmt) {
-        echo json_encode(['success' => false, 'message' => 'Server error']);
-        exit;
-    }
-    mysqli_stmt_bind_param($stmt, 'i', $cid);
-    mysqli_stmt_execute($stmt);
-    $res = mysqli_stmt_get_result($stmt);
-    $row = $res ? mysqli_fetch_assoc($res) : null;
-    mysqli_stmt_close($stmt);
+  $meetingDate = trim((string)($_POST['meeting_date'] ?? ''));
+  $meetingTime = trim((string)($_POST['meeting_time'] ?? ''));
+  $meetingPlace = trim((string)($_POST['meeting_place'] ?? ''));
 
-    if (!is_array($row)) {
-        echo json_encode(['success' => false, 'message' => 'Not found']);
-        exit;
-    }
+  if (!$isAssignee) {
+    echo json_encode(['success' => false, 'message' => 'Unauthorized']);
+    exit;
+  }
 
-    $assignedTo = (string)($row['assigned_to_employee_no'] ?? '');
-    $isAssignee = ($employeeNo !== '' && $assignedTo !== '' && $assignedTo === $employeeNo);
-    $isOwner = ((int)($row['employee_id'] ?? 0) === (int)$employeeId);
+  if ($meetingDate === '' || $meetingTime === '' || $meetingPlace === '') {
+    echo json_encode(['success' => false, 'message' => 'Meeting date, time, and place are required']);
+    exit;
+  }
+  if ($meetingDate < date('Y-m-d')) {
+    echo json_encode(['success' => false, 'message' => 'Meeting date cannot be in the past']);
+    exit;
+  }
 
-    if (!$isAssignee && !$isOwner) {
-        echo json_encode(['success' => false, 'message' => 'Unauthorized']);
-        exit;
-    }
+  $actorId = ess_employee_id($conn);
+  $actor = is_int($actorId) ? $actorId : 0;
+  $now = date('Y-m-d H:i:s');
 
-    if ($action === 'details') {
-        $cat = (string)($row['category'] ?? '');
-        $catOther = (string)($row['category_other'] ?? '');
-        $categoryDisplay = $cat;
-        $catLower = strtolower(trim($cat));
-        if (in_array($catLower, ['other', 'others'], true) && $catOther !== '') {
-            $categoryDisplay = 'Other - ' . $catOther;
-        }
+  $stmtUp = mysqli_prepare(
+    $conn,
+    'UPDATE complaints SET meeting_date = ?, meeting_time = ?, meeting_place = ?, meeting_scheduled_by = ?, meeting_scheduled_at = ?, seen_by_employee = 0 WHERE id = ?'
+  );
+  if (!$stmtUp) {
+    echo json_encode(['success' => false, 'message' => 'Server error']);
+    exit;
+  }
+  mysqli_stmt_bind_param($stmtUp, 'sssisi', $meetingDate, $meetingTime, $meetingPlace, $actor, $now, $cid);
+  $ok = mysqli_stmt_execute($stmtUp);
+  mysqli_stmt_close($stmtUp);
 
-        echo json_encode([
-            'success' => true,
-            'complaint' => [
-                'id' => (int)($row['id'] ?? 0),
-                'subject' => (string)($row['subject'] ?? ''),
-                'description' => (string)($row['description'] ?? ''),
-                'category' => $categoryDisplay,
-                'incident_date' => (string)($row['incident_date'] ?? ''),
-                'workflow_status' => (string)($row['workflow_status'] ?? ''),
-                'attachment_path' => (string)($row['attachment_path'] ?? ''),
-                'meeting_date' => (string)($row['meeting_date'] ?? ''),
-                'meeting_time' => (string)($row['meeting_time'] ?? ''),
-                'meeting_place' => (string)($row['meeting_place'] ?? ''),
-            ],
-            'is_assignee' => $isAssignee,
-            'is_owner' => $isOwner,
-        ]);
-        exit;
-    }
+  if (!$ok) {
+    echo json_encode(['success' => false, 'message' => 'Failed to schedule meeting']);
+    exit;
+  }
 
-    $meetingDate = trim((string)($_POST['meeting_date'] ?? ''));
-    $meetingTime = trim((string)($_POST['meeting_time'] ?? ''));
-    $meetingPlace = trim((string)($_POST['meeting_place'] ?? ''));
+  $targetEmployeeId = (int)($row['employee_id'] ?? 0);
+  $subject = (string)($row['subject'] ?? '');
+  if ($targetEmployeeId > 0) {
+    $notifKey = sha1('complaint_meeting|' . $cid . '|' . $meetingDate . '|' . $meetingTime . '|' . $now);
+    $notifType = 'Complaint';
+    $notifTitle = 'Meeting Scheduled';
+    $shortSubj = $subject !== '' ? (' - ' . $subject) : '';
+    $notifMeta = 'Meeting scheduled. Complaint ID: ' . $cid . '. Date/Time: ' . $meetingDate . ' ' . $meetingTime . '. Place: ' . $meetingPlace . $shortSubj . '.';
+    $notifLink = 'dashboard.php';
+    $notifDate = $now;
 
-    if (!$isAssignee) {
-        echo json_encode(['success' => false, 'message' => 'Unauthorized']);
-        exit;
-    }
-
-    if ($meetingDate === '' || $meetingTime === '' || $meetingPlace === '') {
-        echo json_encode(['success' => false, 'message' => 'Meeting date, time, and place are required']);
-        exit;
-    }
-    if ($meetingDate < date('Y-m-d')) {
-        echo json_encode(['success' => false, 'message' => 'Meeting date cannot be in the past']);
-        exit;
-    }
-
-    $actorId = ess_employee_id($conn);
-    $actor = is_int($actorId) ? $actorId : 0;
-    $now = date('Y-m-d H:i:s');
-
-    $stmtUp = mysqli_prepare(
-        $conn,
-        'UPDATE complaints SET meeting_date = ?, meeting_time = ?, meeting_place = ?, meeting_scheduled_by = ?, meeting_scheduled_at = ?, seen_by_employee = 0 WHERE id = ?'
-    );
-    if (!$stmtUp) {
-        echo json_encode(['success' => false, 'message' => 'Server error']);
-        exit;
-    }
-    mysqli_stmt_bind_param($stmtUp, 'sssisi', $meetingDate, $meetingTime, $meetingPlace, $actor, $now, $cid);
-    $ok = mysqli_stmt_execute($stmtUp);
-    mysqli_stmt_close($stmtUp);
-
-    if (!$ok) {
-        echo json_encode(['success' => false, 'message' => 'Failed to schedule meeting']);
-        exit;
-    }
-
-    $targetEmployeeId = (int)($row['employee_id'] ?? 0);
-    $subject = (string)($row['subject'] ?? '');
-    if ($targetEmployeeId > 0) {
-        $notifKey = sha1('complaint_meeting|' . $cid . '|' . $meetingDate . '|' . $meetingTime . '|' . $now);
-        $notifType = 'Complaint';
-        $notifTitle = 'Meeting Scheduled';
-        $shortSubj = $subject !== '' ? (' - ' . $subject) : '';
-        $notifMeta = 'Meeting scheduled. Complaint ID: ' . $cid . '. Date/Time: ' . $meetingDate . ' ' . $meetingTime . '. Place: ' . $meetingPlace . $shortSubj . '.';
-        $notifLink = 'dashboard.php';
-        $notifDate = $now;
-
-        $stmtNotif = mysqli_prepare(
-            $conn,
-            "INSERT INTO notification_states (employee_id, notif_key, status, deleted, notif_type, notif_title, notif_meta, notif_link, notif_date)
+    $stmtNotif = mysqli_prepare(
+      $conn,
+      "INSERT INTO notification_states (employee_id, notif_key, status, deleted, notif_type, notif_title, notif_meta, notif_link, notif_date)
              VALUES (?, ?, 'unread', 0, ?, ?, ?, ?, ?)
              ON DUPLICATE KEY UPDATE
                status = 'unread',
@@ -141,16 +139,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['complaint_api'])) {
                notif_link = VALUES(notif_link),
                notif_date = VALUES(notif_date),
                updated_at = CURRENT_TIMESTAMP"
-        );
-        if ($stmtNotif) {
-            mysqli_stmt_bind_param($stmtNotif, 'issssss', $targetEmployeeId, $notifKey, $notifType, $notifTitle, $notifMeta, $notifLink, $notifDate);
-            @mysqli_stmt_execute($stmtNotif);
-            mysqli_stmt_close($stmtNotif);
-        }
+    );
+    if ($stmtNotif) {
+      mysqli_stmt_bind_param($stmtNotif, 'issssss', $targetEmployeeId, $notifKey, $notifType, $notifTitle, $notifMeta, $notifLink, $notifDate);
+      @mysqli_stmt_execute($stmtNotif);
+      mysqli_stmt_close($stmtNotif);
     }
+  }
 
-    echo json_encode(['success' => true]);
-    exit;
+  echo json_encode(['success' => true]);
+  exit;
 }
 
 $role = trim((string)($_SESSION['role'] ?? ''));
@@ -163,84 +161,84 @@ $since = date('Y-m-d H:i:s', $sinceTs);
 
 $learningConn = null;
 if ($roleLower !== '') {
-    require_once __DIR__ . '/../LEARNING/db.php';
-    $learningConn = usm_db_connect('hr2_learning_db');
-    if ($learningConn && !$learningConn->connect_error) {
-        $learningConn->set_charset('utf8mb4');
-    } else {
-        $learningConn = null;
-    }
+  require_once __DIR__ . '/../LEARNING/db.php';
+  $learningConn = usm_db_connect('hr2_learning_db');
+  if ($learningConn && !$learningConn->connect_error) {
+    $learningConn->set_charset('utf8mb4');
+  } else {
+    $learningConn = null;
+  }
 }
 
 $summary = [
-    'documents' => ['count' => 0, 'label' => 'Documents', 'link' => 'mydocuments.php'],
-    'leave' => ['count' => 0, 'label' => 'Leave Requests', 'link' => 'leaverequest.php'],
-    'payments' => ['count' => 0, 'label' => 'Payment History', 'link' => 'paymenthistory.php'],
-    'exams_completed' => ['count' => 0, 'label' => 'Completed Examinations', 'link' => 'myexamination.php'],
+  'documents' => ['count' => 0, 'label' => 'Documents', 'link' => 'mydocuments.php'],
+  'leave' => ['count' => 0, 'label' => 'Leave Requests', 'link' => 'leaverequest.php'],
+  'payments' => ['count' => 0, 'label' => 'Payment History', 'link' => 'paymenthistory.php'],
+  'exams_completed' => ['count' => 0, 'label' => 'Completed Examinations', 'link' => 'myexamination.php'],
 ];
 
 $recentActivities = [];
 
 if ($learningConn) {
-    $empNo = ess_current_employee_no();
-    if ($empNo !== '') {
-        $stmt = $learningConn->prepare("SELECT COUNT(DISTINCT exam_id) AS c FROM exam_results WHERE employee_id = ? AND taker_type = 'employee'");
-        if ($stmt) {
-            $stmt->bind_param('s', $empNo);
-            $stmt->execute();
-            $res = $stmt->get_result();
-            $row = $res ? $res->fetch_assoc() : null;
-            $summary['exams_completed']['count'] = (int)($row['c'] ?? 0);
-            $stmt->close();
-        }
+  $empNo = ess_current_employee_no();
+  if ($empNo !== '') {
+    $stmt = $learningConn->prepare("SELECT COUNT(DISTINCT exam_id) AS c FROM exam_results WHERE employee_id = ? AND taker_type = 'employee'");
+    if ($stmt) {
+      $stmt->bind_param('s', $empNo);
+      $stmt->execute();
+      $res = $stmt->get_result();
+      $row = $res ? $res->fetch_assoc() : null;
+      $summary['exams_completed']['count'] = (int)($row['c'] ?? 0);
+      $stmt->close();
     }
+  }
 }
 
 if ($conn && $employeeId) {
-    $stmt = mysqli_prepare($conn, 'SELECT COUNT(*) AS c FROM employee_documents WHERE employee_id = ?');
-    if ($stmt) {
-        mysqli_stmt_bind_param($stmt, 'i', $employeeId);
-        mysqli_stmt_execute($stmt);
-        $res = mysqli_stmt_get_result($stmt);
-        $row = $res ? mysqli_fetch_assoc($res) : null;
-        $summary['documents']['count'] = (int)($row['c'] ?? 0);
-        mysqli_stmt_close($stmt);
-    }
+  $stmt = mysqli_prepare($conn, 'SELECT COUNT(*) AS c FROM employee_documents WHERE employee_id = ?');
+  if ($stmt) {
+    mysqli_stmt_bind_param($stmt, 'i', $employeeId);
+    mysqli_stmt_execute($stmt);
+    $res = mysqli_stmt_get_result($stmt);
+    $row = $res ? mysqli_fetch_assoc($res) : null;
+    $summary['documents']['count'] = (int)($row['c'] ?? 0);
+    mysqli_stmt_close($stmt);
+  }
 
-    $persistedByKey = [];
-    $stmt = mysqli_prepare(
-        $conn,
-        "SELECT notif_key, status, deleted, notif_type, notif_title, notif_meta, notif_link, notif_date
+  $persistedByKey = [];
+  $stmt = mysqli_prepare(
+    $conn,
+    "SELECT notif_key, status, deleted, notif_type, notif_title, notif_meta, notif_link, notif_date
          FROM notification_states
          WHERE employee_id = ?
            AND deleted = 0
            AND (status = 'unread' OR notif_date >= ?)
          ORDER BY COALESCE(notif_date, updated_at) DESC
          LIMIT 50"
-    );
-    if ($stmt) {
-        mysqli_stmt_bind_param($stmt, 'is', $employeeId, $since);
-        mysqli_stmt_execute($stmt);
-        $res = mysqli_stmt_get_result($stmt);
-        while ($res && ($row = mysqli_fetch_assoc($res))) {
-            $k = (string)($row['notif_key'] ?? '');
-            if ($k === '') continue;
-            $persistedByKey[$k] = [
-                'type' => (string)($row['notif_type'] ?? ''),
-                'title' => (string)($row['notif_title'] ?? ''),
-                'meta' => (string)($row['notif_meta'] ?? ''),
-                'date' => (string)($row['notif_date'] ?? ''),
-                'link' => (string)($row['notif_link'] ?? ''),
-                'key' => $k,
-                'status' => (string)($row['status'] ?? 'unread'),
-            ];
-        }
-        mysqli_stmt_close($stmt);
+  );
+  if ($stmt) {
+    mysqli_stmt_bind_param($stmt, 'is', $employeeId, $since);
+    mysqli_stmt_execute($stmt);
+    $res = mysqli_stmt_get_result($stmt);
+    while ($res && ($row = mysqli_fetch_assoc($res))) {
+      $k = (string)($row['notif_key'] ?? '');
+      if ($k === '') continue;
+      $persistedByKey[$k] = [
+        'type' => (string)($row['notif_type'] ?? ''),
+        'title' => (string)($row['notif_title'] ?? ''),
+        'meta' => (string)($row['notif_meta'] ?? ''),
+        'date' => (string)($row['notif_date'] ?? ''),
+        'link' => (string)($row['notif_link'] ?? ''),
+        'key' => $k,
+        'status' => (string)($row['status'] ?? 'unread'),
+      ];
     }
+    mysqli_stmt_close($stmt);
+  }
 
-if ($learningConn && $roleLower !== '') {
+  if ($learningConn && $roleLower !== '') {
     $stmt = $learningConn->prepare(
-        "SELECT id, title, topic, created_at
+      "SELECT id, title, topic, created_at
          FROM learning_modules
          WHERE status = 'posted'
            AND created_at >= ?
@@ -249,27 +247,27 @@ if ($learningConn && $roleLower !== '') {
          LIMIT 3"
     );
     if ($stmt) {
-        $stmt->bind_param('sss', $since, $roleLower, $roleLower);
-        $stmt->execute();
-        $res = $stmt->get_result();
-        while ($res && ($row = $res->fetch_assoc())) {
-            $id = (int)($row['id'] ?? 0);
-            $dt = (string)($row['created_at'] ?? '');
-            $notifications[] = [
-                'type' => 'Learning Module',
-                'title' => (string)($row['title'] ?? 'Module'),
-                'meta' => (string)($row['topic'] ?? ''),
-                'date' => $dt,
-                'link' => 'mymodule.php?view=' . $id,
-                'key' => sha1('learning_module|' . $id . '|' . $dt),
-                'status' => 'unread',
-            ];
-        }
-        $stmt->close();
+      $stmt->bind_param('sss', $since, $roleLower, $roleLower);
+      $stmt->execute();
+      $res = $stmt->get_result();
+      while ($res && ($row = $res->fetch_assoc())) {
+        $id = (int)($row['id'] ?? 0);
+        $dt = (string)($row['created_at'] ?? '');
+        $notifications[] = [
+          'type' => 'Learning Module',
+          'title' => (string)($row['title'] ?? 'Module'),
+          'meta' => (string)($row['topic'] ?? ''),
+          'date' => $dt,
+          'link' => 'mymodule.php?view=' . $id,
+          'key' => sha1('learning_module|' . $id . '|' . $dt),
+          'status' => 'unread',
+        ];
+      }
+      $stmt->close();
     }
 
     $stmt = $learningConn->prepare(
-        "SELECT er.id, er.title, er.created_at
+      "SELECT er.id, er.title, er.created_at
          FROM exam_repository er
          INNER JOIN exam_repository_assignments a
            ON a.exam_id = er.id
@@ -282,36 +280,36 @@ if ($learningConn && $roleLower !== '') {
          LIMIT 3"
     );
     if ($stmt) {
-        $stmt->bind_param('ss', $since, $roleLower);
-        $stmt->execute();
-        $res = $stmt->get_result();
-        while ($res && ($row = $res->fetch_assoc())) {
-            $id = (int)($row['id'] ?? 0);
-            $dt = (string)($row['created_at'] ?? '');
-            $notifications[] = [
-                'type' => 'Examination',
-                'title' => (string)($row['title'] ?? 'Examination'),
-                'meta' => 'Assigned for your role',
-                'date' => $dt,
-                'link' => 'myexamination.php?view=' . $id,
-                'key' => sha1('examination|' . $id . '|' . $dt),
-                'status' => 'unread',
-            ];
-        }
-        $stmt->close();
+      $stmt->bind_param('ss', $since, $roleLower);
+      $stmt->execute();
+      $res = $stmt->get_result();
+      while ($res && ($row = $res->fetch_assoc())) {
+        $id = (int)($row['id'] ?? 0);
+        $dt = (string)($row['created_at'] ?? '');
+        $notifications[] = [
+          'type' => 'Examination',
+          'title' => (string)($row['title'] ?? 'Examination'),
+          'meta' => 'Assigned for your role',
+          'date' => $dt,
+          'link' => 'myexamination.php?view=' . $id,
+          'key' => sha1('examination|' . $id . '|' . $dt),
+          'status' => 'unread',
+        ];
+      }
+      $stmt->close();
     }
 
     usort($notifications, static function ($a, $b) {
-        $ad = strtotime((string)($a['date'] ?? '')) ?: 0;
-        $bd = strtotime((string)($b['date'] ?? '')) ?: 0;
-        return $bd <=> $ad;
+      $ad = strtotime((string)($a['date'] ?? '')) ?: 0;
+      $bd = strtotime((string)($b['date'] ?? '')) ?: 0;
+      return $bd <=> $ad;
     });
     $notifications = array_slice($notifications, 0, 6);
 
     if ($conn && $employeeId && count($notifications) > 0) {
-        $upsert = mysqli_prepare(
-            $conn,
-            "INSERT INTO notification_states (employee_id, notif_key, status, deleted, notif_type, notif_title, notif_meta, notif_link, notif_date)
+      $upsert = mysqli_prepare(
+        $conn,
+        "INSERT INTO notification_states (employee_id, notif_key, status, deleted, notif_type, notif_title, notif_meta, notif_link, notif_date)
              VALUES (?, ?, 'unread', 0, ?, ?, ?, ?, ?)
              ON DUPLICATE KEY UPDATE
                notif_type = COALESCE(notif_type, VALUES(notif_type)),
@@ -319,197 +317,193 @@ if ($learningConn && $roleLower !== '') {
                notif_meta = COALESCE(notif_meta, VALUES(notif_meta)),
                notif_link = COALESCE(notif_link, VALUES(notif_link)),
                notif_date = COALESCE(notif_date, VALUES(notif_date))"
-        );
-        foreach ($notifications as $n) {
-            if (!$upsert) break;
-            $k = (string)($n['key'] ?? '');
-            if ($k === '') continue;
-            $type = (string)($n['type'] ?? '');
-            $title = (string)($n['title'] ?? '');
-            $meta = (string)($n['meta'] ?? '');
-            $link = (string)($n['link'] ?? '');
-            $dt = (string)($n['date'] ?? '');
-            if ($dt === '') {
-                $dt = date('Y-m-d H:i:s');
-            }
-            mysqli_stmt_bind_param($upsert, 'issssss', $employeeId, $k, $type, $title, $meta, $link, $dt);
-            @mysqli_stmt_execute($upsert);
+      );
+      foreach ($notifications as $n) {
+        if (!$upsert) break;
+        $k = (string)($n['key'] ?? '');
+        if ($k === '') continue;
+        $type = (string)($n['type'] ?? '');
+        $title = (string)($n['title'] ?? '');
+        $meta = (string)($n['meta'] ?? '');
+        $link = (string)($n['link'] ?? '');
+        $dt = (string)($n['date'] ?? '');
+        if ($dt === '') {
+          $dt = date('Y-m-d H:i:s');
         }
-        if ($upsert) {
-            mysqli_stmt_close($upsert);
-        }
+        mysqli_stmt_bind_param($upsert, 'issssss', $employeeId, $k, $type, $title, $meta, $link, $dt);
+        @mysqli_stmt_execute($upsert);
+      }
+      if ($upsert) {
+        mysqli_stmt_close($upsert);
+      }
     }
-}
+  }
 
-if ($learningConn) {
+  if ($learningConn) {
     $learningConn->close();
-}
+  }
 
-if ($conn && $employeeId && !empty($persistedByKey)) {
+  if ($conn && $employeeId && !empty($persistedByKey)) {
     foreach ($persistedByKey as $k => $p) {
-        if (!isset($p['key']) || (string)$p['key'] === '') continue;
-        $notifications[] = $p;
+      if (!isset($p['key']) || (string)$p['key'] === '') continue;
+      $notifications[] = $p;
     }
-}
+  }
 
-if (!empty($notifications)) {
+  if (!empty($notifications)) {
     $uniq = [];
     $merged = [];
     foreach ($notifications as $n) {
-        $k = (string)($n['key'] ?? '');
-        if ($k === '') continue;
-        if (isset($uniq[$k])) continue;
-        $uniq[$k] = true;
-        $merged[] = $n;
+      $k = (string)($n['key'] ?? '');
+      if ($k === '') continue;
+      if (isset($uniq[$k])) continue;
+      $uniq[$k] = true;
+      $merged[] = $n;
     }
     $notifications = $merged;
 
     usort($notifications, static function ($a, $b) {
-        $ad = strtotime((string)($a['date'] ?? '')) ?: 0;
-        $bd = strtotime((string)($b['date'] ?? '')) ?: 0;
-        return $bd <=> $ad;
+      $ad = strtotime((string)($a['date'] ?? '')) ?: 0;
+      $bd = strtotime((string)($b['date'] ?? '')) ?: 0;
+      return $bd <=> $ad;
     });
-}
+  }
 
-    $stmt = mysqli_prepare($conn, 'SELECT COUNT(*) AS c FROM leave_requests WHERE employee_id = ?');
-    if ($stmt) {
-        mysqli_stmt_bind_param($stmt, 'i', $employeeId);
-        mysqli_stmt_execute($stmt);
-        $res = mysqli_stmt_get_result($stmt);
-        $row = $res ? mysqli_fetch_assoc($res) : null;
-        $summary['leave']['count'] = (int)($row['c'] ?? 0);
-        mysqli_stmt_close($stmt);
+  $stmt = mysqli_prepare($conn, 'SELECT COUNT(*) AS c FROM leave_requests WHERE employee_id = ?');
+  if ($stmt) {
+    mysqli_stmt_bind_param($stmt, 'i', $employeeId);
+    mysqli_stmt_execute($stmt);
+    $res = mysqli_stmt_get_result($stmt);
+    $row = $res ? mysqli_fetch_assoc($res) : null;
+    $summary['leave']['count'] = (int)($row['c'] ?? 0);
+    mysqli_stmt_close($stmt);
+  }
+
+  $stmt = mysqli_prepare($conn, 'SELECT COUNT(*) AS c FROM payment_history WHERE employee_id = ?');
+  if ($stmt) {
+    mysqli_stmt_bind_param($stmt, 'i', $employeeId);
+    mysqli_stmt_execute($stmt);
+    $res = mysqli_stmt_get_result($stmt);
+    $row = $res ? mysqli_fetch_assoc($res) : null;
+    $summary['payments']['count'] = (int)($row['c'] ?? 0);
+    mysqli_stmt_close($stmt);
+  }
+
+  $stmt = mysqli_prepare($conn, 'SELECT document_title, status, submitted_at FROM submitted_documents WHERE employee_id = ? ORDER BY submitted_at DESC LIMIT 1');
+  if ($stmt) {
+    mysqli_stmt_bind_param($stmt, 'i', $employeeId);
+    mysqli_stmt_execute($stmt);
+    $res = mysqli_stmt_get_result($stmt);
+    $row = $res ? mysqli_fetch_assoc($res) : null;
+    if (is_array($row)) {
+      $recentActivities[] = [
+        'type' => 'Document',
+        'title' => (string)($row['document_title'] ?? 'Document Submission'),
+        'status' => (string)($row['status'] ?? 'Pending'),
+        'date' => date('Y-m-d', strtotime((string)($row['submitted_at'] ?? 'now'))),
+        'link' => 'submitdocument.php',
+      ];
     }
+    mysqli_stmt_close($stmt);
+  }
 
-    $stmt = mysqli_prepare($conn, 'SELECT COUNT(*) AS c FROM payment_history WHERE employee_id = ?');
-    if ($stmt) {
-        mysqli_stmt_bind_param($stmt, 'i', $employeeId);
-        mysqli_stmt_execute($stmt);
-        $res = mysqli_stmt_get_result($stmt);
-        $row = $res ? mysqli_fetch_assoc($res) : null;
-        $summary['payments']['count'] = (int)($row['c'] ?? 0);
-        mysqli_stmt_close($stmt);
+  $stmt = mysqli_prepare($conn, 'SELECT leave_type, start_date, end_date, status, created_at FROM leave_requests WHERE employee_id = ? ORDER BY created_at DESC LIMIT 1');
+  if ($stmt) {
+    mysqli_stmt_bind_param($stmt, 'i', $employeeId);
+    mysqli_stmt_execute($stmt);
+    $res = mysqli_stmt_get_result($stmt);
+    $row = $res ? mysqli_fetch_assoc($res) : null;
+    if (is_array($row)) {
+      $title = (string)($row['leave_type'] ?? 'Leave') . ' (' . (string)($row['start_date'] ?? '') . ' - ' . (string)($row['end_date'] ?? '') . ')';
+      $recentActivities[] = [
+        'type' => 'Leave',
+        'title' => $title,
+        'status' => (string)($row['status'] ?? 'Pending'),
+        'date' => date('Y-m-d', strtotime((string)($row['created_at'] ?? 'now'))),
+        'link' => 'leaverequest.php',
+      ];
     }
+    mysqli_stmt_close($stmt);
+  }
 
-    $stmt = mysqli_prepare($conn, 'SELECT document_title, status, submitted_at FROM submitted_documents WHERE employee_id = ? ORDER BY submitted_at DESC LIMIT 1');
-    if ($stmt) {
-        mysqli_stmt_bind_param($stmt, 'i', $employeeId);
-        mysqli_stmt_execute($stmt);
-        $res = mysqli_stmt_get_result($stmt);
-        $row = $res ? mysqli_fetch_assoc($res) : null;
-        if (is_array($row)) {
-            $recentActivities[] = [
-                'type' => 'Document',
-                'title' => (string)($row['document_title'] ?? 'Document Submission'),
-                'status' => (string)($row['status'] ?? 'Pending'),
-                'date' => date('Y-m-d', strtotime((string)($row['submitted_at'] ?? 'now'))),
-                'link' => 'submitdocument.php',
-            ];
-        }
-        mysqli_stmt_close($stmt);
+  $stmt = mysqli_prepare($conn, 'SELECT pay_period_start, pay_period_end, payment_date, status, net_pay FROM payment_history WHERE employee_id = ? ORDER BY payment_date DESC LIMIT 1');
+  if ($stmt) {
+    mysqli_stmt_bind_param($stmt, 'i', $employeeId);
+    mysqli_stmt_execute($stmt);
+    $res = mysqli_stmt_get_result($stmt);
+    $row = $res ? mysqli_fetch_assoc($res) : null;
+    if (is_array($row)) {
+      $title = 'Pay Period ' . (string)($row['pay_period_start'] ?? '') . ' - ' . (string)($row['pay_period_end'] ?? '');
+      $recentActivities[] = [
+        'type' => 'Payment',
+        'title' => $title,
+        'status' => (string)($row['status'] ?? 'Paid'),
+        'date' => date('Y-m-d', strtotime((string)($row['payment_date'] ?? 'now'))),
+        'link' => 'paymenthistory.php',
+      ];
     }
-
-    $stmt = mysqli_prepare($conn, 'SELECT leave_type, start_date, end_date, status, created_at FROM leave_requests WHERE employee_id = ? ORDER BY created_at DESC LIMIT 1');
-    if ($stmt) {
-        mysqli_stmt_bind_param($stmt, 'i', $employeeId);
-        mysqli_stmt_execute($stmt);
-        $res = mysqli_stmt_get_result($stmt);
-        $row = $res ? mysqli_fetch_assoc($res) : null;
-        if (is_array($row)) {
-            $title = (string)($row['leave_type'] ?? 'Leave') . ' (' . (string)($row['start_date'] ?? '') . ' - ' . (string)($row['end_date'] ?? '') . ')';
-            $recentActivities[] = [
-                'type' => 'Leave',
-                'title' => $title,
-                'status' => (string)($row['status'] ?? 'Pending'),
-                'date' => date('Y-m-d', strtotime((string)($row['created_at'] ?? 'now'))),
-                'link' => 'leaverequest.php',
-            ];
-        }
-        mysqli_stmt_close($stmt);
-    }
-
-    $stmt = mysqli_prepare($conn, 'SELECT pay_period_start, pay_period_end, payment_date, status, net_pay FROM payment_history WHERE employee_id = ? ORDER BY payment_date DESC LIMIT 1');
-    if ($stmt) {
-        mysqli_stmt_bind_param($stmt, 'i', $employeeId);
-        mysqli_stmt_execute($stmt);
-        $res = mysqli_stmt_get_result($stmt);
-        $row = $res ? mysqli_fetch_assoc($res) : null;
-        if (is_array($row)) {
-            $title = 'Pay Period ' . (string)($row['pay_period_start'] ?? '') . ' - ' . (string)($row['pay_period_end'] ?? '');
-            $recentActivities[] = [
-                'type' => 'Payment',
-                'title' => $title,
-                'status' => (string)($row['status'] ?? 'Paid'),
-                'date' => date('Y-m-d', strtotime((string)($row['payment_date'] ?? 'now'))),
-                'link' => 'paymenthistory.php',
-            ];
-        }
-        mysqli_stmt_close($stmt);
-    }
+    mysqli_stmt_close($stmt);
+  }
 }
 
-function badgeClassForType($type) {
-    $t = strtolower(trim((string)$type));
-    return match ($t) {
-        'document' => 'badge-info',
-        'leave' => 'badge-warning',
-        'payment' => 'badge-success',
-        'claim' => 'badge-ghost',
-        default => 'badge-ghost',
-    };
+function badgeClassForType($type)
+{
+  $t = strtolower(trim((string)$type));
+  return match ($t) {
+    'document' => 'badge-info',
+    'leave' => 'badge-warning',
+    'payment' => 'badge-success',
+    'claim' => 'badge-ghost',
+    default => 'badge-ghost',
+  };
 }
 
-function badgeClassForStatus($status) {
-    $s = strtolower(trim((string)$status));
-    return match ($s) {
-        'uploaded' => 'badge-info',
-        'for approval' => 'badge-warning',
-        'approved' => 'badge-success',
-        'paid' => 'badge-success',
-        'pending' => 'badge-warning',
-        'rejected' => 'badge-error',
-        default => 'badge-ghost',
-    };
+function badgeClassForStatus($status)
+{
+  $s = strtolower(trim((string)$status));
+  return match ($s) {
+    'uploaded' => 'badge-info',
+    'for approval' => 'badge-warning',
+    'approved' => 'badge-success',
+    'paid' => 'badge-success',
+    'pending' => 'badge-warning',
+    'rejected' => 'badge-error',
+    default => 'badge-ghost',
+  };
 }
 
-function badgeClassForNotifType($type) {
-    $t = strtolower(trim((string)$type));
-    return match ($t) {
-        'learning module' => 'bg-sky-50 text-sky-700 border border-sky-200',
-        'examination' => 'bg-amber-50 text-amber-700 border border-amber-200',
-        'training schedule' => 'bg-emerald-50 text-emerald-700 border border-emerald-200',
-        'promotion' => 'bg-violet-50 text-violet-700 border border-violet-200',
-        'approval update' => 'bg-rose-50 text-rose-700 border border-rose-200',
-        'leave update' => 'bg-blue-50 text-blue-700 border border-blue-200',
-        'complaint' => 'bg-orange-50 text-orange-700 border border-orange-200',
-        default => 'bg-gray-50 text-gray-700 border border-gray-200',
-    };
+function badgeClassForNotifType($type)
+{
+  $t = strtolower(trim((string)$type));
+  return match ($t) {
+    'learning module' => 'bg-sky-50 text-sky-700 border border-sky-200',
+    'examination' => 'bg-amber-50 text-amber-700 border border-amber-200',
+    'training schedule' => 'bg-emerald-50 text-emerald-700 border border-emerald-200',
+    'promotion' => 'bg-violet-50 text-violet-700 border border-violet-200',
+    'approval update' => 'bg-rose-50 text-rose-700 border border-rose-200',
+    'leave update' => 'bg-blue-50 text-blue-700 border border-blue-200',
+    'complaint' => 'bg-orange-50 text-orange-700 border border-orange-200',
+    default => 'bg-gray-50 text-gray-700 border border-gray-200',
+  };
 }
 
-function viewLabelForNotifType($type) {
-    $t = strtolower(trim((string)$type));
-    return match ($t) {
-        'learning module' => 'View Module',
-        'examination' => 'View Exam',
-        'training schedule' => 'View Training',
-        'promotion' => 'View Promotion',
-        'approval update' => 'View Profile',
-        'leave update' => 'View',
-        'complaint' => 'View',
-        default => 'View',
-    };
+function viewLabelForNotifType($type)
+{
+  $t = strtolower(trim((string)$type));
+  return match ($t) {
+    'learning module' => 'View Module',
+    'examination' => 'View Exam',
+    'training schedule' => 'View Training',
+    'promotion' => 'View Promotion',
+    'approval update' => 'View Profile',
+    'leave update' => 'View',
+    'complaint' => 'View',
+    default => 'View',
+  };
 }
+require('../partials/header.php');
 ?>
-<!DOCTYPE html>
-<html lang="en" data-theme="light">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>ESS Dashboard</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <link href="https://cdn.jsdelivr.net/npm/daisyui@4.6.0/dist/full.css" rel="stylesheet" type="text/css" />
-  <script src="https://unpkg.com/lucide@latest"></script>
-</head>
+
 <body class="bg-gray-50 min-h-screen">
   <div class="flex h-screen">
     <?php include '../USM/sidebarr.php'; ?>
@@ -524,7 +518,7 @@ function viewLabelForNotifType($type) {
               <h1 class="text-xl md:text-2xl font-bold text-gray-800">Employee Self Service</h1>
               <p class="text-sm text-gray-500">Quick summary and recent activities for your requests and records.</p>
             </div>
-           
+
           </div>
 
           <div class="mt-6 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
@@ -683,8 +677,7 @@ function viewLabelForNotifType($type) {
                                     data-title="<?php echo htmlspecialchars((string)($n['title'] ?? '')); ?>"
                                     data-meta="<?php echo htmlspecialchars((string)($n['meta'] ?? '')); ?>"
                                     data-date="<?php echo htmlspecialchars((string)($n['date'] ?? '')); ?>"
-                                    data-link="<?php echo htmlspecialchars((string)($n['link'] ?? '')); ?>"
-                                  >
+                                    data-link="<?php echo htmlspecialchars((string)($n['link'] ?? '')); ?>">
                                     <i data-lucide="eye" class="w-4 h-4"></i>
                                     <span class="ml-2"><?php echo htmlspecialchars(viewLabelForNotifType((string)($n['type'] ?? ''))); ?></span>
                                   </button>
@@ -841,13 +834,13 @@ function viewLabelForNotifType($type) {
     </div>
     <form method="dialog" class="modal-backdrop"><button>close</button></form>
   </dialog>
-<?php require('../partials/footer.php') ?>
+  <?php require('../partials/footer.php') ?>
   <script>
     lucide.createIcons();
   </script>
 
   <script>
-    (function () {
+    (function() {
       const stateUrl = 'notification_state.php';
       const tabs = Array.from(document.querySelectorAll('.notif-tab'));
       const cards = () => Array.from(document.querySelectorAll('.notif-card'));
@@ -880,7 +873,11 @@ function viewLabelForNotifType($type) {
         const fd = new FormData();
         fd.append('action', action);
         fd.append('key', key);
-        const res = await fetch(stateUrl, { method: 'POST', body: fd, credentials: 'same-origin' });
+        const res = await fetch(stateUrl, {
+          method: 'POST',
+          body: fd,
+          credentials: 'same-origin'
+        });
         return await res.json();
       }
 
@@ -924,8 +921,7 @@ function viewLabelForNotifType($type) {
           const active = document.querySelector('.notif-tab.btn-active');
           const filter = active ? (active.getAttribute('data-filter') || 'all') : 'all';
           applyFilter(filter);
-        } catch (err) {
-        }
+        } catch (err) {}
       });
 
       document.addEventListener('click', async (e) => {
@@ -981,7 +977,11 @@ function viewLabelForNotifType($type) {
             fd.append('complaint_api', '1');
             fd.append('action', 'details');
             fd.append('complaint_id', cid);
-            const res2 = await fetch(window.location.href, { method: 'POST', body: fd, credentials: 'same-origin' });
+            const res2 = await fetch(window.location.href, {
+              method: 'POST',
+              body: fd,
+              credentials: 'same-origin'
+            });
             const data2 = await res2.json();
             if (!data2 || !data2.success) return;
 
@@ -1063,8 +1063,7 @@ function viewLabelForNotifType($type) {
           if (href) {
             window.location.href = href;
           }
-        } catch (err) {
-        }
+        } catch (err) {}
       });
 
       const closeNotifModal = () => {
@@ -1107,7 +1106,11 @@ function viewLabelForNotifType($type) {
           fd.append('meeting_place', meetingPlace);
 
           try {
-            const res = await fetch(window.location.href, { method: 'POST', body: fd, credentials: 'same-origin' });
+            const res = await fetch(window.location.href, {
+              method: 'POST',
+              body: fd,
+              credentials: 'same-origin'
+            });
             const data = await res.json();
             if (!data || !data.success) {
               const msg = data && data.message ? data.message : 'Failed to schedule meeting.';
@@ -1116,8 +1119,7 @@ function viewLabelForNotifType($type) {
             }
             alert('Meeting scheduled.');
             window.location.reload();
-          } catch (e2) {
-          }
+          } catch (e2) {}
         });
       }
 
@@ -1125,5 +1127,7 @@ function viewLabelForNotifType($type) {
       applyFilter('all');
     })();
   </script>
+  <?php require('../../partials/footer.php') ?>
 </body>
+
 </html>
