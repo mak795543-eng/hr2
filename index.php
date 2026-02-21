@@ -254,8 +254,55 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && $employee_ID && $password) {
                         <h1 data-aos="zoom-in-up" data-aos-delay="200" class="text-3xl font-bold text-white mb-2">Welcome to <span class="text-[#F7B32B]">Soliera</span> Hotel & Restaurant</h1>
                         <p data-aos="zoom-in-up" data-aos-delay="300" class="text-white/80">Savor The Stay, Dine With Elegance</p>
                     </div>
+
+                    <div data-aos="zoom-in-up" data-aos-delay="400" class="space-y-4">
+                        <div class="flex items-start">
+                            <div class="flex-shrink-0 mt-1">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-star text-amber-400">
+                                    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                                </svg>
+                            </div>
+                            <div class="ml-3">
+                                <p class="text-white font-medium">5-Star Restaurant Quality</p>
+                                <p class="text-white/70 text-sm">Award-winning cuisine prepared by internationally trained chefs</p>
+                            </div>
+                        </div>
+
+                        <div class="flex items-start">
+                            <div class="flex-shrink-0 mt-1">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-utensils text-amber-400">
+                                    <path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2" />
+                                    <path d="M7 2v20" />
+                                    <path d="M21 15V2v0a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7" />
+                                </svg>
+                            </div>
+                            <div class="ml-3">
+                                <p class="text-white font-medium">Authentic Filipino Cuisine</p>
+                                <p class="text-white/70 text-sm">Traditional recipes with a modern gourmet twist</p>
+                            </div>
+                        </div>
+
+                        <div class="flex items-start">
+                            <div class="flex-shrink-0 mt-1">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-calendar-check text-amber-400">
+                                    <rect width="18" height="18" x="3" y="4" rx="2" ry="2" />
+                                    <line x1="16" x2="16" y1="2" y2="6" />
+                                    <line x1="8" x2="8" y1="2" y2="6" />
+                                    <line x1="3" x2="21" y1="10" y2="10" />
+                                    <path d="m9 16 2 2 4-4" />
+                                </svg>
+                            </div>
+                            <div class="ml-3">
+                                <p class="text-white font-medium">Seamless Reservations</p>
+                                <p class="text-white/70 text-sm">Book tables, events, and services with just a few clicks</p>
+                            </div>
+                        </div>
+                    </div>
+
                 </div>
             </div>
+
+
 
             <div class="w-1/2 flex justify-center items-center max-md:w-full">
                 <div class="max-w-md w-full bg-white/10 backdrop-blur-lg p-6 rounded-xl shadow-2xl border border-white/20">
@@ -323,12 +370,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && $employee_ID && $password) {
 
                             <!-- Remember Me & Forgot Password -->
                             <div class="flex items-center justify-between mb-6">
-                                <div class="flex items-center">
-                                    <input id="remember-me" name="remember-me" type="checkbox" class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-white/30 rounded bg-white/10">
-                                    <label for="remember-me" class="ml-2 block text-sm text-white/80">
-                                        Remember me
-                                    </label>
-                                </div>
+
                                 <div class="text-sm">
                                     <a href="javascript:void(0)" onclick="toggleForgotModal(true)" class="font-medium text-blue-400 hover:text-blue-300">
                                         Forgot password?
