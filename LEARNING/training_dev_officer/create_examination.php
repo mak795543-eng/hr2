@@ -1666,29 +1666,46 @@ $conn->close();
             aiShowLoading(true);
 
             fetch('ai_api.php', {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                  lesson,
-                  questionType,
-                  questionCount: questionCountNum
-                })
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({
+                lesson,
+                questionType,
+                questionCount: questionCountNum
               })
-              .then((res) => res.json())
-              .then((data) => {
-                aiShowLoading(false);
-                if (data && data.output) {
-                  aiRenderResult(String(data.output));
-                } else {
-                  aiShowError('Error: ' + (data && data.error ? data.error : 'Unknown error occurred'));
-                }
-              })
-              .catch(() => {
-                aiShowLoading(false);
-                aiShowError('Request failed. Please try again.');
-              });
+            })
+            .then(async (res) => {
+              const raw = await res.text();
+              let data = null;
+              try {
+                data = raw ? JSON.parse(raw) : null;
+              } catch (e) {
+                throw new Error('AI API returned a non-JSON response (HTTP ' + res.status + ').');
+              }
+              if (!res.ok) {
+                throw new Error(String((data && (data.error || data.message)) || ('AI API error (HTTP ' + res.status + ')')));
+              }
+              return data;
+            })
+            .then((data) => {
+              aiShowLoading(false);
+              if (data && data.output) {
+                aiRenderResult(String(data.output));
+              } else {
+                const httpStatus = data && (data.http_status || data.httpStatus) ? String(data.http_status || data.httpStatus) : '';
+                const details = data && data.details ? String(data.details) : '';
+                const msg = 'Error: ' + (data && data.error ? String(data.error) : 'Unknown error occurred') +
+                  (httpStatus ? (' (HTTP ' + httpStatus + ')') : '') +
+                  (details ? (' - ' + details) : '');
+                aiShowError(msg);
+              }
+            })
+            .catch((err) => {
+              aiShowLoading(false);
+              aiShowError(String((err && err.message) || 'Request failed. Please try again.'));
+            });
           };
 
           if (aiGenerateBtn) {
