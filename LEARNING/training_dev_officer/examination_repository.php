@@ -1009,9 +1009,6 @@ $conn->close();
           </div>
 
           <div class="form-actions">
-            <button id="convertModuleBtn" type="button" class="btn btn-info" style="min-width: 170px" disabled>
-              <i class="fas fa-wand-magic-sparkles mr-2"></i>Convert Module
-            </button>
             <button id="startExaminationBtn" type="button" class="btn btn-success" style="min-width: 170px" disabled>
               <i class="fas fa-arrow-right mr-2"></i>Start Examination
             </button>
@@ -1366,7 +1363,8 @@ $conn->close();
               document.getElementById('selectedModuleTitle').textContent = selectedModuleData.title;
               document.getElementById('selectedModuleInfo').style.display = 'block';
               document.getElementById('startExaminationBtn').disabled = false;
-              document.getElementById('convertModuleBtn').disabled = false;
+              const cBtn = document.getElementById('convertModuleBtn');
+              if (cBtn) cBtn.disabled = false;
             }
           });
         }
@@ -2466,7 +2464,6 @@ $conn->close();
       const roleFilter = document.getElementById('modalRoleFilter');
       const modulesList = document.getElementById('modulesList');
       const startExaminationBtn = document.getElementById('startExaminationBtn');
-      const convertModuleBtn = document.getElementById('convertModuleBtn');
       const selectedModuleInfo = document.getElementById('selectedModuleInfo');
       const selectedModuleTitle = document.getElementById('selectedModuleTitle');
       const clearSelection = document.getElementById('clearSelection');
@@ -2556,7 +2553,6 @@ $conn->close();
 
           // Enable buttons
           startExaminationBtn.disabled = false;
-          convertModuleBtn.disabled = false;
 
           saveModalState();
         }
@@ -2571,7 +2567,6 @@ $conn->close();
         });
         selectedModuleInfo.style.display = 'none';
         startExaminationBtn.disabled = true;
-        convertModuleBtn.disabled = true;
 
         saveModalState();
       });
@@ -2639,54 +2634,6 @@ $conn->close();
         });
       });
 
-      // Convert Module functionality
-      convertModuleBtn.addEventListener('click', function() {
-        if (!selectedModuleId) {
-          Swal.fire({
-            title: 'No Module Selected',
-            text: 'Please select a learning module to convert.',
-            icon: 'warning',
-            confirmButtonText: 'OK'
-          });
-          return;
-        }
-
-        // Close modal first so SweetAlert is visible
-        createExaminationModal.close();
-
-        // Use SweetAlert for conversion
-        Swal.fire({
-          title: 'Convert Module to Examination?',
-          html: `This will automatically convert the selected module "<strong>${selectedModuleData.title}</strong>" into an examination using AI.`,
-          icon: 'question',
-          showCancelButton: true,
-          confirmButtonText: 'Yes, convert it!',
-          cancelButtonText: 'No, cancel',
-          confirmButtonColor: '#17a2b8',
-          cancelButtonColor: '#6c757d',
-          reverseButtons: true
-        }).then((result) => {
-          if (result.isConfirmed) {
-            const countValue = document.getElementById('questionCount')?.value || '10';
-
-            Swal.fire({
-              title: 'Generating Questions...',
-              text: 'Please wait while we generate an examination from your module.',
-              icon: 'info',
-              showConfirmButton: false,
-              allowOutsideClick: false,
-              didOpen: () => {
-                Swal.showLoading();
-                window.location.href = `convert_module_to_exam.php?module_id=${encodeURIComponent(selectedModuleId)}&question_count=${encodeURIComponent(countValue)}`;
-              }
-            });
-          } else {
-            // If cancelled, reopen the modal
-            createExaminationModal.showModal();
-          }
-        });
-      });
-
       // Filter modules function
       function filterModules() {
         const departmentValue = departmentFilter.value;
@@ -2726,7 +2673,6 @@ $conn->close();
         });
         selectedModuleInfo.style.display = 'none';
         startExaminationBtn.disabled = true;
-        convertModuleBtn.disabled = true;
       }
 
       // Clear modal state when modal is closed via cancel button
