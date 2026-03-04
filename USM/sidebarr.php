@@ -266,8 +266,6 @@ if (!function_exists('sidebarActiveClass')) {
                         <span class="ml-3 sidebar-text">Training Requests</span>
                     </div>
                 </a>
-
-
             <?php endif; ?>
 
             <!-- APPROVALS SECTION (HR Managers) -->
