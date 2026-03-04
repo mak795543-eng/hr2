@@ -15,7 +15,7 @@ $is_supervisor = ($role === 'admin' || $role === 'supervisor');
 $currentPage = basename($_SERVER['SCRIPT_NAME'] ?? '');
 
 // Define base path for consistent URL structure
-// $base_url = getenv('APP_BASE_PATH') ?: '/hr2/'; // Set this to your base path if needed, e.g., '/restaurant-system'
+// $base_url = getenv('APP_BASE_PATH') ?: '/'; // Set this to your base path if needed, e.g., '/restaurant-system'
 
 // Check if function already exists before declaring
 if (!function_exists('hasAccess')) {
@@ -53,10 +53,10 @@ if (!function_exists('sidebarActiveClass')) {
     <!-- Sidebar Header -->
     <div class="flex items-center justify-center px-4 mb-6 text-center">
         <h1 class="text-xl sm:text-2xl font-bold text-white flex items-center justify-center gap-2">
-            <img id="sidebar-logo" src="/hr2/logofinal.png"
+            <img id="sidebar-logo" src="/logofinal.png"
                 alt="Logo"
                 class="h-12 sm:h-16 md:h-20 w-auto max-w-full">
-            <img id="sonly" src="/hr2/sonly.png"
+            <img id="sonly" src="/sonly.png"
                 alt="Logo"
                 class="hidden h-10 w-auto max-w-full">
         </h1>
@@ -67,7 +67,7 @@ if (!function_exists('sidebarActiveClass')) {
         <nav class="flex-1 px-2 space-y-1">
             <!-- DASHBOARD SECTION -->
             <?php if (hasAccess('dashboard', $allowed_modules, $is_supervisor)): ?>
-                <a href="/../hr2/dashboard.php" class="block">
+                <a href="/../dashboard.php" class="block">
                     <div class="flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-all hover:bg-blue-600/50 text-white group<?php echo sidebarActiveClass('dashboard.php', $currentPage); ?>">
                         <div class="p-1.5 rounded-lg bg-blue-800/30 group-hover:bg-blue-700/50 transition-colors">
                             <i data-lucide="layout-dashboard" class="w-5 h-5 text-[#F7B32B] group-hover:text-white"></i>
