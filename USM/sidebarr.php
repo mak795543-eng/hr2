@@ -53,10 +53,10 @@ if (!function_exists('sidebarActiveClass')) {
     <!-- Sidebar Header -->
     <div class="flex items-center justify-center px-4 mb-6 text-center">
         <h1 class="text-xl sm:text-2xl font-bold text-white flex items-center justify-center gap-2">
-            <img id="sidebar-logo" src="/logofinal.png"
+            <img id="sidebar-logo" src="/hr2/logofinal.png"
                 alt="Logo"
                 class="h-12 sm:h-16 md:h-20 w-auto max-w-full">
-            <img id="sonly" src="/sonly.png"
+            <img id="sonly" src="/hr2/sonly.png"
                 alt="Logo"
                 class="hidden h-10 w-auto max-w-full">
         </h1>
@@ -67,7 +67,7 @@ if (!function_exists('sidebarActiveClass')) {
         <nav class="flex-1 px-2 space-y-1">
             <!-- DASHBOARD SECTION -->
             <?php if (hasAccess('dashboard', $allowed_modules, $is_supervisor)): ?>
-                <a href="/../dashboard.php" class="block">
+                <a href="/../hr2/dashboard.php" class="block">
                     <div class="flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-all hover:bg-blue-600/50 text-white group<?php echo sidebarActiveClass('dashboard.php', $currentPage); ?>">
                         <div class="p-1.5 rounded-lg bg-blue-800/30 group-hover:bg-blue-700/50 transition-colors">
                             <i data-lucide="layout-dashboard" class="w-5 h-5 text-[#F7B32B] group-hover:text-white"></i>
@@ -80,10 +80,103 @@ if (!function_exists('sidebarActiveClass')) {
 
 
 
+
+
+
+            <!-- COMPETENCY MANAGEMENT SECTION -->
+            <?php if (hasAccess('competency_management', $allowed_modules, $is_supervisor)): ?>
+                <div class="px-4 py-2 mt-4">
+                    <p class="text-xs font-semibold text-blue-300 uppercase tracking-wider section-title">Competency Management</p>
+                </div>
+
+                <a href="/../COMPETENCY/criticalgaps/gap_analysis.php" class="block">
+                    <div class="flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-all hover:bg-blue-600/50 text-white group">
+                        <div class="p-1 rounded-lg bg-blue-800/30 group-hover:bg-blue-700/50 transition-colors">
+                            <i data-lucide="target" class="w-5 h-5 text-[#F7B32B] group-hover:text-white"></i>
+                        </div>
+                        <span class="ml-3 sidebar-text">Gap Analysis</span>
+                    </div>
+                </a>
+
+                <a href="/../COMPETENCY/criticalgaps/criticalgaps.php" class="block">
+                    <div class="flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-all hover:bg-blue-600/50 text-white group<?php echo sidebarActiveClass('criticalgaps.php', $currentPage); ?>">
+                        <div class="p-1 rounded-lg bg-blue-800/30 group-hover:bg-blue-700/50 transition-colors">
+                            <i data-lucide="users" class="w-5 h-5 text-[#F7B32B] group-hover:text-white"></i>
+                        </div>
+                        <span class="ml-3 sidebar-text">Competency Profiles</span>
+                    </div>
+                </a>
+
+
+
+                <a href="/../COMPETENCY/competecy_criteria.php" class="block">
+                    <div class="flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-all hover:bg-blue-600/50 text-white group">
+                        <div class="p-1 rounded-lg bg-blue-800/30 group-hover:bg-blue-700/50 transition-colors">
+                            <i data-lucide="list-checks" class="w-5 h-5 text-[#F7B32B] group-hover:text-white"></i>
+                        </div>
+                        <span class="ml-3 sidebar-text">Competency Criteria</span>
+                    </div>
+                </a>
+
+                <a href="/../SUCCESSION/HR_director/development_plans.php" class="block">
+                    <div class="flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-all hover:bg-blue-600/50 text-white group">
+                        <div class="p-1 rounded-lg bg-blue-800/30 group-hover:bg-blue-700/50 transition-colors">
+                            <i data-lucide="book-open" class="w-5 h-5 text-[#F7B32B] group-hover:text-white"></i>
+                        </div>
+                        <span class="ml-3 sidebar-text">Development Plans</span>
+                    </div>
+                </a>
+
+
+                <a href="/../COMPETENCY/criticalgaps/vacancies_request.php" class="block">
+                    <div class="flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-all hover:bg-blue-600/50 text-white group">
+                        <div class="p-1 rounded-lg bg-blue-800/30 group-hover:bg-blue-700/50 transition-colors">
+                            <i data-lucide="alert-triangle" class="w-5 h-5 text-[#F7B32B] group-hover:text-white"></i>
+                        </div>
+                        <span class="ml-3 sidebar-text">VACANCY REQUEST</span>
+                    </div>
+                </a>
+            <?php endif; ?>
+
+            <!-- SUCCESSION PLANNING SECTION -->
+            <?php if (hasAccess('succession_planning', $allowed_modules, $is_supervisor)): ?>
+                <div class="px-4 py-2 mt-4">
+                    <p class="text-xs font-semibold text-blue-300 uppercase tracking-wider section-title">Succession Planning</p>
+                </div>
+
+                <a href="/../SUCCESSION/HR_director/succession_dashboard.php" class="block">
+                    <div class="flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-all hover:bg-blue-600/50 text-white group<?php echo sidebarActiveClass('succession_dashboard.php', $currentPage); ?>">
+                        <div class="p-1 rounded-lg bg-blue-800/30 group-hover:bg-blue-700/50 transition-colors">
+                            <i data-lucide="users" class="w-5 h-5 text-[#F7B32B] group-hover:text-white"></i>
+                        </div>
+                        <span class="ml-3 sidebar-text">Succession Plans</span>
+                    </div>
+                </a>
+
+                <a href="/../SUCCESSION/HR_director/individual_development_plans.php" class="block">
+                    <div class="flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-all hover:bg-blue-600/50 text-white group<?php echo sidebarActiveClass('individual_development_plans.php', $currentPage); ?>">
+                        <div class="p-1 rounded-lg bg-blue-800/30 group-hover:bg-blue-700/50 transition-colors">
+                            <i data-lucide="users" class="w-5 h-5 text-[#F7B32B] group-hover:text-white"></i>
+                        </div>
+                        <span class="ml-3 sidebar-text">IDP Repository</span>
+                    </div>
+                </a>
+
+                <a href="/../SUCCESSION/HR_director/pre-promotion-table.php" class="block">
+                    <div class="flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-all hover:bg-blue-600/50 text-white group<?php echo sidebarActiveClass('pre-promotion-table.php', $currentPage); ?>">
+                        <div class="p-1 rounded-lg bg-blue-800/30 group-hover:bg-blue-700/50 transition-colors">
+                            <i data-lucide="arrow-up-circle" class="w-5 h-5 text-[#F7B32B] group-hover:text-white"></i>
+                        </div>
+                        <span class="ml-3 sidebar-text">Pre-Promotion</span>
+                    </div>
+                </a>
+            <?php endif; ?>
+
+
             <!-- LEARNING MANAGEMENT SECTION (Training Development Officer) -->
             <?php if (hasAccess('learning_management', $allowed_modules, $is_supervisor)): ?>
                 <div class="px-4 py-2 mt-4">
-                    <p class="text-xs font-semibold text-blue-300 uppercase tracking-wider section-title">Training Development Officer</p>
+                    <p class="text-xs font-semibold text-blue-300 uppercase tracking-wider section-title">Learning Management</p>
                 </div>
 
                 <a href="/../LEARNING/training_dev_officer/learning_module_repository.php" class="block">
@@ -180,93 +273,6 @@ if (!function_exists('sidebarActiveClass')) {
                             <i data-lucide="send" class="w-5 h-5 text-[#F7B32B] group-hover:text-white"></i>
                         </div>
                         <span class="ml-3 sidebar-text">Department Request Logs</span>
-                    </div>
-                </a>
-            <?php endif; ?>
-
-
-            <!-- COMPETENCY MANAGEMENT SECTION -->
-            <?php if (hasAccess('competency_management', $allowed_modules, $is_supervisor)): ?>
-                <div class="px-4 py-2 mt-4">
-                    <p class="text-xs font-semibold text-blue-300 uppercase tracking-wider section-title">Competency Management</p>
-                </div>
-
-                <a href="/../COMPETENCY/criticalgaps/vacancies_request.php" class="block">
-                    <div class="flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-all hover:bg-blue-600/50 text-white group">
-                        <div class="p-1 rounded-lg bg-blue-800/30 group-hover:bg-blue-700/50 transition-colors">
-                            <i data-lucide="alert-triangle" class="w-5 h-5 text-[#F7B32B] group-hover:text-white"></i>
-                        </div>
-                        <span class="ml-3 sidebar-text">VACANCY REQUEST</span>
-                    </div>
-                </a>
-
-                <a href="/../COMPETENCY/criticalgaps/criticalgaps.php" class="block">
-                    <div class="flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-all hover:bg-blue-600/50 text-white group<?php echo sidebarActiveClass('criticalgaps.php', $currentPage); ?>">
-                        <div class="p-1 rounded-lg bg-blue-800/30 group-hover:bg-blue-700/50 transition-colors">
-                            <i data-lucide="users" class="w-5 h-5 text-[#F7B32B] group-hover:text-white"></i>
-                        </div>
-                        <span class="ml-3 sidebar-text">Competency Profiles</span>
-                    </div>
-                </a>
-
-                <a href="/../COMPETENCY/criticalgaps/gap_analysis.php" class="block">
-                    <div class="flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-all hover:bg-blue-600/50 text-white group">
-                        <div class="p-1 rounded-lg bg-blue-800/30 group-hover:bg-blue-700/50 transition-colors">
-                            <i data-lucide="target" class="w-5 h-5 text-[#F7B32B] group-hover:text-white"></i>
-                        </div>
-                        <span class="ml-3 sidebar-text">Gap Analysis</span>
-                    </div>
-                </a>
-
-                <a href="/../COMPETENCY/competecy_criteria.php" class="block">
-                    <div class="flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-all hover:bg-blue-600/50 text-white group">
-                        <div class="p-1 rounded-lg bg-blue-800/30 group-hover:bg-blue-700/50 transition-colors">
-                            <i data-lucide="list-checks" class="w-5 h-5 text-[#F7B32B] group-hover:text-white"></i>
-                        </div>
-                        <span class="ml-3 sidebar-text">Competency Criteria</span>
-                    </div>
-                </a>
-
-                <a href="/../SUCCESSION/HR_director/development_plans.php" class="block">
-                    <div class="flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-all hover:bg-blue-600/50 text-white group">
-                        <div class="p-1 rounded-lg bg-blue-800/30 group-hover:bg-blue-700/50 transition-colors">
-                            <i data-lucide="book-open" class="w-5 h-5 text-[#F7B32B] group-hover:text-white"></i>
-                        </div>
-                        <span class="ml-3 sidebar-text">Development Plans</span>
-                    </div>
-                </a>
-            <?php endif; ?>
-
-            <!-- SUCCESSION PLANNING SECTION -->
-            <?php if (hasAccess('succession_planning', $allowed_modules, $is_supervisor)): ?>
-                <div class="px-4 py-2 mt-4">
-                    <p class="text-xs font-semibold text-blue-300 uppercase tracking-wider section-title">Succession Planning</p>
-                </div>
-
-                <a href="/../SUCCESSION/HR_director/succession_dashboard.php" class="block">
-                    <div class="flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-all hover:bg-blue-600/50 text-white group<?php echo sidebarActiveClass('succession_dashboard.php', $currentPage); ?>">
-                        <div class="p-1 rounded-lg bg-blue-800/30 group-hover:bg-blue-700/50 transition-colors">
-                            <i data-lucide="users" class="w-5 h-5 text-[#F7B32B] group-hover:text-white"></i>
-                        </div>
-                        <span class="ml-3 sidebar-text">Succession Plans</span>
-                    </div>
-                </a>
-
-                <a href="/../SUCCESSION/HR_director/individual_development_plans.php" class="block">
-                    <div class="flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-all hover:bg-blue-600/50 text-white group<?php echo sidebarActiveClass('individual_development_plans.php', $currentPage); ?>">
-                        <div class="p-1 rounded-lg bg-blue-800/30 group-hover:bg-blue-700/50 transition-colors">
-                            <i data-lucide="users" class="w-5 h-5 text-[#F7B32B] group-hover:text-white"></i>
-                        </div>
-                        <span class="ml-3 sidebar-text">IDP Repository</span>
-                    </div>
-                </a>
-
-                <a href="/../SUCCESSION/HR_director/pre-promotion-table.php" class="block">
-                    <div class="flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-all hover:bg-blue-600/50 text-white group<?php echo sidebarActiveClass('pre-promotion-table.php', $currentPage); ?>">
-                        <div class="p-1 rounded-lg bg-blue-800/30 group-hover:bg-blue-700/50 transition-colors">
-                            <i data-lucide="arrow-up-circle" class="w-5 h-5 text-[#F7B32B] group-hover:text-white"></i>
-                        </div>
-                        <span class="ml-3 sidebar-text">Pre-Promotion</span>
                     </div>
                 </a>
             <?php endif; ?>
