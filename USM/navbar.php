@@ -185,7 +185,7 @@
 
     async function loadNotifs() {
       try {
-        const res = await fetch('/hr2/USM/notifications_feed.php', {
+        const res = await fetch('/USM/notifications_feed.php', {
           credentials: 'same-origin'
         });
         const data = await res.json();
