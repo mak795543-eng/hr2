@@ -12,7 +12,7 @@ if (!function_exists('dd')) {
 }
 
 if (!isset($_SESSION['employee_id'])) {
-    header('Location: /hr2/index.php');
+    header('Location: /index.php');
     exit;
 }
 
@@ -32,7 +32,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['logout'])) {
         );
     }
     session_destroy();
-    header('Location: /hr2/index.php');
+    header('Location: /index.php');
     exit;
 }
 ?>
