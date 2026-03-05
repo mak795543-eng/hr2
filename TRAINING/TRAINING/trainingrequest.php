@@ -423,75 +423,75 @@ try {
 
                     <div class="bg-white rounded-xl shadow-md p-4">
                         <table class="table w-full card-table">
-                                <thead>
-                                    <tr>
-                                        <th>Employee (ID)</th>
-                                        <th>Department</th>
-                                        <th>Role</th>
-                                        <th>Status</th>
-                                        <th>Action</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <?php
-                                    try {
-                                        $deptFilter = trim((string)($_GET['department'] ?? 'all'));
-                                        $statusFilter = trim((string)($_GET['status'] ?? 'all'));
-                                        $searchFilter = trim((string)($_GET['search'] ?? ''));
-                                        $sql = "SELECT id, employee_id, employee_name, department, position, competency, succession_status,
+                            <thead>
+                                <tr>
+                                    <th>Employee (ID)</th>
+                                    <th>Department</th>
+                                    <th>Role</th>
+                                    <th>Status</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php
+                                try {
+                                    $deptFilter = trim((string)($_GET['department'] ?? 'all'));
+                                    $statusFilter = trim((string)($_GET['status'] ?? 'all'));
+                                    $searchFilter = trim((string)($_GET['search'] ?? ''));
+                                    $sql = "SELECT id, employee_id, employee_name, department, position, competency, succession_status,
                                                        requested_training_type, requested_training_mode,
                                                        requested_start_datetime, requested_end_datetime, idp_status,
                                                        delivery_mode, training_requested_at
                                                 FROM requested_idps_repository";
-                                        $conds = [];
-                                        $params = [];
-                                        if ($deptFilter !== '' && $deptFilter !== 'all') {
-                                            $conds[] = "department = ?";
-                                            $params[] = $deptFilter;
-                                        }
-                                        if ($statusFilter !== '' && $statusFilter !== 'all') {
-                                            $conds[] = "idp_status = ?";
-                                            $params[] = $statusFilter;
-                                        }
-                                        if ($searchFilter !== '') {
-                                            $conds[] = "(employee_name LIKE ? OR employee_id LIKE ?)";
-                                            $params[] = '%' . $searchFilter . '%';
-                                            $params[] = '%' . $searchFilter . '%';
-                                        }
-                                        // Only show Onsite/Hybrid requests that have a training request timestamp
-                                        $conds[] = "(delivery_mode IN ('Onsite','Hybrid') AND training_requested_at IS NOT NULL)";
-                                        if (!empty($conds)) {
-                                            $sql .= " WHERE " . implode(" AND ", $conds);
-                                        }
-                                        $sql .= " ORDER BY employee_name ASC";
-                                        $stmt = $pdo->prepare($sql);
-                                        $stmt->execute($params);
-                                        $rows = $stmt->fetchAll();
-                                        if (!$rows) {
-                                            echo '<tr class="card-empty"><td colspan="5">No requested IDPs found.</td></tr>';
-                                        } else {
-                                            foreach ($rows as $r) {
-                                                $idpJson = htmlspecialchars(json_encode($r, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT));
-                                                $prefillUrl = 'add_training.php?idp_id=' . urlencode((string)$r['id']);
-                                                echo '<tr>';
-                                                echo '<td data-label="Employee (ID)"><div class="font-semibold">' . htmlspecialchars((string)$r['employee_name']) . '</div><div class="text-xs opacity-70">' . htmlspecialchars((string)$r['employee_id']) . '</div></td>';
-                                                echo '<td data-label="Department">' . htmlspecialchars((string)$r['department']) . '</td>';
-                                                echo '<td data-label="Role">' . htmlspecialchars((string)$r['position']) . '</td>';
-                                                echo '<td data-label="Status"><span class="badge">' . htmlspecialchars((string)$r['idp_status']) . '</span></td>';
-                                                echo '<td data-label="Action" class="whitespace-nowrap">';
-                                                echo '<button type="button" class="btn btn-sm btn-outline mr-2" data-view-idp="1" data-idp="' . $idpJson . '">View</button>';
-                                                echo '<a href="' . $prefillUrl . '" class="btn btn-sm bg-gray-900 text-white hover:bg-gray-800 border-0">';
-                                                echo '<i data-lucide="plus" class="w-4 h-4 mr-2"></i>Create Training</a>';
-                                                echo '</td>';
-                                                echo '</tr>';
-                                            }
-                                        }
-                                    } catch (Throwable $e) {
-                                        echo '<tr class="card-empty"><td colspan="5">Failed to load requests.</td></tr>';
+                                    $conds = [];
+                                    $params = [];
+                                    if ($deptFilter !== '' && $deptFilter !== 'all') {
+                                        $conds[] = "department = ?";
+                                        $params[] = $deptFilter;
                                     }
-                                    ?>
-                                </tbody>
-                            </table>
+                                    if ($statusFilter !== '' && $statusFilter !== 'all') {
+                                        $conds[] = "idp_status = ?";
+                                        $params[] = $statusFilter;
+                                    }
+                                    if ($searchFilter !== '') {
+                                        $conds[] = "(employee_name LIKE ? OR employee_id LIKE ?)";
+                                        $params[] = '%' . $searchFilter . '%';
+                                        $params[] = '%' . $searchFilter . '%';
+                                    }
+                                    // Only show Onsite/Hybrid requests that have a training request timestamp
+                                    $conds[] = "(delivery_mode IN ('Onsite','Hybrid') AND training_requested_at IS NOT NULL)";
+                                    if (!empty($conds)) {
+                                        $sql .= " WHERE " . implode(" AND ", $conds);
+                                    }
+                                    $sql .= " ORDER BY employee_name ASC";
+                                    $stmt = $pdo->prepare($sql);
+                                    $stmt->execute($params);
+                                    $rows = $stmt->fetchAll();
+                                    if (!$rows) {
+                                        echo '<tr class="card-empty"><td colspan="5">No requested IDPs found.</td></tr>';
+                                    } else {
+                                        foreach ($rows as $r) {
+                                            $idpJson = htmlspecialchars(json_encode($r, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT));
+                                            $prefillUrl = 'add_training.php?idp_id=' . urlencode((string)$r['id']);
+                                            echo '<tr>';
+                                            echo '<td data-label="Employee (ID)"><div class="font-semibold">' . htmlspecialchars((string)$r['employee_name']) . '</div><div class="text-xs opacity-70">' . htmlspecialchars((string)$r['employee_id']) . '</div></td>';
+                                            echo '<td data-label="Department">' . htmlspecialchars((string)$r['department']) . '</td>';
+                                            echo '<td data-label="Role">' . htmlspecialchars((string)$r['position']) . '</td>';
+                                            echo '<td data-label="Status"><span class="badge">' . htmlspecialchars((string)$r['idp_status']) . '</span></td>';
+                                            echo '<td data-label="Action" class="whitespace-nowrap">';
+                                            echo '<button type="button" class="btn btn-sm btn-outline mr-2" data-view-idp="1" data-idp="' . $idpJson . '">View</button>';
+                                            echo '<a href="' . $prefillUrl . '" class="btn btn-sm bg-gray-900 text-white hover:bg-gray-800 border-0">';
+                                            echo '<i data-lucide="plus" class="w-4 h-4 mr-2"></i>Create Training</a>';
+                                            echo '</td>';
+                                            echo '</tr>';
+                                        }
+                                    }
+                                } catch (Throwable $e) {
+                                    echo '<tr class="card-empty"><td colspan="5">Failed to load requests.</td></tr>';
+                                }
+                                ?>
+                            </tbody>
+                        </table>
                     </div>
                 </div>
 
@@ -584,94 +584,94 @@ try {
 
                     <div class="bg-white rounded-xl shadow-md p-4">
                         <table class="table w-full card-table">
-                                <thead>
-                                    <tr>
-                                        <th>Employee (ID)</th>
-                                        <th>Department</th>
-                                        <th>Role</th>
-                                        <th>Status</th>
-                                        <th>Action</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <?php
-                                    try {
-                                        require_once __DIR__ . '/db.php';
-                                        $hasEmploymentStatus = $traineeHasEmploymentStatus;
-                                        $tStatusFilter = (string)($_GET['t_status'] ?? ($hasEmploymentStatus ? 'New Hire' : 'all'));
-                                        $tDeptFilter = trim((string)($_GET['t_department'] ?? 'all'));
-                                        $tSearchFilter = trim((string)($_GET['t_search'] ?? ''));
+                            <thead>
+                                <tr>
+                                    <th>Employee (ID)</th>
+                                    <th>Department</th>
+                                    <th>Role</th>
+                                    <th>Status</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php
+                                try {
+                                    require_once __DIR__ . '/db.php';
+                                    $hasEmploymentStatus = $traineeHasEmploymentStatus;
+                                    $tStatusFilter = (string)($_GET['t_status'] ?? ($hasEmploymentStatus ? 'New Hire' : 'all'));
+                                    $tDeptFilter = trim((string)($_GET['t_department'] ?? 'all'));
+                                    $tSearchFilter = trim((string)($_GET['t_search'] ?? ''));
 
-                                        $condsT = [];
-                                        if ($hasEmploymentStatus && $tStatusFilter !== '' && $tStatusFilter !== 'all') {
-                                            $condsT[] = "employment_status = ?";
-                                        }
-                                        if ($tDeptFilter !== '' && $tDeptFilter !== 'all') {
-                                            $condsT[] = "department = ?";
-                                        }
-                                        if ($tSearchFilter !== '') {
-                                            $condsT[] = "(CONCAT(last_name, ', ', first_name) LIKE ? OR employee_no LIKE ?)";
-                                        }
-                                        $sqlT = "SELECT id, employee_no, first_name, last_name, department, role" . ($hasEmploymentStatus ? ", employment_status" : "") . " FROM employees";
-                                        $paramsT = [];
-                                        if ($condsT) {
-                                            $sqlT .= " WHERE " . implode(" AND ", $condsT);
-                                            if ($hasEmploymentStatus && $tStatusFilter !== '' && $tStatusFilter !== 'all') $paramsT[] = $tStatusFilter;
-                                            if ($tDeptFilter !== '' && $tDeptFilter !== 'all') $paramsT[] = $tDeptFilter;
-                                            if ($tSearchFilter !== '') {
-                                                $paramsT[] = '%' . $tSearchFilter . '%';
-                                                $paramsT[] = '%' . $tSearchFilter . '%';
-                                            }
-                                        }
-                                        $sqlT .= " ORDER BY last_name, first_name";
-
-                                        if (!empty($paramsT)) {
-                                            $stmtT = $conn->prepare($sqlT);
-                                            $types = str_repeat('s', count($paramsT));
-                                            $stmtT->bind_param($types, ...$paramsT);
-                                            $stmtT->execute();
-                                            $resT = $stmtT->get_result();
-                                        } else {
-                                            $resT = $conn->query($sqlT);
-                                        }
-                                        if ($resT && $resT->num_rows > 0) {
-                                            while ($rowT = $resT->fetch_assoc()) {
-                                                $fullName = trim((string)($rowT['last_name'] ?? '') . ', ' . (string)($rowT['first_name'] ?? ''));
-                                                $empNo = (string)($rowT['employee_no'] ?? '');
-                                                $dept = (string)($rowT['department'] ?? '');
-                                                $role = (string)($rowT['role'] ?? '');
-                                                $statusLabel = $hasEmploymentStatus ? (string)($rowT['employment_status'] ?? '') : 'Trainee';
-                                                $empId = (int)($rowT['id'] ?? 0);
-                                                $empJson = htmlspecialchars(json_encode([
-                                                    'id' => $empId,
-                                                    'employee_no' => $empNo,
-                                                    'employee_name' => $fullName,
-                                                    'department' => $dept,
-                                                    'role' => $role,
-                                                    'employment_status' => $statusLabel,
-                                                ], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT));
-                                                $createUrl = 'add_training.php?trainee_id=' . urlencode((string)$empId);
-                                                echo '<tr>';
-                                                echo '<td data-label="Employee (ID)"><div class="font-semibold">' . htmlspecialchars($fullName) . '</div><div class="text-xs opacity-70">' . htmlspecialchars($empNo) . '</div></td>';
-                                                echo '<td data-label="Department">' . htmlspecialchars($dept) . '</td>';
-                                                echo '<td data-label="Role">' . htmlspecialchars($role) . '</td>';
-                                                echo '<td data-label="Status"><span class="badge">' . htmlspecialchars($statusLabel) . '</span></td>';
-                                                echo '<td data-label="Action" class="whitespace-nowrap">';
-                                                echo '<button type="button" class="btn btn-sm btn-outline mr-2" data-view-trainee="1" data-trainee="' . $empJson . '">View</button>';
-                                                echo '<a href="' . $createUrl . '" class="btn btn-sm bg-gray-900 text-white hover:bg-gray-800 border-0">';
-                                                echo '<i data-lucide="plus" class="w-4 h-4 mr-2"></i>Create Training</a>';
-                                                echo '</td>';
-                                                echo '</tr>';
-                                            }
-                                        } else {
-                                            echo '<tr class="card-empty"><td colspan="5">No trainee records found.</td></tr>';
-                                        }
-                                    } catch (Throwable $e) {
-                                        echo '<tr class="card-empty"><td colspan="5">Failed to load trainees.</td></tr>';
+                                    $condsT = [];
+                                    if ($hasEmploymentStatus && $tStatusFilter !== '' && $tStatusFilter !== 'all') {
+                                        $condsT[] = "employment_status = ?";
                                     }
-                                    ?>
-                                </tbody>
-                            </table>
+                                    if ($tDeptFilter !== '' && $tDeptFilter !== 'all') {
+                                        $condsT[] = "department = ?";
+                                    }
+                                    if ($tSearchFilter !== '') {
+                                        $condsT[] = "(CONCAT(last_name, ', ', first_name) LIKE ? OR employee_no LIKE ?)";
+                                    }
+                                    $sqlT = "SELECT id, employee_no, first_name, last_name, department, role" . ($hasEmploymentStatus ? ", employment_status" : "") . " FROM employees";
+                                    $paramsT = [];
+                                    if ($condsT) {
+                                        $sqlT .= " WHERE " . implode(" AND ", $condsT);
+                                        if ($hasEmploymentStatus && $tStatusFilter !== '' && $tStatusFilter !== 'all') $paramsT[] = $tStatusFilter;
+                                        if ($tDeptFilter !== '' && $tDeptFilter !== 'all') $paramsT[] = $tDeptFilter;
+                                        if ($tSearchFilter !== '') {
+                                            $paramsT[] = '%' . $tSearchFilter . '%';
+                                            $paramsT[] = '%' . $tSearchFilter . '%';
+                                        }
+                                    }
+                                    $sqlT .= " ORDER BY last_name, first_name";
+
+                                    if (!empty($paramsT)) {
+                                        $stmtT = $conn->prepare($sqlT);
+                                        $types = str_repeat('s', count($paramsT));
+                                        $stmtT->bind_param($types, ...$paramsT);
+                                        $stmtT->execute();
+                                        $resT = $stmtT->get_result();
+                                    } else {
+                                        $resT = $conn->query($sqlT);
+                                    }
+                                    if ($resT && $resT->num_rows > 0) {
+                                        while ($rowT = $resT->fetch_assoc()) {
+                                            $fullName = trim((string)($rowT['last_name'] ?? '') . ', ' . (string)($rowT['first_name'] ?? ''));
+                                            $empNo = (string)($rowT['employee_no'] ?? '');
+                                            $dept = (string)($rowT['department'] ?? '');
+                                            $role = (string)($rowT['role'] ?? '');
+                                            $statusLabel = $hasEmploymentStatus ? (string)($rowT['employment_status'] ?? '') : 'Trainee';
+                                            $empId = (int)($rowT['id'] ?? 0);
+                                            $empJson = htmlspecialchars(json_encode([
+                                                'id' => $empId,
+                                                'employee_no' => $empNo,
+                                                'employee_name' => $fullName,
+                                                'department' => $dept,
+                                                'role' => $role,
+                                                'employment_status' => $statusLabel,
+                                            ], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT));
+                                            $createUrl = 'add_training.php?trainee_id=' . urlencode((string)$empId);
+                                            echo '<tr>';
+                                            echo '<td data-label="Employee (ID)"><div class="font-semibold">' . htmlspecialchars($fullName) . '</div><div class="text-xs opacity-70">' . htmlspecialchars($empNo) . '</div></td>';
+                                            echo '<td data-label="Department">' . htmlspecialchars($dept) . '</td>';
+                                            echo '<td data-label="Role">' . htmlspecialchars($role) . '</td>';
+                                            echo '<td data-label="Status"><span class="badge">' . htmlspecialchars($statusLabel) . '</span></td>';
+                                            echo '<td data-label="Action" class="whitespace-nowrap">';
+                                            echo '<button type="button" class="btn btn-sm btn-outline mr-2" data-view-trainee="1" data-trainee="' . $empJson . '">View</button>';
+                                            echo '<a href="' . $createUrl . '" class="btn btn-sm bg-gray-900 text-white hover:bg-gray-800 border-0">';
+                                            echo '<i data-lucide="plus" class="w-4 h-4 mr-2"></i>Create Training</a>';
+                                            echo '</td>';
+                                            echo '</tr>';
+                                        }
+                                    } else {
+                                        echo '<tr class="card-empty"><td colspan="5">No trainee records found.</td></tr>';
+                                    }
+                                } catch (Throwable $e) {
+                                    echo '<tr class="card-empty"><td colspan="5">Failed to load trainees.</td></tr>';
+                                }
+                                ?>
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             </main>
