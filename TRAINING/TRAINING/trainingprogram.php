@@ -1084,6 +1084,52 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             $requestsDb = $trainingDb;
         }
 
+        $isAccessDenied = function (Throwable $e): bool {
+            $msg = strtolower((string)$e->getMessage());
+            return (strpos($msg, 'access denied') !== false) || (strpos($msg, 'command denied') !== false) || (strpos($msg, 'permission') !== false);
+        };
+
+        $ensureRequestTables = function (mysqli $conn, string $db): void {
+            try {
+                $conn->query("CREATE TABLE IF NOT EXISTS `{$db}`.`financial_requests` (id INT AUTO_INCREMENT PRIMARY KEY, program_id INT NOT NULL, submission_no INT NOT NULL DEFAULT 1, status ENUM('Pending','Approved','Rejected','Completed','ON HOLD') NOT NULL DEFAULT 'Pending', budget_amount DECIMAL(12,2) NULL, details_json TEXT NULL, rejection_reason TEXT NULL, created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, INDEX idx_financial_status (status), INDEX idx_financial_program (program_id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+            } catch (Throwable $e) {
+            }
+            try {
+                $conn->query("CREATE TABLE IF NOT EXISTS `{$db}`.`logistics_requests` (id INT AUTO_INCREMENT PRIMARY KEY, program_id INT NOT NULL, submission_no INT NOT NULL DEFAULT 1, status ENUM('Pending','Approved','Rejected','Completed','ON HOLD') NOT NULL DEFAULT 'Pending', items_requested TEXT NULL, details_json TEXT NULL, rejection_reason TEXT NULL, created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, INDEX idx_logistics_status (status), INDEX idx_logistics_program (program_id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+            } catch (Throwable $e) {
+            }
+            try {
+                $conn->query("CREATE TABLE IF NOT EXISTS `{$db}`.`admin_requests` (id INT AUTO_INCREMENT PRIMARY KEY, program_id INT NOT NULL, submission_no INT NOT NULL DEFAULT 1, status ENUM('Pending','Approved','Rejected','Completed','ON HOLD') NOT NULL DEFAULT 'Pending', facility_details TEXT NULL, details_json TEXT NULL, rejection_reason TEXT NULL, created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, INDEX idx_admin_status (status), INDEX idx_admin_program (program_id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+            } catch (Throwable $e) {
+            }
+        };
+
+        $ensureRequestTables($conn, $requestsDb);
+        if ($requestsDb !== $trainingDb) {
+            try {
+                $stmtTest = $conn->prepare("SELECT 1 FROM `{$requestsDb}`.`financial_requests` LIMIT 1");
+                if ($stmtTest) {
+                    $stmtTest->execute();
+                    $stmtTest->close();
+                }
+                $stmtTest2 = $conn->prepare("SELECT 1 FROM `{$requestsDb}`.`logistics_requests` LIMIT 1");
+                if ($stmtTest2) {
+                    $stmtTest2->execute();
+                    $stmtTest2->close();
+                }
+                $stmtTest3 = $conn->prepare("SELECT 1 FROM `{$requestsDb}`.`admin_requests` LIMIT 1");
+                if ($stmtTest3) {
+                    $stmtTest3->execute();
+                    $stmtTest3->close();
+                }
+            } catch (Throwable $e) {
+                if ($isAccessDenied($e)) {
+                    $requestsDb = $trainingDb;
+                    $ensureRequestTables($conn, $requestsDb);
+                }
+            }
+        }
+
         $stmt = $conn->prepare("SELECT status, submission_no, need_budget, need_items, need_facility, financial_budget_amount, financial_details_json, logistics_items_requested, logistics_details_json, admin_facility_details, admin_details_json FROM training_programs WHERE id = ?");
         $stmt->bind_param('i', $programId);
         $stmt->execute();
@@ -1136,44 +1182,62 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             $needFacility = (int)($row['need_facility'] ?? 0);
 
             if ($needBudget === 1) {
-                $stmtChk = $conn->prepare("SELECT id FROM `{$requestsDb}`.`financial_requests` WHERE program_id = ? AND submission_no = ? LIMIT 1");
-                $stmtChk->bind_param('ii', $programId, $submissionNo);
-                $stmtChk->execute();
-                $exists = (bool)$stmtChk->get_result()->fetch_row();
-                if (!$exists) {
-                    $stmtIns = $conn->prepare("INSERT INTO `{$requestsDb}`.`financial_requests` (program_id, submission_no, status, budget_amount, details_json) VALUES (?, ?, 'Pending', NULLIF(?, ''), NULLIF(?, ''))");
-                    $ba = (string)($row['financial_budget_amount'] ?? '');
-                    $fj = (string)($row['financial_details_json'] ?? '');
-                    $stmtIns->bind_param('iiss', $programId, $submissionNo, $ba, $fj);
-                    $stmtIns->execute();
+                try {
+                    $stmtChk = $conn->prepare("SELECT id FROM `{$requestsDb}`.`financial_requests` WHERE program_id = ? AND submission_no = ? LIMIT 1");
+                    $stmtChk->bind_param('ii', $programId, $submissionNo);
+                    $stmtChk->execute();
+                    $exists = (bool)$stmtChk->get_result()->fetch_row();
+                    if (!$exists) {
+                        $stmtIns = $conn->prepare("INSERT INTO `{$requestsDb}`.`financial_requests` (program_id, submission_no, status, budget_amount, details_json) VALUES (?, ?, 'Pending', NULLIF(?, ''), NULLIF(?, ''))");
+                        $ba = (string)($row['financial_budget_amount'] ?? '');
+                        $fj = (string)($row['financial_details_json'] ?? '');
+                        $stmtIns->bind_param('iiss', $programId, $submissionNo, $ba, $fj);
+                        $stmtIns->execute();
+                    }
+                } catch (Throwable $e) {
+                    if ($isAccessDenied($e)) {
+                        $ensureRequestTables($conn, $trainingDb);
+                    }
                 }
             }
 
             if ($needItems === 1) {
-                $stmtChk = $conn->prepare("SELECT id FROM `{$requestsDb}`.`logistics_requests` WHERE program_id = ? AND submission_no = ? LIMIT 1");
-                $stmtChk->bind_param('ii', $programId, $submissionNo);
-                $stmtChk->execute();
-                $exists = (bool)$stmtChk->get_result()->fetch_row();
-                if (!$exists) {
-                    $stmtIns = $conn->prepare("INSERT INTO `{$requestsDb}`.`logistics_requests` (program_id, submission_no, status, items_requested, details_json) VALUES (?, ?, 'Pending', NULLIF(?, ''), NULLIF(?, ''))");
-                    $ir = (string)($row['logistics_items_requested'] ?? '');
-                    $lj = (string)($row['logistics_details_json'] ?? '');
-                    $stmtIns->bind_param('iiss', $programId, $submissionNo, $ir, $lj);
-                    $stmtIns->execute();
+                try {
+                    $stmtChk = $conn->prepare("SELECT id FROM `{$requestsDb}`.`logistics_requests` WHERE program_id = ? AND submission_no = ? LIMIT 1");
+                    $stmtChk->bind_param('ii', $programId, $submissionNo);
+                    $stmtChk->execute();
+                    $exists = (bool)$stmtChk->get_result()->fetch_row();
+                    if (!$exists) {
+                        $stmtIns = $conn->prepare("INSERT INTO `{$requestsDb}`.`logistics_requests` (program_id, submission_no, status, items_requested, details_json) VALUES (?, ?, 'Pending', NULLIF(?, ''), NULLIF(?, ''))");
+                        $ir = (string)($row['logistics_items_requested'] ?? '');
+                        $lj = (string)($row['logistics_details_json'] ?? '');
+                        $stmtIns->bind_param('iiss', $programId, $submissionNo, $ir, $lj);
+                        $stmtIns->execute();
+                    }
+                } catch (Throwable $e) {
+                    if ($isAccessDenied($e)) {
+                        $ensureRequestTables($conn, $trainingDb);
+                    }
                 }
             }
 
             if ($needFacility === 1) {
-                $stmtChk = $conn->prepare("SELECT id FROM `{$requestsDb}`.`admin_requests` WHERE program_id = ? AND submission_no = ? LIMIT 1");
-                $stmtChk->bind_param('ii', $programId, $submissionNo);
-                $stmtChk->execute();
-                $exists = (bool)$stmtChk->get_result()->fetch_row();
-                if (!$exists) {
-                    $stmtIns = $conn->prepare("INSERT INTO `{$requestsDb}`.`admin_requests` (program_id, submission_no, status, facility_details, details_json) VALUES (?, ?, 'Pending', NULLIF(?, ''), NULLIF(?, ''))");
-                    $fd = (string)($row['admin_facility_details'] ?? '');
-                    $aj = (string)($row['admin_details_json'] ?? '');
-                    $stmtIns->bind_param('iiss', $programId, $submissionNo, $fd, $aj);
-                    $stmtIns->execute();
+                try {
+                    $stmtChk = $conn->prepare("SELECT id FROM `{$requestsDb}`.`admin_requests` WHERE program_id = ? AND submission_no = ? LIMIT 1");
+                    $stmtChk->bind_param('ii', $programId, $submissionNo);
+                    $stmtChk->execute();
+                    $exists = (bool)$stmtChk->get_result()->fetch_row();
+                    if (!$exists) {
+                        $stmtIns = $conn->prepare("INSERT INTO `{$requestsDb}`.`admin_requests` (program_id, submission_no, status, facility_details, details_json) VALUES (?, ?, 'Pending', NULLIF(?, ''), NULLIF(?, ''))");
+                        $fd = (string)($row['admin_facility_details'] ?? '');
+                        $aj = (string)($row['admin_details_json'] ?? '');
+                        $stmtIns->bind_param('iiss', $programId, $submissionNo, $fd, $aj);
+                        $stmtIns->execute();
+                    }
+                } catch (Throwable $e) {
+                    if ($isAccessDenied($e)) {
+                        $ensureRequestTables($conn, $trainingDb);
+                    }
                 }
             }
         }
