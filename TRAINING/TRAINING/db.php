@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 function training_db_connect(string $dbName = 'hr2_schema_training_request'): mysqli
@@ -55,6 +56,24 @@ if (!preg_match('/^[A-Za-z0-9_]+$/', $REQUESTS_DB_NAME)) {
 }
 
 $conn = training_db_connect($TRAINING_DB_NAME);
+
+if ($REQUESTS_DB_NAME !== '' && $REQUESTS_DB_NAME !== $TRAINING_DB_NAME) {
+    try {
+        $stmt = $conn->prepare("SELECT 1 FROM information_schema.tables WHERE table_schema = ? LIMIT 1");
+        if ($stmt) {
+            $stmt->bind_param('s', $REQUESTS_DB_NAME);
+            $ok = $stmt->execute();
+            $stmt->close();
+            if ($ok === false) {
+                $REQUESTS_DB_NAME = $TRAINING_DB_NAME;
+            }
+        } else {
+            $REQUESTS_DB_NAME = $TRAINING_DB_NAME;
+        }
+    } catch (Throwable $e) {
+        $REQUESTS_DB_NAME = $TRAINING_DB_NAME;
+    }
+}
 
 if (!defined('HR_SKIP_TRAINING_BOOTSTRAP') || !HR_SKIP_TRAINING_BOOTSTRAP) {
     try {
