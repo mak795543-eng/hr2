@@ -1,774 +1,786 @@
 <?php
- 
- if (($_GET['action'] ?? '') === 'fetch_vacancies') {
-     header('Content-Type: application/json; charset=utf-8');
- 
-     $url = 'https://hr4.soliera-hotel-restaurant.com/CHM/API/save_employee.php';
-     $raw = null;
- 
-     if (function_exists('curl_init')) {
-         $ch = curl_init($url);
-         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-         curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
-         curl_setopt($ch, CURLOPT_TIMEOUT, 15);
-         $raw = curl_exec($ch);
-         $err = curl_error($ch);
-         $status = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
-         curl_close($ch);
- 
-         if ($raw === false || $status >= 400) {
-             echo json_encode([
-                 'success' => false,
-                 'message' => 'Failed to fetch vacancies from remote API',
-                 'status' => $status,
-                 'error' => $err,
-             ]);
-             exit;
-         }
-     } else {
-         $context = stream_context_create([
-             'http' => [
-                 'method' => 'GET',
-                 'timeout' => 15,
-                 'header' => "Accept: application/json\r\n",
-             ],
-         ]);
-         $raw = @file_get_contents($url, false, $context);
-         if ($raw === false) {
-             echo json_encode([
-                 'success' => false,
-                 'message' => 'Failed to fetch vacancies from remote API',
-             ]);
-             exit;
-         }
-     }
- 
-     $decoded = json_decode($raw, true);
-     if (!is_array($decoded)) {
-         echo json_encode([
-             'success' => false,
-             'message' => 'Remote API returned invalid JSON',
-             'raw' => substr((string)$raw, 0, 500),
-         ]);
-         exit;
-     }
- 
-     $mapped = [];
-     foreach ($decoded as $key => $row) {
-         if (!is_array($row)) {
-             continue;
-         }
-         $id = (string)($row['id'] ?? $key);
-         if ($id === '') {
-             continue;
-         }
-         $row['request_id'] = $id;
-         $mapped[$id] = $row;
-     }
- 
-     echo json_encode([
-         'success' => true,
-         'data' => $mapped,
-     ]);
-     exit;
- }
 
- if (($_GET['action'] ?? '') === 'fetch_job_details') {
-     header('Content-Type: application/json; charset=utf-8');
+if (($_GET['action'] ?? '') === 'fetch_vacancies') {
+    header('Content-Type: application/json; charset=utf-8');
 
-     $requestId = trim((string)($_GET['request_id'] ?? ''));
-     if ($requestId === '') {
-         echo json_encode(['success' => false, 'message' => 'Missing request_id']);
-         exit;
-     }
+    $url = 'https://hr1.soliera-hotel-restaurant.com/api/job-requests';
+    $raw = null;
 
-     $requestIdInt = ctype_digit($requestId) ? (int)$requestId : null;
+    if (function_exists('curl_init')) {
+        $ch = curl_init($url);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 15);
+        $raw = curl_exec($ch);
+        $err = curl_error($ch);
+        $status = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
 
-     try {
-         require_once __DIR__ . '/../job_desc/db_job_desc.php';
-         $conn = job_desc_mysqli();
+        if ($raw === false || $status >= 400) {
+            echo json_encode([
+                'success' => false,
+                'message' => 'Failed to fetch vacancies from remote API',
+                'status' => $status,
+                'error' => $err,
+            ]);
+            exit;
+        }
+    } else {
+        $context = stream_context_create([
+            'http' => [
+                'method' => 'GET',
+                'timeout' => 15,
+                'header' => "Accept: application/json\r\n",
+            ],
+        ]);
+        $raw = @file_get_contents($url, false, $context);
+        if ($raw === false) {
+            echo json_encode([
+                'success' => false,
+                'message' => 'Failed to fetch vacancies from remote API',
+            ]);
+            exit;
+        }
+    }
 
-         $tableExists = function (mysqli $c, string $table): bool {
-             $t = $c->real_escape_string($table);
-             $res = $c->query("SHOW TABLES LIKE '{$t}'");
-             if (!$res) {
-                 return false;
-             }
-             $exists = $res->num_rows > 0;
-             $res->free();
-             return $exists;
-         };
+    $decoded = json_decode($raw, true);
+    if (!is_array($decoded)) {
+        echo json_encode([
+            'success' => false,
+            'message' => 'Remote API returned invalid JSON',
+            'raw' => substr((string)$raw, 0, 500),
+        ]);
+        exit;
+    }
 
-         $data = [
-             'description' => '',
-             'qualifications' => [],
-             'requirements' => [],
-         ];
+    $mapped = [];
+    foreach ($decoded as $key => $row) {
+        if (!is_array($row)) {
+            continue;
+        }
+        $id = (string)($row['id'] ?? $key);
+        if ($id === '') {
+            continue;
+        }
+        $row['request_id'] = $id;
+        $mapped[$id] = $row;
+    }
 
-         if ($tableExists($conn, 'job_description')) {
-             $res = $conn->query("SHOW COLUMNS FROM job_description LIKE 'description'");
-             $descField = ($res && $res->num_rows > 0) ? 'description' : 'job_description';
-             if ($res) { $res->free(); }
+    echo json_encode([
+        'success' => true,
+        'data' => $mapped,
+    ]);
+    exit;
+}
 
-             if ($requestIdInt !== null) {
-                 $stmt = $conn->prepare("SELECT `{$descField}` FROM job_description WHERE request_id = ? ORDER BY created_at DESC, ID DESC LIMIT 1");
-                 if (!$stmt) throw new RuntimeException($conn->error);
-                 $stmt->bind_param('i', $requestIdInt);
-             } else {
-                 $stmt = $conn->prepare("SELECT `{$descField}` FROM job_description WHERE request_id = ? ORDER BY created_at DESC LIMIT 1");
-                 if (!$stmt) throw new RuntimeException($conn->error);
-                 $stmt->bind_param('s', $requestId);
-             }
-             $stmt->execute();
-             $r = $stmt->get_result();
-             $row = $r ? $r->fetch_assoc() : null;
-             $stmt->close();
-             if ($row) {
-                 $data['description'] = (string)($row[$descField] ?? '');
-             }
-         }
+if (($_GET['action'] ?? '') === 'fetch_job_details') {
+    header('Content-Type: application/json; charset=utf-8');
 
-         if ($tableExists($conn, 'qualifications')) {
-             $stmt = $conn->prepare('SELECT qualification FROM qualifications WHERE request_id = ? ORDER BY created_at DESC, id DESC');
-             if (!$stmt) throw new RuntimeException($conn->error);
-             $stmt->bind_param('s', $requestId);
-             $stmt->execute();
-             $r = $stmt->get_result();
-             if ($r) {
-                 while ($row = $r->fetch_assoc()) {
-                     $q = trim((string)($row['qualification'] ?? ''));
-                     if ($q === '') continue;
-                     $name = $q;
-                     $desc = '';
-                     if (strpos($q, '|') !== false) {
-                         $parts = explode('|', $q, 2);
-                         $name = trim((string)($parts[0] ?? ''));
-                         $desc = trim((string)($parts[1] ?? ''));
-                     }
-                     if ($name === '') continue;
-                     $data['qualifications'][] = [
-                         'name' => $name,
-                         'description' => $desc,
-                     ];
-                 }
-             }
-             $stmt->close();
-         }
+    $requestId = trim((string)($_GET['request_id'] ?? ''));
+    if ($requestId === '') {
+        echo json_encode(['success' => false, 'message' => 'Missing request_id']);
+        exit;
+    }
 
-         if ($tableExists($conn, 'requirements')) {
-             if ($requestIdInt !== null) {
-                 $stmt = $conn->prepare('SELECT name, description FROM requirements WHERE request_id = ? ORDER BY created_at DESC, ID DESC');
-                 if (!$stmt) throw new RuntimeException($conn->error);
-                 $stmt->bind_param('i', $requestIdInt);
-             } else {
-                 $stmt = $conn->prepare('SELECT name, description FROM requirements WHERE request_id = ? ORDER BY created_at DESC');
-                 if (!$stmt) throw new RuntimeException($conn->error);
-                 $stmt->bind_param('s', $requestId);
-             }
-             $stmt->execute();
-             $r = $stmt->get_result();
-             if ($r) {
-                 while ($row = $r->fetch_assoc()) {
-                     $name = trim((string)($row['name'] ?? ''));
-                     $desc = isset($row['description']) ? trim((string)$row['description']) : '';
-                     if ($name === '') continue;
-                     $data['requirements'][] = [
-                         'name' => $name,
-                         'description' => $desc,
-                     ];
-                 }
-             }
-             $stmt->close();
-         }
+    $requestIdInt = ctype_digit($requestId) ? (int)$requestId : null;
 
-         $conn->close();
+    try {
+        require_once __DIR__ . '/../job_desc/db_job_desc.php';
+        $conn = job_desc_mysqli();
 
-         echo json_encode(['success' => true, 'data' => $data]);
-         exit;
-     } catch (Throwable $e) {
-         if (isset($conn) && $conn instanceof mysqli) {
-             try { $conn->close(); } catch (Throwable $t) {}
-         }
-         echo json_encode(['success' => false, 'message' => $e->getMessage()]);
-         exit;
-     }
- }
+        $tableExists = function (mysqli $c, string $table): bool {
+            $t = $c->real_escape_string($table);
+            $res = $c->query("SHOW TABLES LIKE '{$t}'");
+            if (!$res) {
+                return false;
+            }
+            $exists = $res->num_rows > 0;
+            $res->free();
+            return $exists;
+        };
 
- if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_GET['action'] ?? '') === 'save_job_details') {
-     header('Content-Type: application/json; charset=utf-8');
+        $data = [
+            'description' => '',
+            'qualifications' => [],
+            'requirements' => [],
+        ];
 
-     $requestId = trim((string)($_POST['request_id'] ?? ''));
-     $jobTitle = trim((string)($_POST['job_title'] ?? ''));
-     $jobDescription = trim((string)($_POST['job_description'] ?? ''));
-     $requestIdInt = ctype_digit($requestId) ? (int)$requestId : null;
+        if ($tableExists($conn, 'job_description')) {
+            $res = $conn->query("SHOW COLUMNS FROM job_description LIKE 'description'");
+            $descField = ($res && $res->num_rows > 0) ? 'description' : 'job_description';
+            if ($res) {
+                $res->free();
+            }
 
-     $parseList = function ($value) use (&$parseList): array {
-         if (is_array($value)) {
-             $out = [];
-             foreach ($value as $v) {
-                 $t = trim((string)$v);
-                 if ($t !== '') {
-                     $out[] = $t;
-                 }
-             }
-             return $out;
-         }
+            if ($requestIdInt !== null) {
+                $stmt = $conn->prepare("SELECT `{$descField}` FROM job_description WHERE request_id = ? ORDER BY created_at DESC, ID DESC LIMIT 1");
+                if (!$stmt) throw new RuntimeException($conn->error);
+                $stmt->bind_param('i', $requestIdInt);
+            } else {
+                $stmt = $conn->prepare("SELECT `{$descField}` FROM job_description WHERE request_id = ? ORDER BY created_at DESC LIMIT 1");
+                if (!$stmt) throw new RuntimeException($conn->error);
+                $stmt->bind_param('s', $requestId);
+            }
+            $stmt->execute();
+            $r = $stmt->get_result();
+            $row = $r ? $r->fetch_assoc() : null;
+            $stmt->close();
+            if ($row) {
+                $data['description'] = (string)($row[$descField] ?? '');
+            }
+        }
 
-         $raw = trim((string)$value);
-         if ($raw === '') {
-             return [];
-         }
+        if ($tableExists($conn, 'qualifications')) {
+            $stmt = $conn->prepare('SELECT qualification FROM qualifications WHERE request_id = ? ORDER BY created_at DESC, id DESC');
+            if (!$stmt) throw new RuntimeException($conn->error);
+            $stmt->bind_param('s', $requestId);
+            $stmt->execute();
+            $r = $stmt->get_result();
+            if ($r) {
+                while ($row = $r->fetch_assoc()) {
+                    $q = trim((string)($row['qualification'] ?? ''));
+                    if ($q === '') continue;
+                    $name = $q;
+                    $desc = '';
+                    if (strpos($q, '|') !== false) {
+                        $parts = explode('|', $q, 2);
+                        $name = trim((string)($parts[0] ?? ''));
+                        $desc = trim((string)($parts[1] ?? ''));
+                    }
+                    if ($name === '') continue;
+                    $data['qualifications'][] = [
+                        'name' => $name,
+                        'description' => $desc,
+                    ];
+                }
+            }
+            $stmt->close();
+        }
 
-         if ($raw[0] === '[') {
-             $decoded = json_decode($raw, true);
-             if (is_array($decoded)) {
-                 return $parseList($decoded);
-             }
-         }
+        if ($tableExists($conn, 'requirements')) {
+            if ($requestIdInt !== null) {
+                $stmt = $conn->prepare('SELECT name, description FROM requirements WHERE request_id = ? ORDER BY created_at DESC, ID DESC');
+                if (!$stmt) throw new RuntimeException($conn->error);
+                $stmt->bind_param('i', $requestIdInt);
+            } else {
+                $stmt = $conn->prepare('SELECT name, description FROM requirements WHERE request_id = ? ORDER BY created_at DESC');
+                if (!$stmt) throw new RuntimeException($conn->error);
+                $stmt->bind_param('s', $requestId);
+            }
+            $stmt->execute();
+            $r = $stmt->get_result();
+            if ($r) {
+                while ($row = $r->fetch_assoc()) {
+                    $name = trim((string)($row['name'] ?? ''));
+                    $desc = isset($row['description']) ? trim((string)$row['description']) : '';
+                    if ($name === '') continue;
+                    $data['requirements'][] = [
+                        'name' => $name,
+                        'description' => $desc,
+                    ];
+                }
+            }
+            $stmt->close();
+        }
 
-         $lines = preg_split('/\r\n|\r|\n/', $raw);
-         $out = [];
-         foreach ($lines as $line) {
-             $t = trim((string)$line);
-             if ($t !== '') {
-                 $out[] = $t;
-             }
-         }
-         return $out;
-     };
+        $conn->close();
 
-     $qualifications = $parseList($_POST['qualifications'] ?? '');
-     $requirements = $parseList($_POST['requirements'] ?? '');
+        echo json_encode(['success' => true, 'data' => $data]);
+        exit;
+    } catch (Throwable $e) {
+        if (isset($conn) && $conn instanceof mysqli) {
+            try {
+                $conn->close();
+            } catch (Throwable $t) {
+            }
+        }
+        echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+        exit;
+    }
+}
 
-     $qualItems = [];
-     if (isset($_POST['qualifications_name']) || isset($_POST['qualifications_description'])) {
-         $names = $_POST['qualifications_name'] ?? [];
-         $descs = $_POST['qualifications_description'] ?? [];
-         if (!is_array($names)) $names = [$names];
-         if (!is_array($descs)) $descs = [$descs];
-         $max = max(count($names), count($descs));
-         for ($i = 0; $i < $max; $i++) {
-             $n = trim((string)($names[$i] ?? ''));
-             $d = trim((string)($descs[$i] ?? ''));
-             if ($n === '' && $d === '') continue;
-             if ($n === '') $n = $d;
-             $qualItems[] = [
-                 'name' => $n,
-                 'description' => $d,
-             ];
-         }
-     } else {
-         foreach ($qualifications as $q) {
-             $name = $q;
-             $desc = '';
-             if (strpos($q, '|') !== false) {
-                 $parts = explode('|', $q, 2);
-                 $name = trim((string)($parts[0] ?? ''));
-                 $desc = trim((string)($parts[1] ?? ''));
-             }
-             $name = trim((string)$name);
-             if ($name === '') continue;
-             $qualItems[] = [
-                 'name' => $name,
-                 'description' => $desc,
-             ];
-         }
-     }
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_GET['action'] ?? '') === 'save_job_details') {
+    header('Content-Type: application/json; charset=utf-8');
 
-     $reqItems = [];
-     if (isset($_POST['requirements_name']) || isset($_POST['requirements_description'])) {
-         $names = $_POST['requirements_name'] ?? [];
-         $descs = $_POST['requirements_description'] ?? [];
-         if (!is_array($names)) $names = [$names];
-         if (!is_array($descs)) $descs = [$descs];
-         $max = max(count($names), count($descs));
-         for ($i = 0; $i < $max; $i++) {
-             $n = trim((string)($names[$i] ?? ''));
-             $d = trim((string)($descs[$i] ?? ''));
-             if ($n === '' && $d === '') continue;
-             if ($n === '') $n = $d;
-             $reqItems[] = [
-                 'name' => $n,
-                 'description' => ($d === '' ? null : $d),
-             ];
-         }
-     } else {
-         foreach ($requirements as $r) {
-             $name = $r;
-             $desc = null;
-             if (strpos($r, '|') !== false) {
-                 $parts = explode('|', $r, 2);
-                 $name = trim((string)($parts[0] ?? ''));
-                 $desc = trim((string)($parts[1] ?? ''));
-                 if ($desc === '') $desc = null;
-             }
-             $name = trim((string)$name);
-             if ($name === '') continue;
-             $reqItems[] = [
-                 'name' => $name,
-                 'description' => $desc,
-             ];
-         }
-     }
+    $requestId = trim((string)($_POST['request_id'] ?? ''));
+    $jobTitle = trim((string)($_POST['job_title'] ?? ''));
+    $jobDescription = trim((string)($_POST['job_description'] ?? ''));
+    $requestIdInt = ctype_digit($requestId) ? (int)$requestId : null;
 
-     if ($requestId === '') {
-         echo json_encode(['success' => false, 'message' => 'Missing request_id']);
-         exit;
-     }
-     if ($jobDescription === '') {
-         echo json_encode(['success' => false, 'message' => 'Job description is required']);
-         exit;
-     }
+    $parseList = function ($value) use (&$parseList): array {
+        if (is_array($value)) {
+            $out = [];
+            foreach ($value as $v) {
+                $t = trim((string)$v);
+                if ($t !== '') {
+                    $out[] = $t;
+                }
+            }
+            return $out;
+        }
 
-     try {
-         require_once __DIR__ . '/../job_desc/db_job_desc.php';
-         $conn = job_desc_mysqli();
-         $conn->begin_transaction();
+        $raw = trim((string)$value);
+        if ($raw === '') {
+            return [];
+        }
 
-         $debug = [
-             'db' => null,
-             'job_vacancy_inserted' => 0,
-             'job_description_inserts' => 0,
-             'qualifications_inserts' => 0,
-             'requirements_inserts' => 0,
-         ];
+        if ($raw[0] === '[') {
+            $decoded = json_decode($raw, true);
+            if (is_array($decoded)) {
+                return $parseList($decoded);
+            }
+        }
 
-         $dbRes = $conn->query('SELECT DATABASE() AS db');
-         if ($dbRes) {
-             $dbRow = $dbRes->fetch_assoc();
-             $debug['db'] = $dbRow['db'] ?? null;
-             $dbRes->free();
-         }
+        $lines = preg_split('/\r\n|\r|\n/', $raw);
+        $out = [];
+        foreach ($lines as $line) {
+            $t = trim((string)$line);
+            if ($t !== '') {
+                $out[] = $t;
+            }
+        }
+        return $out;
+    };
 
-         $exec = function (mysqli_stmt $stmt) {
-             $ok = $stmt->execute();
-             if (!$ok) {
-                 throw new RuntimeException($stmt->error ?: 'SQL execute failed');
-             }
-         };
+    $qualifications = $parseList($_POST['qualifications'] ?? '');
+    $requirements = $parseList($_POST['requirements'] ?? '');
 
-         $tableExists = function (mysqli $c, string $table): bool {
-             $t = $c->real_escape_string($table);
-             $res = $c->query("SHOW TABLES LIKE '{$t}'");
-             if (!$res) {
-                 return false;
-             }
-             $exists = $res->num_rows > 0;
-             $res->free();
-             return $exists;
-         };
+    $qualItems = [];
+    if (isset($_POST['qualifications_name']) || isset($_POST['qualifications_description'])) {
+        $names = $_POST['qualifications_name'] ?? [];
+        $descs = $_POST['qualifications_description'] ?? [];
+        if (!is_array($names)) $names = [$names];
+        if (!is_array($descs)) $descs = [$descs];
+        $max = max(count($names), count($descs));
+        for ($i = 0; $i < $max; $i++) {
+            $n = trim((string)($names[$i] ?? ''));
+            $d = trim((string)($descs[$i] ?? ''));
+            if ($n === '' && $d === '') continue;
+            if ($n === '') $n = $d;
+            $qualItems[] = [
+                'name' => $n,
+                'description' => $d,
+            ];
+        }
+    } else {
+        foreach ($qualifications as $q) {
+            $name = $q;
+            $desc = '';
+            if (strpos($q, '|') !== false) {
+                $parts = explode('|', $q, 2);
+                $name = trim((string)($parts[0] ?? ''));
+                $desc = trim((string)($parts[1] ?? ''));
+            }
+            $name = trim((string)$name);
+            if ($name === '') continue;
+            $qualItems[] = [
+                'name' => $name,
+                'description' => $desc,
+            ];
+        }
+    }
 
-         $getColumns = function (mysqli $c, string $table): array {
-             $cols = [];
-             $res = $c->query("SHOW COLUMNS FROM `{$table}`");
-             if (!$res) {
-                 return $cols;
-             }
-             while ($row = $res->fetch_assoc()) {
-                 $field = (string)($row['Field'] ?? '');
-                 if ($field === '') continue;
-                 $cols[$field] = $row;
-             }
-             $res->free();
-             return $cols;
-         };
+    $reqItems = [];
+    if (isset($_POST['requirements_name']) || isset($_POST['requirements_description'])) {
+        $names = $_POST['requirements_name'] ?? [];
+        $descs = $_POST['requirements_description'] ?? [];
+        if (!is_array($names)) $names = [$names];
+        if (!is_array($descs)) $descs = [$descs];
+        $max = max(count($names), count($descs));
+        for ($i = 0; $i < $max; $i++) {
+            $n = trim((string)($names[$i] ?? ''));
+            $d = trim((string)($descs[$i] ?? ''));
+            if ($n === '' && $d === '') continue;
+            if ($n === '') $n = $d;
+            $reqItems[] = [
+                'name' => $n,
+                'description' => ($d === '' ? null : $d),
+            ];
+        }
+    } else {
+        foreach ($requirements as $r) {
+            $name = $r;
+            $desc = null;
+            if (strpos($r, '|') !== false) {
+                $parts = explode('|', $r, 2);
+                $name = trim((string)($parts[0] ?? ''));
+                $desc = trim((string)($parts[1] ?? ''));
+                if ($desc === '') $desc = null;
+            }
+            $name = trim((string)$name);
+            if ($name === '') continue;
+            $reqItems[] = [
+                'name' => $name,
+                'description' => $desc,
+            ];
+        }
+    }
 
-         $isAutoIncrement = function (array $cols, string $field): bool {
-             if (!isset($cols[$field])) return false;
-             $extra = (string)($cols[$field]['Extra'] ?? '');
-             return stripos($extra, 'auto_increment') !== false;
-         };
+    if ($requestId === '') {
+        echo json_encode(['success' => false, 'message' => 'Missing request_id']);
+        exit;
+    }
+    if ($jobDescription === '') {
+        echo json_encode(['success' => false, 'message' => 'Job description is required']);
+        exit;
+    }
 
-         $nextId = function (mysqli $c, string $table, string $idField): int {
-             $res = $c->query("SELECT IFNULL(MAX(`{$idField}`), 0) + 1 AS next_id FROM `{$table}`");
-             if (!$res) {
-                 return 1;
-             }
-             $row = $res->fetch_assoc();
-             $res->free();
-             return (int)($row['next_id'] ?? 1);
-         };
+    try {
+        require_once __DIR__ . '/../job_desc/db_job_desc.php';
+        $conn = job_desc_mysqli();
+        $conn->begin_transaction();
 
-         $colDefaultValue = function (array $col) {
-             $nullAllowed = ((string)($col['Null'] ?? '')) === 'YES';
-             $default = $col['Default'] ?? null;
-             if ($default !== null) {
-                 return $default;
-             }
-             if ($nullAllowed) {
-                 return null;
-             }
-             $type = strtolower((string)($col['Type'] ?? ''));
-             if (preg_match('/^(tinyint|smallint|mediumint|int|bigint)/', $type)) {
-                 return 0;
-             }
-             if (preg_match('/^(decimal|float|double)/', $type)) {
-                 return 0;
-             }
-             if (preg_match('/^enum\((.*)\)$/', $type, $m)) {
-                 $vals = explode(',', $m[1]);
-                 $first = trim((string)($vals[0] ?? ''), " '\"");
-                 return $first;
-             }
-             if (strpos($type, 'date') !== false && strpos($type, 'time') === false) {
-                 return date('Y-m-d');
-             }
-             if (strpos($type, 'datetime') !== false || strpos($type, 'timestamp') !== false) {
-                 return date('Y-m-d H:i:s');
-             }
-             return '';
-         };
+        $debug = [
+            'db' => null,
+            'job_vacancy_inserted' => 0,
+            'job_description_inserts' => 0,
+            'qualifications_inserts' => 0,
+            'requirements_inserts' => 0,
+        ];
 
-         $paramTypeFor = function (array $col): string {
-             $type = strtolower((string)($col['Type'] ?? ''));
-             if (preg_match('/^(tinyint|smallint|mediumint|int|bigint)/', $type)) {
-                 return 'i';
-             }
-             if (preg_match('/^(decimal|float|double)/', $type)) {
-                 return 'd';
-             }
-             return 's';
-         };
+        $dbRes = $conn->query('SELECT DATABASE() AS db');
+        if ($dbRes) {
+            $dbRow = $dbRes->fetch_assoc();
+            $debug['db'] = $dbRow['db'] ?? null;
+            $dbRes->free();
+        }
 
-         if ($tableExists($conn, 'job_vacancy') && $requestIdInt !== null) {
-             $jobVacCols = $getColumns($conn, 'job_vacancy');
-             $idField = isset($jobVacCols['ID']) ? 'ID' : (isset($jobVacCols['id']) ? 'id' : 'ID');
+        $exec = function (mysqli_stmt $stmt) {
+            $ok = $stmt->execute();
+            if (!$ok) {
+                throw new RuntimeException($stmt->error ?: 'SQL execute failed');
+            }
+        };
 
-             $stmtChk = $conn->prepare("SELECT 1 FROM job_vacancy WHERE `{$idField}` = ? LIMIT 1");
-             if (!$stmtChk) throw new RuntimeException($conn->error);
-             $stmtChk->bind_param('i', $requestIdInt);
-             $exec($stmtChk);
-             $chkRes = $stmtChk->get_result();
-             $exists = $chkRes && $chkRes->num_rows > 0;
-             $stmtChk->close();
+        $tableExists = function (mysqli $c, string $table): bool {
+            $t = $c->real_escape_string($table);
+            $res = $c->query("SHOW TABLES LIKE '{$t}'");
+            if (!$res) {
+                return false;
+            }
+            $exists = $res->num_rows > 0;
+            $res->free();
+            return $exists;
+        };
 
-             if (!$exists) {
-                 $posted = [
-                     'department_id' => $_POST['department_id'] ?? null,
-                     'sub_department_id' => $_POST['sub_department_id'] ?? null,
-                     'title' => $_POST['job_title'] ?? ($_POST['title'] ?? null),
-                     'type' => $_POST['type'] ?? null,
-                     'status' => $_POST['status'] ?? null,
-                     'vacancies' => $_POST['vacancies'] ?? null,
-                     'exam_required' => $_POST['exam_required'] ?? null,
-                     'salary_min' => $_POST['salary_min'] ?? null,
-                     'salary_max' => $_POST['salary_max'] ?? null,
-                     'job_period_days' => $_POST['job_period_days'] ?? null,
-                     'job_end_date' => $_POST['job_end_date'] ?? null,
-                 ];
+        $getColumns = function (mysqli $c, string $table): array {
+            $cols = [];
+            $res = $c->query("SHOW COLUMNS FROM `{$table}`");
+            if (!$res) {
+                return $cols;
+            }
+            while ($row = $res->fetch_assoc()) {
+                $field = (string)($row['Field'] ?? '');
+                if ($field === '') continue;
+                $cols[$field] = $row;
+            }
+            $res->free();
+            return $cols;
+        };
 
-                 $cols = [];
-                 $types = '';
-                 $values = [];
+        $isAutoIncrement = function (array $cols, string $field): bool {
+            if (!isset($cols[$field])) return false;
+            $extra = (string)($cols[$field]['Extra'] ?? '');
+            return stripos($extra, 'auto_increment') !== false;
+        };
 
-                 foreach ($jobVacCols as $field => $meta) {
-                     if ($field === $idField) {
-                         $cols[] = "`{$field}`";
-                         $types .= 'i';
-                         $values[] = $requestIdInt;
-                         continue;
-                     }
+        $nextId = function (mysqli $c, string $table, string $idField): int {
+            $res = $c->query("SELECT IFNULL(MAX(`{$idField}`), 0) + 1 AS next_id FROM `{$table}`");
+            if (!$res) {
+                return 1;
+            }
+            $row = $res->fetch_assoc();
+            $res->free();
+            return (int)($row['next_id'] ?? 1);
+        };
 
-                     if (stripos((string)($meta['Extra'] ?? ''), 'auto_increment') !== false) {
-                         continue;
-                     }
+        $colDefaultValue = function (array $col) {
+            $nullAllowed = ((string)($col['Null'] ?? '')) === 'YES';
+            $default = $col['Default'] ?? null;
+            if ($default !== null) {
+                return $default;
+            }
+            if ($nullAllowed) {
+                return null;
+            }
+            $type = strtolower((string)($col['Type'] ?? ''));
+            if (preg_match('/^(tinyint|smallint|mediumint|int|bigint)/', $type)) {
+                return 0;
+            }
+            if (preg_match('/^(decimal|float|double)/', $type)) {
+                return 0;
+            }
+            if (preg_match('/^enum\((.*)\)$/', $type, $m)) {
+                $vals = explode(',', $m[1]);
+                $first = trim((string)($vals[0] ?? ''), " '\"");
+                return $first;
+            }
+            if (strpos($type, 'date') !== false && strpos($type, 'time') === false) {
+                return date('Y-m-d');
+            }
+            if (strpos($type, 'datetime') !== false || strpos($type, 'timestamp') !== false) {
+                return date('Y-m-d H:i:s');
+            }
+            return '';
+        };
 
-                     $hasUserValue = array_key_exists($field, $posted) && $posted[$field] !== null && $posted[$field] !== '';
-                     if ($hasUserValue) {
-                         $val = $posted[$field];
-                         $cols[] = "`{$field}`";
-                         $types .= $paramTypeFor($meta);
-                         $values[] = $val;
-                         continue;
-                     }
+        $paramTypeFor = function (array $col): string {
+            $type = strtolower((string)($col['Type'] ?? ''));
+            if (preg_match('/^(tinyint|smallint|mediumint|int|bigint)/', $type)) {
+                return 'i';
+            }
+            if (preg_match('/^(decimal|float|double)/', $type)) {
+                return 'd';
+            }
+            return 's';
+        };
 
-                     $hasDefault = array_key_exists('Default', $meta) && $meta['Default'] !== null;
-                     $nullAllowed = ((string)($meta['Null'] ?? '')) === 'YES';
-                     if ($hasDefault || $nullAllowed) {
-                         // Let MySQL apply DEFAULT / NULL
-                         continue;
-                     }
+        if ($tableExists($conn, 'job_vacancy') && $requestIdInt !== null) {
+            $jobVacCols = $getColumns($conn, 'job_vacancy');
+            $idField = isset($jobVacCols['ID']) ? 'ID' : (isset($jobVacCols['id']) ? 'id' : 'ID');
 
-                     // Required column with no default: provide a safe placeholder
-                     $val = $colDefaultValue($meta);
-                     $cols[] = "`{$field}`";
-                     $types .= $paramTypeFor($meta);
-                     $values[] = $val;
-                 }
+            $stmtChk = $conn->prepare("SELECT 1 FROM job_vacancy WHERE `{$idField}` = ? LIMIT 1");
+            if (!$stmtChk) throw new RuntimeException($conn->error);
+            $stmtChk->bind_param('i', $requestIdInt);
+            $exec($stmtChk);
+            $chkRes = $stmtChk->get_result();
+            $exists = $chkRes && $chkRes->num_rows > 0;
+            $stmtChk->close();
 
-                 $placeholders = implode(',', array_fill(0, count($cols), '?'));
-                 $colList = implode(',', $cols);
-                 $sql = "INSERT INTO job_vacancy ({$colList}) VALUES ({$placeholders})";
-                 $stmtIns = $conn->prepare($sql);
-                 if (!$stmtIns) {
-                     throw new RuntimeException($conn->error);
-                 }
-                 $stmtIns->bind_param($types, ...$values);
-                 $exec($stmtIns);
-                 $stmtIns->close();
-                 $debug['job_vacancy_inserted'] = 1;
-             }
-         }
+            if (!$exists) {
+                $posted = [
+                    'department_id' => $_POST['department_id'] ?? null,
+                    'sub_department_id' => $_POST['sub_department_id'] ?? null,
+                    'title' => $_POST['job_title'] ?? ($_POST['title'] ?? null),
+                    'type' => $_POST['type'] ?? null,
+                    'status' => $_POST['status'] ?? null,
+                    'vacancies' => $_POST['vacancies'] ?? null,
+                    'exam_required' => $_POST['exam_required'] ?? null,
+                    'salary_min' => $_POST['salary_min'] ?? null,
+                    'salary_max' => $_POST['salary_max'] ?? null,
+                    'job_period_days' => $_POST['job_period_days'] ?? null,
+                    'job_end_date' => $_POST['job_end_date'] ?? null,
+                ];
 
-         if ($tableExists($conn, 'job_description')) {
-             $jobDescCols = $getColumns($conn, 'job_description');
-             $descField = isset($jobDescCols['description']) ? 'description' : (isset($jobDescCols['job_description']) ? 'job_description' : 'description');
-             $idField = isset($jobDescCols['ID']) ? 'ID' : (isset($jobDescCols['id']) ? 'id' : 'ID');
+                $cols = [];
+                $types = '';
+                $values = [];
 
-             $stmtDel = $conn->prepare('DELETE FROM job_description WHERE request_id = ?');
-             if (!$stmtDel) throw new RuntimeException($conn->error);
-             if ($requestIdInt !== null) {
-                 $stmtDel->bind_param('i', $requestIdInt);
-             } else {
-                 $stmtDel->bind_param('s', $requestId);
-             }
-             $exec($stmtDel);
-             $stmtDel->close();
+                foreach ($jobVacCols as $field => $meta) {
+                    if ($field === $idField) {
+                        $cols[] = "`{$field}`";
+                        $types .= 'i';
+                        $values[] = $requestIdInt;
+                        continue;
+                    }
 
-             if (isset($jobDescCols[$idField]) && !$isAutoIncrement($jobDescCols, $idField)) {
-                 $newId = $nextId($conn, 'job_description', $idField);
-                 $stmtIns = $conn->prepare("INSERT INTO job_description (`{$idField}`, `request_id`, `{$descField}`) VALUES (?, ?, ?)");
-                 if (!$stmtIns) throw new RuntimeException($conn->error);
-                 if ($requestIdInt !== null) {
-                     $stmtIns->bind_param('iis', $newId, $requestIdInt, $jobDescription);
-                 } else {
-                     $stmtIns->bind_param('iss', $newId, $requestId, $jobDescription);
-                 }
-                 $exec($stmtIns);
-                 $debug['job_description_inserts']++;
-                 $stmtIns->close();
-             } else {
-                 $stmtIns = $conn->prepare("INSERT INTO job_description (`request_id`, `{$descField}`) VALUES (?, ?)");
-                 if (!$stmtIns) throw new RuntimeException($conn->error);
-                 if ($requestIdInt !== null) {
-                     $stmtIns->bind_param('is', $requestIdInt, $jobDescription);
-                 } else {
-                     $stmtIns->bind_param('ss', $requestId, $jobDescription);
-                 }
-                 $exec($stmtIns);
-                 $debug['job_description_inserts']++;
-                 $stmtIns->close();
-             }
-         } elseif ($tableExists($conn, 'job_roles')) {
-             $stmtUp = $conn->prepare('UPDATE job_roles SET description = ? WHERE request_id = ?');
-             $stmtUp->bind_param('ss', $jobDescription, $requestId);
-             $stmtUp->execute();
-             $affected = $stmtUp->affected_rows;
-             $stmtUp->close();
+                    if (stripos((string)($meta['Extra'] ?? ''), 'auto_increment') !== false) {
+                        continue;
+                    }
 
-             if ($affected === 0 && $jobTitle !== '') {
-                 $vacancies = 1;
-                 $stmtInsRole = $conn->prepare('INSERT INTO job_roles (request_id, name, vacancies, description) VALUES (?, ?, ?, ?)');
-                 $stmtInsRole->bind_param('ssis', $requestId, $jobTitle, $vacancies, $jobDescription);
-                 $stmtInsRole->execute();
-                 $stmtInsRole->close();
-             }
-         } else {
-             throw new RuntimeException('Missing job_description/job_roles table in job_desc database');
-         }
+                    $hasUserValue = array_key_exists($field, $posted) && $posted[$field] !== null && $posted[$field] !== '';
+                    if ($hasUserValue) {
+                        $val = $posted[$field];
+                        $cols[] = "`{$field}`";
+                        $types .= $paramTypeFor($meta);
+                        $values[] = $val;
+                        continue;
+                    }
 
-         if ($tableExists($conn, 'qualifications')) {
-             $qualCols = $getColumns($conn, 'qualifications');
-             $idField = isset($qualCols['ID']) ? 'ID' : (isset($qualCols['id']) ? 'id' : 'id');
+                    $hasDefault = array_key_exists('Default', $meta) && $meta['Default'] !== null;
+                    $nullAllowed = ((string)($meta['Null'] ?? '')) === 'YES';
+                    if ($hasDefault || $nullAllowed) {
+                        // Let MySQL apply DEFAULT / NULL
+                        continue;
+                    }
 
-             $stmtDel = $conn->prepare('DELETE FROM qualifications WHERE request_id = ?');
-             if (!$stmtDel) throw new RuntimeException($conn->error);
-             $stmtDel->bind_param('s', $requestId);
-             $exec($stmtDel);
-             $stmtDel->close();
+                    // Required column with no default: provide a safe placeholder
+                    $val = $colDefaultValue($meta);
+                    $cols[] = "`{$field}`";
+                    $types .= $paramTypeFor($meta);
+                    $values[] = $val;
+                }
 
-             if (isset($qualCols[$idField]) && !$isAutoIncrement($qualCols, $idField)) {
-                 $stmtIns = $conn->prepare("INSERT INTO qualifications (`{$idField}`, `request_id`, `qualification`) VALUES (?, ?, ?)");
-                 if (!$stmtIns) throw new RuntimeException($conn->error);
-                 foreach ($qualItems as $q) {
-                     $newId = $nextId($conn, 'qualifications', $idField);
-                     $text = trim((string)($q['name'] ?? ''));
-                     $desc = trim((string)($q['description'] ?? ''));
-                     if ($text === '') continue;
-                     if ($desc !== '') $text .= ' | ' . $desc;
-                     $stmtIns->bind_param('iss', $newId, $requestId, $text);
-                     $exec($stmtIns);
-                     $debug['qualifications_inserts']++;
-                 }
-                 $stmtIns->close();
-             } else {
-                 $stmtIns = $conn->prepare('INSERT INTO qualifications (request_id, qualification) VALUES (?, ?)');
-                 if (!$stmtIns) throw new RuntimeException($conn->error);
-                 foreach ($qualItems as $q) {
-                     $text = trim((string)($q['name'] ?? ''));
-                     $desc = trim((string)($q['description'] ?? ''));
-                     if ($text === '') continue;
-                     if ($desc !== '') $text .= ' | ' . $desc;
-                     $stmtIns->bind_param('ss', $requestId, $text);
-                     $exec($stmtIns);
-                     $debug['qualifications_inserts']++;
-                 }
-                 $stmtIns->close();
-             }
-         } elseif ($tableExists($conn, 'qualificcaion')) {
-             $stmtDel = $conn->prepare('DELETE FROM qualificcaion WHERE request_id = ?');
-             $stmtDel->bind_param('s', $requestId);
-             $stmtDel->execute();
-             $stmtDel->close();
+                $placeholders = implode(',', array_fill(0, count($cols), '?'));
+                $colList = implode(',', $cols);
+                $sql = "INSERT INTO job_vacancy ({$colList}) VALUES ({$placeholders})";
+                $stmtIns = $conn->prepare($sql);
+                if (!$stmtIns) {
+                    throw new RuntimeException($conn->error);
+                }
+                $stmtIns->bind_param($types, ...$values);
+                $exec($stmtIns);
+                $stmtIns->close();
+                $debug['job_vacancy_inserted'] = 1;
+            }
+        }
 
-             $stmtIns = $conn->prepare('INSERT INTO qualificcaion (request_id, qualification) VALUES (?, ?)');
-             if (!$stmtIns) throw new RuntimeException($conn->error);
-             foreach ($qualItems as $q) {
-                 $text = trim((string)($q['name'] ?? ''));
-                 $desc = trim((string)($q['description'] ?? ''));
-                 if ($text === '') continue;
-                 if ($desc !== '') $text .= ' | ' . $desc;
-                 $stmtIns->bind_param('ss', $requestId, $text);
-                 $stmtIns->execute();
-                 $debug['qualifications_inserts']++;
-             }
-             $stmtIns->close();
-         } elseif ($tableExists($conn, 'qualifications')) {
-             $stmtDel = $conn->prepare('DELETE FROM qualifications WHERE request_id = ?');
-             $stmtDel->bind_param('s', $requestId);
-             $stmtDel->execute();
-             $stmtDel->close();
+        if ($tableExists($conn, 'job_description')) {
+            $jobDescCols = $getColumns($conn, 'job_description');
+            $descField = isset($jobDescCols['description']) ? 'description' : (isset($jobDescCols['job_description']) ? 'job_description' : 'description');
+            $idField = isset($jobDescCols['ID']) ? 'ID' : (isset($jobDescCols['id']) ? 'id' : 'ID');
 
-             $stmtIns = $conn->prepare('INSERT INTO qualifications (request_id, qualification, type, priority) VALUES (?, ?, ?, ?)');
-             if (!$stmtIns) throw new RuntimeException($conn->error);
-             $type = 'General';
-             $priority = 1;
-             foreach ($qualItems as $q) {
-                 $text = trim((string)($q['name'] ?? ''));
-                 $desc = trim((string)($q['description'] ?? ''));
-                 if ($text === '') continue;
-                 if ($desc !== '') $text .= ' | ' . $desc;
-                 $stmtIns->bind_param('sssi', $requestId, $text, $type, $priority);
-                 $stmtIns->execute();
-                 $debug['qualifications_inserts']++;
-                 $priority++;
-             }
-             $stmtIns->close();
-         }
+            $stmtDel = $conn->prepare('DELETE FROM job_description WHERE request_id = ?');
+            if (!$stmtDel) throw new RuntimeException($conn->error);
+            if ($requestIdInt !== null) {
+                $stmtDel->bind_param('i', $requestIdInt);
+            } else {
+                $stmtDel->bind_param('s', $requestId);
+            }
+            $exec($stmtDel);
+            $stmtDel->close();
 
-         if ($tableExists($conn, 'requirements')) {
-             $reqCols = $getColumns($conn, 'requirements');
-             $idField = isset($reqCols['ID']) ? 'ID' : (isset($reqCols['id']) ? 'id' : 'ID');
+            if (isset($jobDescCols[$idField]) && !$isAutoIncrement($jobDescCols, $idField)) {
+                $newId = $nextId($conn, 'job_description', $idField);
+                $stmtIns = $conn->prepare("INSERT INTO job_description (`{$idField}`, `request_id`, `{$descField}`) VALUES (?, ?, ?)");
+                if (!$stmtIns) throw new RuntimeException($conn->error);
+                if ($requestIdInt !== null) {
+                    $stmtIns->bind_param('iis', $newId, $requestIdInt, $jobDescription);
+                } else {
+                    $stmtIns->bind_param('iss', $newId, $requestId, $jobDescription);
+                }
+                $exec($stmtIns);
+                $debug['job_description_inserts']++;
+                $stmtIns->close();
+            } else {
+                $stmtIns = $conn->prepare("INSERT INTO job_description (`request_id`, `{$descField}`) VALUES (?, ?)");
+                if (!$stmtIns) throw new RuntimeException($conn->error);
+                if ($requestIdInt !== null) {
+                    $stmtIns->bind_param('is', $requestIdInt, $jobDescription);
+                } else {
+                    $stmtIns->bind_param('ss', $requestId, $jobDescription);
+                }
+                $exec($stmtIns);
+                $debug['job_description_inserts']++;
+                $stmtIns->close();
+            }
+        } elseif ($tableExists($conn, 'job_roles')) {
+            $stmtUp = $conn->prepare('UPDATE job_roles SET description = ? WHERE request_id = ?');
+            $stmtUp->bind_param('ss', $jobDescription, $requestId);
+            $stmtUp->execute();
+            $affected = $stmtUp->affected_rows;
+            $stmtUp->close();
 
-             $stmtDel = $conn->prepare('DELETE FROM requirements WHERE request_id = ?');
-             if (!$stmtDel) throw new RuntimeException($conn->error);
-             if ($requestIdInt !== null) {
-                 $stmtDel->bind_param('i', $requestIdInt);
-             } else {
-                 $stmtDel->bind_param('s', $requestId);
-             }
-             $exec($stmtDel);
-             $stmtDel->close();
+            if ($affected === 0 && $jobTitle !== '') {
+                $vacancies = 1;
+                $stmtInsRole = $conn->prepare('INSERT INTO job_roles (request_id, name, vacancies, description) VALUES (?, ?, ?, ?)');
+                $stmtInsRole->bind_param('ssis', $requestId, $jobTitle, $vacancies, $jobDescription);
+                $stmtInsRole->execute();
+                $stmtInsRole->close();
+            }
+        } else {
+            throw new RuntimeException('Missing job_description/job_roles table in job_desc database');
+        }
 
-             $hasName = isset($reqCols['name']);
-             $hasDesc = isset($reqCols['description']);
-             $hasRequirement = isset($reqCols['requirement']);
+        if ($tableExists($conn, 'qualifications')) {
+            $qualCols = $getColumns($conn, 'qualifications');
+            $idField = isset($qualCols['ID']) ? 'ID' : (isset($qualCols['id']) ? 'id' : 'id');
 
-             if ($hasName) {
-                 if (isset($reqCols[$idField]) && !$isAutoIncrement($reqCols, $idField)) {
-                     $stmtIns = $conn->prepare("INSERT INTO requirements (`{$idField}`, request_id, name, description) VALUES (?, ?, ?, ?)");
-                     if (!$stmtIns) throw new RuntimeException($conn->error);
-                     foreach ($reqItems as $r) {
-                         $name = trim((string)($r['name'] ?? ''));
-                         $desc = $r['description'] ?? null;
-                         if ($name === '') continue;
-                         $newId = $nextId($conn, 'requirements', $idField);
-                         if ($requestIdInt !== null) {
-                             $stmtIns->bind_param('iiss', $newId, $requestIdInt, $name, $desc);
-                         } else {
-                             $stmtIns->bind_param('isss', $newId, $requestId, $name, $desc);
-                         }
-                         $exec($stmtIns);
-                         $debug['requirements_inserts']++;
-                     }
-                     $stmtIns->close();
-                 } else {
-                     if ($hasDesc) {
-                         $stmtIns = $conn->prepare('INSERT INTO requirements (request_id, name, description) VALUES (?, ?, ?)');
-                         if (!$stmtIns) throw new RuntimeException($conn->error);
-                         foreach ($reqItems as $r) {
-                             $name = trim((string)($r['name'] ?? ''));
-                             $desc = $r['description'] ?? null;
-                             if ($name === '') continue;
-                             if ($requestIdInt !== null) {
-                                 $stmtIns->bind_param('iss', $requestIdInt, $name, $desc);
-                             } else {
-                                 $stmtIns->bind_param('sss', $requestId, $name, $desc);
-                             }
-                             $exec($stmtIns);
-                             $debug['requirements_inserts']++;
-                         }
-                         $stmtIns->close();
-                     } else {
-                         $stmtIns = $conn->prepare('INSERT INTO requirements (request_id, name) VALUES (?, ?)');
-                         if (!$stmtIns) throw new RuntimeException($conn->error);
-                         foreach ($reqItems as $r) {
-                             $name = trim((string)($r['name'] ?? ''));
-                             if ($name === '') continue;
-                             if ($requestIdInt !== null) {
-                                 $stmtIns->bind_param('is', $requestIdInt, $name);
-                             } else {
-                                 $stmtIns->bind_param('ss', $requestId, $name);
-                             }
-                             $exec($stmtIns);
-                             $debug['requirements_inserts']++;
-                         }
-                         $stmtIns->close();
-                     }
-                 }
-             } elseif ($hasRequirement) {
-                 $stmtIns = $conn->prepare('INSERT INTO requirements (request_id, requirement) VALUES (?, ?)');
-                 if (!$stmtIns) throw new RuntimeException($conn->error);
-                 foreach ($reqItems as $r) {
-                     $text = trim((string)($r['name'] ?? ''));
-                     $desc = trim((string)($r['description'] ?? ''));
-                     if ($text === '') continue;
-                     if ($desc !== '') $text .= ' | ' . $desc;
-                     $stmtIns->bind_param('ss', $requestId, $text);
-                     $exec($stmtIns);
-                     $debug['requirements_inserts']++;
-                 }
-                 $stmtIns->close();
-             }
-         } elseif ($tableExists($conn, 'job_requirements')) {
-             $stmtDel = $conn->prepare('DELETE FROM job_requirements WHERE request_id = ?');
-             $stmtDel->bind_param('s', $requestId);
-             $stmtDel->execute();
-             $stmtDel->close();
+            $stmtDel = $conn->prepare('DELETE FROM qualifications WHERE request_id = ?');
+            if (!$stmtDel) throw new RuntimeException($conn->error);
+            $stmtDel->bind_param('s', $requestId);
+            $exec($stmtDel);
+            $stmtDel->close();
 
-             $stmtIns = $conn->prepare('INSERT INTO job_requirements (request_id, requirement, category, is_essential) VALUES (?, ?, ?, ?)');
-             if (!$stmtIns) throw new RuntimeException($conn->error);
-             $category = 'General';
-             $essential = 1;
-             foreach ($reqItems as $r) {
-                 $text = trim((string)($r['name'] ?? ''));
-                 $desc = trim((string)($r['description'] ?? ''));
-                 if ($text === '') continue;
-                 if ($desc !== '') $text .= ' | ' . $desc;
-                 $stmtIns->bind_param('sssi', $requestId, $text, $category, $essential);
-                 $stmtIns->execute();
-                 $debug['requirements_inserts']++;
-             }
-             $stmtIns->close();
-         }
+            if (isset($qualCols[$idField]) && !$isAutoIncrement($qualCols, $idField)) {
+                $stmtIns = $conn->prepare("INSERT INTO qualifications (`{$idField}`, `request_id`, `qualification`) VALUES (?, ?, ?)");
+                if (!$stmtIns) throw new RuntimeException($conn->error);
+                foreach ($qualItems as $q) {
+                    $newId = $nextId($conn, 'qualifications', $idField);
+                    $text = trim((string)($q['name'] ?? ''));
+                    $desc = trim((string)($q['description'] ?? ''));
+                    if ($text === '') continue;
+                    if ($desc !== '') $text .= ' | ' . $desc;
+                    $stmtIns->bind_param('iss', $newId, $requestId, $text);
+                    $exec($stmtIns);
+                    $debug['qualifications_inserts']++;
+                }
+                $stmtIns->close();
+            } else {
+                $stmtIns = $conn->prepare('INSERT INTO qualifications (request_id, qualification) VALUES (?, ?)');
+                if (!$stmtIns) throw new RuntimeException($conn->error);
+                foreach ($qualItems as $q) {
+                    $text = trim((string)($q['name'] ?? ''));
+                    $desc = trim((string)($q['description'] ?? ''));
+                    if ($text === '') continue;
+                    if ($desc !== '') $text .= ' | ' . $desc;
+                    $stmtIns->bind_param('ss', $requestId, $text);
+                    $exec($stmtIns);
+                    $debug['qualifications_inserts']++;
+                }
+                $stmtIns->close();
+            }
+        } elseif ($tableExists($conn, 'qualificcaion')) {
+            $stmtDel = $conn->prepare('DELETE FROM qualificcaion WHERE request_id = ?');
+            $stmtDel->bind_param('s', $requestId);
+            $stmtDel->execute();
+            $stmtDel->close();
 
-         $conn->commit();
-         $conn->close();
+            $stmtIns = $conn->prepare('INSERT INTO qualificcaion (request_id, qualification) VALUES (?, ?)');
+            if (!$stmtIns) throw new RuntimeException($conn->error);
+            foreach ($qualItems as $q) {
+                $text = trim((string)($q['name'] ?? ''));
+                $desc = trim((string)($q['description'] ?? ''));
+                if ($text === '') continue;
+                if ($desc !== '') $text .= ' | ' . $desc;
+                $stmtIns->bind_param('ss', $requestId, $text);
+                $stmtIns->execute();
+                $debug['qualifications_inserts']++;
+            }
+            $stmtIns->close();
+        } elseif ($tableExists($conn, 'qualifications')) {
+            $stmtDel = $conn->prepare('DELETE FROM qualifications WHERE request_id = ?');
+            $stmtDel->bind_param('s', $requestId);
+            $stmtDel->execute();
+            $stmtDel->close();
 
-         echo json_encode(['success' => true, 'message' => 'Saved', 'debug' => $debug]);
-         exit;
-     } catch (Throwable $e) {
-         if (isset($conn) && $conn instanceof mysqli) {
-             try { $conn->rollback(); } catch (Throwable $t) {}
-             try { $conn->close(); } catch (Throwable $t) {}
-         }
-         echo json_encode(['success' => false, 'message' => $e->getMessage()]);
-         exit;
-     }
- }
+            $stmtIns = $conn->prepare('INSERT INTO qualifications (request_id, qualification, type, priority) VALUES (?, ?, ?, ?)');
+            if (!$stmtIns) throw new RuntimeException($conn->error);
+            $type = 'General';
+            $priority = 1;
+            foreach ($qualItems as $q) {
+                $text = trim((string)($q['name'] ?? ''));
+                $desc = trim((string)($q['description'] ?? ''));
+                if ($text === '') continue;
+                if ($desc !== '') $text .= ' | ' . $desc;
+                $stmtIns->bind_param('sssi', $requestId, $text, $type, $priority);
+                $stmtIns->execute();
+                $debug['qualifications_inserts']++;
+                $priority++;
+            }
+            $stmtIns->close();
+        }
 
- require('../../partials/header.php');
- ?>
+        if ($tableExists($conn, 'requirements')) {
+            $reqCols = $getColumns($conn, 'requirements');
+            $idField = isset($reqCols['ID']) ? 'ID' : (isset($reqCols['id']) ? 'id' : 'ID');
+
+            $stmtDel = $conn->prepare('DELETE FROM requirements WHERE request_id = ?');
+            if (!$stmtDel) throw new RuntimeException($conn->error);
+            if ($requestIdInt !== null) {
+                $stmtDel->bind_param('i', $requestIdInt);
+            } else {
+                $stmtDel->bind_param('s', $requestId);
+            }
+            $exec($stmtDel);
+            $stmtDel->close();
+
+            $hasName = isset($reqCols['name']);
+            $hasDesc = isset($reqCols['description']);
+            $hasRequirement = isset($reqCols['requirement']);
+
+            if ($hasName) {
+                if (isset($reqCols[$idField]) && !$isAutoIncrement($reqCols, $idField)) {
+                    $stmtIns = $conn->prepare("INSERT INTO requirements (`{$idField}`, request_id, name, description) VALUES (?, ?, ?, ?)");
+                    if (!$stmtIns) throw new RuntimeException($conn->error);
+                    foreach ($reqItems as $r) {
+                        $name = trim((string)($r['name'] ?? ''));
+                        $desc = $r['description'] ?? null;
+                        if ($name === '') continue;
+                        $newId = $nextId($conn, 'requirements', $idField);
+                        if ($requestIdInt !== null) {
+                            $stmtIns->bind_param('iiss', $newId, $requestIdInt, $name, $desc);
+                        } else {
+                            $stmtIns->bind_param('isss', $newId, $requestId, $name, $desc);
+                        }
+                        $exec($stmtIns);
+                        $debug['requirements_inserts']++;
+                    }
+                    $stmtIns->close();
+                } else {
+                    if ($hasDesc) {
+                        $stmtIns = $conn->prepare('INSERT INTO requirements (request_id, name, description) VALUES (?, ?, ?)');
+                        if (!$stmtIns) throw new RuntimeException($conn->error);
+                        foreach ($reqItems as $r) {
+                            $name = trim((string)($r['name'] ?? ''));
+                            $desc = $r['description'] ?? null;
+                            if ($name === '') continue;
+                            if ($requestIdInt !== null) {
+                                $stmtIns->bind_param('iss', $requestIdInt, $name, $desc);
+                            } else {
+                                $stmtIns->bind_param('sss', $requestId, $name, $desc);
+                            }
+                            $exec($stmtIns);
+                            $debug['requirements_inserts']++;
+                        }
+                        $stmtIns->close();
+                    } else {
+                        $stmtIns = $conn->prepare('INSERT INTO requirements (request_id, name) VALUES (?, ?)');
+                        if (!$stmtIns) throw new RuntimeException($conn->error);
+                        foreach ($reqItems as $r) {
+                            $name = trim((string)($r['name'] ?? ''));
+                            if ($name === '') continue;
+                            if ($requestIdInt !== null) {
+                                $stmtIns->bind_param('is', $requestIdInt, $name);
+                            } else {
+                                $stmtIns->bind_param('ss', $requestId, $name);
+                            }
+                            $exec($stmtIns);
+                            $debug['requirements_inserts']++;
+                        }
+                        $stmtIns->close();
+                    }
+                }
+            } elseif ($hasRequirement) {
+                $stmtIns = $conn->prepare('INSERT INTO requirements (request_id, requirement) VALUES (?, ?)');
+                if (!$stmtIns) throw new RuntimeException($conn->error);
+                foreach ($reqItems as $r) {
+                    $text = trim((string)($r['name'] ?? ''));
+                    $desc = trim((string)($r['description'] ?? ''));
+                    if ($text === '') continue;
+                    if ($desc !== '') $text .= ' | ' . $desc;
+                    $stmtIns->bind_param('ss', $requestId, $text);
+                    $exec($stmtIns);
+                    $debug['requirements_inserts']++;
+                }
+                $stmtIns->close();
+            }
+        } elseif ($tableExists($conn, 'job_requirements')) {
+            $stmtDel = $conn->prepare('DELETE FROM job_requirements WHERE request_id = ?');
+            $stmtDel->bind_param('s', $requestId);
+            $stmtDel->execute();
+            $stmtDel->close();
+
+            $stmtIns = $conn->prepare('INSERT INTO job_requirements (request_id, requirement, category, is_essential) VALUES (?, ?, ?, ?)');
+            if (!$stmtIns) throw new RuntimeException($conn->error);
+            $category = 'General';
+            $essential = 1;
+            foreach ($reqItems as $r) {
+                $text = trim((string)($r['name'] ?? ''));
+                $desc = trim((string)($r['description'] ?? ''));
+                if ($text === '') continue;
+                if ($desc !== '') $text .= ' | ' . $desc;
+                $stmtIns->bind_param('sssi', $requestId, $text, $category, $essential);
+                $stmtIns->execute();
+                $debug['requirements_inserts']++;
+            }
+            $stmtIns->close();
+        }
+
+        $conn->commit();
+        $conn->close();
+
+        echo json_encode(['success' => true, 'message' => 'Saved', 'debug' => $debug]);
+        exit;
+    } catch (Throwable $e) {
+        if (isset($conn) && $conn instanceof mysqli) {
+            try {
+                $conn->rollback();
+            } catch (Throwable $t) {
+            }
+            try {
+                $conn->close();
+            } catch (Throwable $t) {
+            }
+        }
+        echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+        exit;
+    }
+}
+
+require('../../partials/header.php');
+?>
+
 <body class="bg-base-100 min-h-screen bg-white">
     <div class="flex h-screen">
         <!-- Sidebar -->
@@ -997,7 +1009,9 @@
 
                         async function fetchJobDetails(requestId) {
                             const res = await fetch(window.location.pathname + '?action=fetch_job_details&request_id=' + encodeURIComponent(requestId), {
-                                headers: { 'Accept': 'application/json' }
+                                headers: {
+                                    'Accept': 'application/json'
+                                }
                             });
                             const json = await res.json();
                             if (!json || !json.success) {
@@ -1101,9 +1115,9 @@
                                 const typeNormalized = formatType(vacancy.type);
                                 const statusNormalized = safeText(vacancy.status).toLowerCase();
                                 const isExpired = Boolean(vacancy.is_expired);
-                                const daysRemaining = vacancy.days_remaining !== undefined && vacancy.days_remaining !== null
-                                    ? Number(vacancy.days_remaining)
-                                    : null;
+                                const daysRemaining = vacancy.days_remaining !== undefined && vacancy.days_remaining !== null ?
+                                    Number(vacancy.days_remaining) :
+                                    null;
                                 const createdAt = vacancy.created_at ? new Date(vacancy.created_at) : null;
                                 const createdAtLabel = createdAt && !isNaN(createdAt.getTime()) ? createdAt.toLocaleDateString() : '';
 
@@ -1181,51 +1195,51 @@
                             </td>
                         </tr>
                     `;
-                        }).join('');
+                            }).join('');
 
-                        // Update counts
-                        document.getElementById('totalCount').textContent = vacanciesArray.length;
-                        document.getElementById('endCount').textContent = vacanciesArray.length;
+                            // Update counts
+                            document.getElementById('totalCount').textContent = vacanciesArray.length;
+                            document.getElementById('endCount').textContent = vacanciesArray.length;
 
-                        // Re-initialize icons for newly added elements
-                        if (typeof lucide !== 'undefined') {
-                            lucide.createIcons();
+                            // Re-initialize icons for newly added elements
+                            if (typeof lucide !== 'undefined') {
+                                lucide.createIcons();
+                            }
                         }
-                    }
 
-                    // Search functionality
-                    searchInput.addEventListener('input', function(e) {
-                        const searchTerm = e.target.value.toLowerCase();
-                        const filteredData = Object.values(vacanciesData).filter(vacancy =>
-                            safeText(vacancy.title).toLowerCase().includes(searchTerm) ||
-                            safeText(vacancy.department || vacancy.department_name).toLowerCase().includes(searchTerm) ||
-                            safeText(vacancy.type).toLowerCase().includes(searchTerm) ||
-                            safeText(vacancy.status).toLowerCase().includes(searchTerm)
-                        );
+                        // Search functionality
+                        searchInput.addEventListener('input', function(e) {
+                            const searchTerm = e.target.value.toLowerCase();
+                            const filteredData = Object.values(vacanciesData).filter(vacancy =>
+                                safeText(vacancy.title).toLowerCase().includes(searchTerm) ||
+                                safeText(vacancy.department || vacancy.department_name).toLowerCase().includes(searchTerm) ||
+                                safeText(vacancy.type).toLowerCase().includes(searchTerm) ||
+                                safeText(vacancy.status).toLowerCase().includes(searchTerm)
+                            );
 
-                        renderVacancies(filteredData.reduce((acc, vacancy) => {
-                            const k = safeText(vacancy.request_id || vacancy.id);
-                            acc[k] = vacancy;
-                            return acc;
-                        }, {}));
-                    });
+                            renderVacancies(filteredData.reduce((acc, vacancy) => {
+                                const k = safeText(vacancy.request_id || vacancy.id);
+                                acc[k] = vacancy;
+                                return acc;
+                            }, {}));
+                        });
 
-                    // View vacancy details
-                    window.viewVacancyDetails = function(vacancyId) {
-                        const vacancy = vacanciesData[vacancyId];
-                        if (!vacancy) return;
+                        // View vacancy details
+                        window.viewVacancyDetails = function(vacancyId) {
+                            const vacancy = vacanciesData[vacancyId];
+                            if (!vacancy) return;
 
-                        const detailsRequestId = safeText(vacancy.request_id || vacancy.id);
+                            const detailsRequestId = safeText(vacancy.request_id || vacancy.id);
 
-                        const savedBlock = document.getElementById('savedJobDetailsBlock');
-                        if (savedBlock) {
-                            savedBlock.innerHTML = `
+                            const savedBlock = document.getElementById('savedJobDetailsBlock');
+                            if (savedBlock) {
+                                savedBlock.innerHTML = `
                                 <h4 class="font-semibold mb-3">Saved Job Details</h4>
                                 <div class="text-sm text-gray-500">Loading...</div>
                             `;
-                        }
+                            }
 
-                        modalContent.innerHTML = `
+                            modalContent.innerHTML = `
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <!-- Basic Information -->
                             <div class="space-y-4">
@@ -1339,29 +1353,29 @@
                         </div>
                     `;
 
-                        // Re-initialize icons in modal
-                        if (typeof lucide !== 'undefined') {
-                            lucide.createIcons();
-                        }
+                            // Re-initialize icons in modal
+                            if (typeof lucide !== 'undefined') {
+                                lucide.createIcons();
+                            }
 
-                        detailModal.showModal();
+                            detailModal.showModal();
 
-                        fetchJobDetails(detailsRequestId).then(d => {
-                            const el = document.getElementById('savedJobDetailsBlock');
-                            if (!el) return;
-                            const quals = Array.isArray(d.qualifications) ? d.qualifications : [];
-                            const reqs = Array.isArray(d.requirements) ? d.requirements : [];
-                            const qualList = quals.map(q => {
-                                const name = safeText(q && q.name);
-                                const desc = safeText(q && q.description);
-                                return desc ? `${name} | ${desc}` : name;
-                            }).filter(Boolean);
-                            const reqLines = reqs.map(r => {
-                                const name = safeText(r && r.name);
-                                const desc = safeText(r && r.description);
-                                return desc ? `${name} | ${desc}` : name;
-                            }).filter(Boolean);
-                            el.innerHTML = `
+                            fetchJobDetails(detailsRequestId).then(d => {
+                                const el = document.getElementById('savedJobDetailsBlock');
+                                if (!el) return;
+                                const quals = Array.isArray(d.qualifications) ? d.qualifications : [];
+                                const reqs = Array.isArray(d.requirements) ? d.requirements : [];
+                                const qualList = quals.map(q => {
+                                    const name = safeText(q && q.name);
+                                    const desc = safeText(q && q.description);
+                                    return desc ? `${name} | ${desc}` : name;
+                                }).filter(Boolean);
+                                const reqLines = reqs.map(r => {
+                                    const name = safeText(r && r.name);
+                                    const desc = safeText(r && r.description);
+                                    return desc ? `${name} | ${desc}` : name;
+                                }).filter(Boolean);
+                                el.innerHTML = `
                                 <h4 class="font-semibold mb-3">Saved Job Details</h4>
                                 <div class="grid grid-cols-1 gap-4">
                                     <div>
@@ -1378,214 +1392,215 @@
                                     </div>
                                 </div>
                             `;
-                        }).catch(err => {
-                            const el = document.getElementById('savedJobDetailsBlock');
-                            if (!el) return;
-                            el.innerHTML = `
+                            }).catch(err => {
+                                const el = document.getElementById('savedJobDetailsBlock');
+                                if (!el) return;
+                                el.innerHTML = `
                                 <h4 class="font-semibold mb-3">Saved Job Details</h4>
                                 <div class="text-sm text-red-600">${safeText(err.message) || 'Failed to load saved details'}</div>
                             `;
-                        });
-                    };
+                            });
+                        };
 
-                    window.openJobDetailsModal = function(vacancyId) {
-                        const vacancy = vacanciesData[vacancyId];
-                        if (!vacancy) return;
+                        window.openJobDetailsModal = function(vacancyId) {
+                            const vacancy = vacanciesData[vacancyId];
+                            if (!vacancy) return;
 
-                        const requestId = safeText(vacancy.request_id || vacancy.id);
-                        document.getElementById('jobDetailsRequestId').value = requestId;
-                        document.getElementById('jobDetailsJobTitle').value = safeText(vacancy.title);
-                        document.getElementById('jobDetailsDepartmentId').value = safeText(vacancy.department_id);
-                        document.getElementById('jobDetailsSubDepartmentId').value = safeText(vacancy.sub_department_id);
-                        document.getElementById('jobDetailsType').value = safeText(vacancy.type);
-                        document.getElementById('jobDetailsStatus').value = safeText(vacancy.status);
-                        document.getElementById('jobDetailsVacancies').value = safeText(vacancy.vacancies);
-                        document.getElementById('jobDetailsExamRequired').value = safeText(vacancy.exam_required);
-                        document.getElementById('jobDetailsSalaryMin').value = safeText(vacancy.salary_min);
-                        document.getElementById('jobDetailsSalaryMax').value = safeText(vacancy.salary_max);
-                        document.getElementById('jobDetailsJobPeriodDays').value = safeText(vacancy.job_period_days);
-                        document.getElementById('jobDetailsJobEndDate').value = safeText(vacancy.job_end_date);
-                        document.getElementById('jobDetailsRequestIdDisplay').value = requestId;
-                        document.getElementById('jobDetailsJobTitleDisplay').value = safeText(vacancy.title);
-                        document.getElementById('jobDescriptionInput').value = '';
-                        const qualsList = document.getElementById('qualificationsList');
-                        const reqsList = document.getElementById('requirementsList');
-                        resetArrayList(qualsList);
-                        resetArrayList(reqsList);
-                        createArrayRow({
-                            container: qualsList,
-                            nameField: 'qualifications_name[]',
-                            descField: 'qualifications_description[]',
-                            nameValue: '',
-                            descValue: ''
-                        });
-                        createArrayRow({
-                            container: reqsList,
-                            nameField: 'requirements_name[]',
-                            descField: 'requirements_description[]',
-                            nameValue: '',
-                            descValue: ''
-                        });
-
-                        document.getElementById('jobDetailsModal').showModal();
-
-                        fetchJobDetails(requestId).then(d => {
-                            document.getElementById('jobDescriptionInput').value = safeText(d.description);
-                            const quals = Array.isArray(d.qualifications) ? d.qualifications : [];
-                            const reqs = Array.isArray(d.requirements) ? d.requirements : [];
-
+                            const requestId = safeText(vacancy.request_id || vacancy.id);
+                            document.getElementById('jobDetailsRequestId').value = requestId;
+                            document.getElementById('jobDetailsJobTitle').value = safeText(vacancy.title);
+                            document.getElementById('jobDetailsDepartmentId').value = safeText(vacancy.department_id);
+                            document.getElementById('jobDetailsSubDepartmentId').value = safeText(vacancy.sub_department_id);
+                            document.getElementById('jobDetailsType').value = safeText(vacancy.type);
+                            document.getElementById('jobDetailsStatus').value = safeText(vacancy.status);
+                            document.getElementById('jobDetailsVacancies').value = safeText(vacancy.vacancies);
+                            document.getElementById('jobDetailsExamRequired').value = safeText(vacancy.exam_required);
+                            document.getElementById('jobDetailsSalaryMin').value = safeText(vacancy.salary_min);
+                            document.getElementById('jobDetailsSalaryMax').value = safeText(vacancy.salary_max);
+                            document.getElementById('jobDetailsJobPeriodDays').value = safeText(vacancy.job_period_days);
+                            document.getElementById('jobDetailsJobEndDate').value = safeText(vacancy.job_end_date);
+                            document.getElementById('jobDetailsRequestIdDisplay').value = requestId;
+                            document.getElementById('jobDetailsJobTitleDisplay').value = safeText(vacancy.title);
+                            document.getElementById('jobDescriptionInput').value = '';
+                            const qualsList = document.getElementById('qualificationsList');
+                            const reqsList = document.getElementById('requirementsList');
                             resetArrayList(qualsList);
                             resetArrayList(reqsList);
+                            createArrayRow({
+                                container: qualsList,
+                                nameField: 'qualifications_name[]',
+                                descField: 'qualifications_description[]',
+                                nameValue: '',
+                                descValue: ''
+                            });
+                            createArrayRow({
+                                container: reqsList,
+                                nameField: 'requirements_name[]',
+                                descField: 'requirements_description[]',
+                                nameValue: '',
+                                descValue: ''
+                            });
 
-                            if (quals.length) {
-                                quals.forEach(q => {
+                            document.getElementById('jobDetailsModal').showModal();
+
+                            fetchJobDetails(requestId).then(d => {
+                                document.getElementById('jobDescriptionInput').value = safeText(d.description);
+                                const quals = Array.isArray(d.qualifications) ? d.qualifications : [];
+                                const reqs = Array.isArray(d.requirements) ? d.requirements : [];
+
+                                resetArrayList(qualsList);
+                                resetArrayList(reqsList);
+
+                                if (quals.length) {
+                                    quals.forEach(q => {
+                                        createArrayRow({
+                                            container: qualsList,
+                                            nameField: 'qualifications_name[]',
+                                            descField: 'qualifications_description[]',
+                                            nameValue: q && q.name,
+                                            descValue: q && q.description
+                                        });
+                                    });
+                                } else {
                                     createArrayRow({
                                         container: qualsList,
                                         nameField: 'qualifications_name[]',
                                         descField: 'qualifications_description[]',
-                                        nameValue: q && q.name,
-                                        descValue: q && q.description
+                                        nameValue: '',
+                                        descValue: ''
                                     });
-                                });
-                            } else {
-                                createArrayRow({
-                                    container: qualsList,
-                                    nameField: 'qualifications_name[]',
-                                    descField: 'qualifications_description[]',
-                                    nameValue: '',
-                                    descValue: ''
-                                });
-                            }
+                                }
 
-                            if (reqs.length) {
-                                reqs.forEach(r => {
+                                if (reqs.length) {
+                                    reqs.forEach(r => {
+                                        createArrayRow({
+                                            container: reqsList,
+                                            nameField: 'requirements_name[]',
+                                            descField: 'requirements_description[]',
+                                            nameValue: r && r.name,
+                                            descValue: r && r.description
+                                        });
+                                    });
+                                } else {
                                     createArrayRow({
                                         container: reqsList,
                                         nameField: 'requirements_name[]',
                                         descField: 'requirements_description[]',
-                                        nameValue: r && r.name,
-                                        descValue: r && r.description
+                                        nameValue: '',
+                                        descValue: ''
                                     });
-                                });
-                            } else {
-                                createArrayRow({
-                                    container: reqsList,
-                                    nameField: 'requirements_name[]',
-                                    descField: 'requirements_description[]',
-                                    nameValue: '',
-                                    descValue: ''
-                                });
-                            }
-                        }).catch(() => {
-                        });
-                    };
+                                }
+                            }).catch(() => {});
+                        };
 
-                    document.getElementById('addQualificationRowBtn').addEventListener('click', () => {
-                        const container = document.getElementById('qualificationsList');
-                        createArrayRow({
-                            container,
-                            nameField: 'qualifications_name[]',
-                            descField: 'qualifications_description[]',
-                            nameValue: '',
-                            descValue: ''
-                        });
-                    });
-
-                    document.getElementById('addRequirementRowBtn').addEventListener('click', () => {
-                        const container = document.getElementById('requirementsList');
-                        createArrayRow({
-                            container,
-                            nameField: 'requirements_name[]',
-                            descField: 'requirements_description[]',
-                            nameValue: '',
-                            descValue: ''
-                        });
-                    });
-
-                    async function fetchVacancies() {
-                        loadingState.classList.remove('hidden');
-                        emptyState.classList.add('hidden');
-                        try {
-                            const res = await fetch(window.location.pathname + '?action=fetch_vacancies', {
-                                headers: { 'Accept': 'application/json' }
+                        document.getElementById('addQualificationRowBtn').addEventListener('click', () => {
+                            const container = document.getElementById('qualificationsList');
+                            createArrayRow({
+                                container,
+                                nameField: 'qualifications_name[]',
+                                descField: 'qualifications_description[]',
+                                nameValue: '',
+                                descValue: ''
                             });
-                            const json = await res.json();
-                            if (!json || !json.success) {
-                                throw new Error(json && json.message ? json.message : 'Failed to load vacancies');
-                            }
-                            vacanciesData = json.data || {};
-                            renderVacancies(vacanciesData);
-                        } catch (e) {
-                            loadingState.classList.add('hidden');
-                            emptyState.classList.remove('hidden');
-                            vacanciesTableBody.innerHTML = '';
-                            if (typeof Swal !== 'undefined') {
-                                Swal.fire({
-                                    icon: 'error',
-                                    title: 'Error',
-                                    text: e.message || 'Failed to load vacancies'
+                        });
+
+                        document.getElementById('addRequirementRowBtn').addEventListener('click', () => {
+                            const container = document.getElementById('requirementsList');
+                            createArrayRow({
+                                container,
+                                nameField: 'requirements_name[]',
+                                descField: 'requirements_description[]',
+                                nameValue: '',
+                                descValue: ''
+                            });
+                        });
+
+                        async function fetchVacancies() {
+                            loadingState.classList.remove('hidden');
+                            emptyState.classList.add('hidden');
+                            try {
+                                const res = await fetch(window.location.pathname + '?action=fetch_vacancies', {
+                                    headers: {
+                                        'Accept': 'application/json'
+                                    }
                                 });
+                                const json = await res.json();
+                                if (!json || !json.success) {
+                                    throw new Error(json && json.message ? json.message : 'Failed to load vacancies');
+                                }
+                                vacanciesData = json.data || {};
+                                renderVacancies(vacanciesData);
+                            } catch (e) {
+                                loadingState.classList.add('hidden');
+                                emptyState.classList.remove('hidden');
+                                vacanciesTableBody.innerHTML = '';
+                                if (typeof Swal !== 'undefined') {
+                                    Swal.fire({
+                                        icon: 'error',
+                                        title: 'Error',
+                                        text: e.message || 'Failed to load vacancies'
+                                    });
+                                }
                             }
                         }
-                    }
 
-                    document.getElementById('jobDetailsForm').addEventListener('submit', async function(e) {
-                        e.preventDefault();
-                        const form = e.currentTarget;
-                        const btn = document.getElementById('saveJobDetailsBtn');
-                        btn.disabled = true;
-                        try {
-                            const fd = new FormData(form);
-                            const requestId = fd.get('request_id');
-                            const res = await fetch(window.location.pathname + '?action=save_job_details', {
-                                method: 'POST',
-                                body: fd
-                            });
-                            const json = await res.json();
-                            if (!json || !json.success) {
-                                throw new Error(json && json.message ? json.message : 'Failed to save');
-                            }
-
-                            document.getElementById('jobDetailsModal').close();
-                            if (typeof Swal !== 'undefined') {
-                                const dbg = json.debug || {};
-                                const extra = dbg.db ? ` (DB: ${dbg.db}, JV: ${dbg.job_vacancy_inserted || 0}, JD: ${dbg.job_description_inserts || 0}, Q: ${dbg.qualifications_inserts || 0}, R: ${dbg.requirements_inserts || 0})` : '';
-                                Swal.fire({
-                                    icon: 'success',
-                                    title: 'Saved',
-                                    text: 'Job details saved successfully' + extra
+                        document.getElementById('jobDetailsForm').addEventListener('submit', async function(e) {
+                            e.preventDefault();
+                            const form = e.currentTarget;
+                            const btn = document.getElementById('saveJobDetailsBtn');
+                            btn.disabled = true;
+                            try {
+                                const fd = new FormData(form);
+                                const requestId = fd.get('request_id');
+                                const res = await fetch(window.location.pathname + '?action=save_job_details', {
+                                    method: 'POST',
+                                    body: fd
                                 });
+                                const json = await res.json();
+                                if (!json || !json.success) {
+                                    throw new Error(json && json.message ? json.message : 'Failed to save');
+                                }
+
+                                document.getElementById('jobDetailsModal').close();
+                                if (typeof Swal !== 'undefined') {
+                                    const dbg = json.debug || {};
+                                    const extra = dbg.db ? ` (DB: ${dbg.db}, JV: ${dbg.job_vacancy_inserted || 0}, JD: ${dbg.job_description_inserts || 0}, Q: ${dbg.qualifications_inserts || 0}, R: ${dbg.requirements_inserts || 0})` : '';
+                                    Swal.fire({
+                                        icon: 'success',
+                                        title: 'Saved',
+                                        text: 'Job details saved successfully' + extra
+                                    });
+                                }
+
+                                if (requestId) {
+                                    setTimeout(() => {
+                                        window.viewVacancyDetails(String(requestId));
+                                    }, 200);
+                                }
+                            } catch (err) {
+                                if (typeof Swal !== 'undefined') {
+                                    Swal.fire({
+                                        icon: 'error',
+                                        title: 'Error',
+                                        text: err.message || 'Failed to save'
+                                    });
+                                }
+                            } finally {
+                                btn.disabled = false;
                             }
+                        });
 
-                            if (requestId) {
-                                setTimeout(() => {
-                                    window.viewVacancyDetails(String(requestId));
-                                }, 200);
-                            }
-                        } catch (err) {
-                            if (typeof Swal !== 'undefined') {
-                                Swal.fire({
-                                    icon: 'error',
-                                    title: 'Error',
-                                    text: err.message || 'Failed to save'
-                                });
-                            }
-                        } finally {
-                            btn.disabled = false;
-                        }
+                        fetchVacancies();
+
+                        // Pagination handlers
+                        document.getElementById('prevPage').addEventListener('click', () => {
+                            console.log('Previous page clicked');
+                        });
+                        document.getElementById('nextPage').addEventListener('click', () => {
+                            console.log('Next page clicked');
+                        });
                     });
+                </script>
 
-                    fetchVacancies();
-
-                    // Pagination handlers
-                    document.getElementById('prevPage').addEventListener('click', () => {
-                        console.log('Previous page clicked');
-                    });
-                    document.getElementById('nextPage').addEventListener('click', () => {
-                        console.log('Next page clicked');
-                    });
-                });
-            </script>
-
-            <script src="../JAVASCRIPT/sidebar.js"></script>
-            <?php require('../../partials/footer.php') ?>
+                <script src="../JAVASCRIPT/sidebar.js"></script>
+                <?php require('../../partials/footer.php') ?>
